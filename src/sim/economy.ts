@@ -20,7 +20,7 @@ function hash(s: string): number {
 /** F-ECO-3 : la brocante change chaque jour (même stock toute la journée). */
 export function marketStock(dayKey: string): { itemId: ItemId; price: number }[] {
   const rng = createRng(hash(`brocante-${dayKey}`));
-  const pool = ITEMS.filter((i) => i.category !== 'found' || i.rare);
+  const pool = ITEMS.filter((i) => !i.unlock && (i.category !== 'found' || i.rare));
   const picks: ItemDef[] = [];
   while (picks.length < E.marketSize && picks.length < pool.length) {
     const it = rng.pick(pool);

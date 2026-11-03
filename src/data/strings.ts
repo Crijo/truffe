@@ -161,3 +161,74 @@ export const UI = {
   puppy: 'Ton chiot',
   asleep: 'Il dort',
 } as const;
+
+export const CONTEST_NAMES = { disc: 'Disque', agility: 'Agilité', obedience: 'Obéissance' } as const;
+export const CLASS_NAMES = ['Débutant', 'Ouvert', 'Expert', 'Maître', 'Champion'] as const;
+
+export const CONTEST = {
+  title: 'Concours',
+  hint: 'Trois concours par jour avec des prix',
+  enter: 'S’inscrire',
+  forFun: 'Pour le plaisir : plus de prix aujourd’hui.',
+  prizesLeft: 'Prix encore possibles aujourd’hui : {n}',
+  /** F-CON-7 : une phrase par raison de refus. */
+  refusal(reason: 'hungry' | 'dirty' | 'notVisited' | 'noTricks', contest: 'disc' | 'agility' | 'obedience', name: string): string {
+    switch (reason) {
+      case 'hungry':
+        return `${name} a trop faim pour concourir : donne-lui d’abord à manger.`;
+      case 'dirty':
+        return `${name} est trop sale pour se présenter : un bain d’abord !`;
+      case 'notVisited':
+        return contest === 'disc' ? `Passe d’abord par le parc en promenade pour découvrir le disque.` : `Passe d’abord par le gymnase en promenade pour découvrir l’agilité.`;
+      case 'noTricks':
+        return `${name} doit connaître au moins un tour pour l’obéissance.`;
+    }
+  },
+  discHint: 'Lance le disque d’un geste vers le haut. Doux, il l’attrape en l’air.',
+  agilityHint: 'Garde le doigt sur l’écran : ton chiot suit ton doigt d’obstacle en obstacle.',
+  obedienceHint: 'Donne l’ordre affiché, au bouton ou à la voix, le plus vite possible.',
+  start: 'Partez !',
+  quit: 'Abandonner',
+  time: 'Temps',
+  score: 'Score',
+  penalties: 'Pénalités',
+  resultTitle: 'Résultats',
+  place: ['1re place', '2e place', '3e place', '4e place', '5e place', '6e place'],
+  classUp: '{name} passe en classe {cls} !',
+  noPrize: 'Pour le plaisir : pas de gain cette fois.',
+  consolation: 'Pas de podium, mais un peu d’expérience.',
+  points: 'points de maître',
+  coins: 'pièces',
+  back: 'Rentrer',
+  you: 'Toi',
+  rivals: ['Pirouette', 'Gribouille', 'Zéphyr', 'Bonbon', 'Cannelle'],
+  air: 'En l’air !',
+  ground: 'Au sol',
+  out: 'Dehors',
+  wrongOrder: 'Raté',
+} as const;
+
+export const UNLOCKS = {
+  title: 'Nouveau !',
+  rope: 'La corde et le gros ballon sont arrivés.',
+  breed: 'Une nouvelle race t’attend au chenil : {breed}.',
+  sofa: 'Un petit canapé pour la sieste.',
+  decor: 'Nouveau décor : {decor}.',
+  toy: 'Un jouet mécanique dans ton sac.',
+  secret: 'Une race secrète est apparue au chenil…',
+} as const;
+
+export const DECOR_NAMES = { home: 'Maison', seaside: 'Bord de mer', space: 'Espace' } as const;
+
+export const FAMILY = {
+  title: 'Pension',
+  home: 'À la maison',
+  hotel: 'À la pension',
+  toHotel: 'En pension',
+  toHome: 'À la maison',
+  homeFull: 'Il y a déjà 3 chiots à la maison.',
+  hotelFull: 'La pension est pleine (5 places).',
+  lastHome: 'Garde au moins un chiot à la maison.',
+  full: 'Tu as déjà 8 chiots : c’est le maximum.',
+  decor: 'Décor',
+} as const;

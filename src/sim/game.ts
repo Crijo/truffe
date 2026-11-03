@@ -9,6 +9,7 @@ import {
   type BowlView,
   type Effects,
   type Gesture,
+  type Friend,
   type PuppyContext,
   type PuppyMind,
   type Vec2,
@@ -24,7 +25,25 @@ import { awardPoints, buy, gain, lose, marketStock, sell, shopCatalog, toggleEqu
 import { finishWalk, pickUp, questionPoints, rewardable, startWalk, stepWalk, walkGains, type QuestionPoint, type Route, type WalkState } from './walk';
 import { ITEM_BY_ID, type ItemId } from '../data/items';
 import type { TrickId } from '../data/tricks';
-import type { VoiceTemplate } from './state';
+import type { ContestId, VoiceTemplate } from './state';
+import { availableBreeds, availableDecors, grantUnlocks, itemLocked } from './unlocks';
+import type { DecorId } from './state';
+import { canEnter, prizeLeft, settleContest, type ContestResult } from './contests';
+import { startDisc, stepDisc, throwDisc, type DiscRun } from './contest/disc';
+import { aimAgility, startAgility, stepAgility, type AgilityRun } from './contest/agility';
+import { orderObedience, startObedience, stepObedience, type ObedienceRun } from './contest/obedience';
+
+/** Concours en cours (F-CON), puis son bilan. */
+export interface ContestSession {
+  contestId: ContestId;
+  dogId: DogId;
+  contestClass: Dog['contestClass'][ContestId];
+  /** F-CON-6 : faux au-delà de 3 concours dans la journée. */
+  prize: boolean;
+  seed: number;
+  run: DiscRun | AgilityRun | ObedienceRun;
+  result: ContestResult | null;
+}
 
 /** État complet : la partie sauvegardée, et ce qui ne vit que pendant la session. */
 export interface GameState {
@@ -40,6 +59,9 @@ export interface GameState {
   kennel: { breedId: BreedId; litter: Candidate[] } | null;
   /** Promenade en cours (F-PRO), ou son bilan. */
   walk: WalkState | null;
+  contest: ContestSession | null;
+  /** Le chiot que le joueur a touché en dernier, parmi ceux de la maison. */
+  active: DogId | null;
   night: boolean;
 }
 
@@ -78,6 +100,18 @@ export type GameAction =
   | { type: 'walk/enter' }
   | { type: 'walk/finish' }
   | { type: 'walk/close' }
+  | { type: 'contest/enter'; contestId: ContestId; dogId?: DogId }
+  /** Disque : geste du doigt, en pixels par milliseconde, vers le haut positif. */
+  | { type: 'contest/throw'; fx: number; fy: number }
+  /** Agilité : le doigt sur le terrain, en mètres (null : levé). */
+  | { type: 'contest/aim'; at: { x: number; y: number } | null }
+  | { type: 'contest/order'; trickId: TrickId }
+  | { type: 'contest/quit' }
+  | { type: 'contest/close' }
+  /** F-VIE-4 : chiot actif, maison et pension, décor. */
+  | { type: 'family/select'; dogId: DogId }
+  | { type: 'family/move'; dogId: DogId; to: 'home' | 'hotel' }
+  | { type: 'settings/decor'; decor: DecorId }
   | { type: 'shop/buy'; itemId: ItemId }
   | { type: 'market/buy'; itemId: ItemId }
   | { type: 'market/sell'; itemId: ItemId }
@@ -95,19 +129,20 @@ export function createNewGame(now: number, seed: number): SaveGame {
     lastSeenAt: now,
     coins: BALANCE.economy.welcomeCoins,
     masterPoints: 0,
+    unlockTier: 0,
     inventory: {},
     discovered: { items: [], tricks: [] },
     dogs: [],
     homeDogIds: [],
     day: { dayKey: '', perDog: {} },
-    settings: { reduceMotion: false, musicVolume: 0.6, sfxVolume: 0.8, micAllowed: null },
+    settings: { reduceMotion: false, musicVolume: 0.6, sfxVolume: 0.8, micAllowed: null, decor: 'home' },
     rngState: seed >>> 0,
     stats: { sessions: 0 },
   };
 }
 
 export function createGameState(save: SaveGame): GameState {
-  return { save, minds: {}, bowls: [], nextBowlId: 1, toys: [], nextToyId: 1, kennel: null, walk: null, night: false };
+  return { save, minds: {}, bowls: [], nextBowlId: 1, toys: [], nextToyId: 1, kennel: null, walk: null, contest: null, active: null, night: false };
 }
 
 /** Chiens à nommer : ceux des jalons 1 et 2 n'avaient pas de nom. */
@@ -119,8 +154,27 @@ const emptyCounters = (): DogDailyCounters => ({ masterPoints: 0, caresses: 0, n
 const F = BALANCE.puppy.floor;
 const clamp100 = (v: number): number => Math.min(100, Math.max(0, v));
 
+/** Le chiot visé par défaut : le chiot actif s'il est à la maison, sinon le premier. */
+export function homeId(state: GameState): DogId | undefined {
+  const a = state.active;
+  return a && state.save.homeDogIds.includes(a) ? a : state.save.homeDogIds[0];
+}
+
+/** F-VIE-4 : ce que chaque chiot voit des autres chiots de la maison. */
+function friendsOf(dog: Dog, state: GameState): Friend[] {
+  const out: Friend[] = [];
+  for (const id of state.save.homeDogIds) {
+    const m = state.minds[id];
+    if (id === dog.id || !m) continue;
+    out.push({ id, pos: m.pos, activity: m.activity, partner: m.play?.partner ?? null });
+  }
+  return out;
+}
+
 function contextOf(dog: Dog, state: GameState): PuppyContext {
   return {
+    selfId: dog.id,
+    friends: friendsOf(dog, state),
     traits: dog.traits,
     affection: dog.affection,
     energy: dog.needs.energy,
@@ -158,6 +212,7 @@ function setToy(state: GameState, id: string, f: (t: Toy) => Toy): GameState {
 
 function applyEffects(state: GameState, dogId: DogId, fx: Effects): GameState {
   let save = state.save;
+  const before = save.dogs.find((d) => d.id === dogId);
   const counters = save.day.perDog[dogId] ?? emptyCounters();
   const C = BALANCE.puppy.caress;
   const allowed = Math.max(0, Math.min(fx.caresses, C.dailyCap - counters.caresses));
@@ -187,6 +242,7 @@ function applyEffects(state: GameState, dogId: DogId, fx: Effects): GameState {
       ),
     };
   }
+  if (before) save = awardPoints(save, dogId, careGains(before, save.dogs.find((d) => d.id === dogId) ?? before, fx));
   if (fx.trained || fx.masteryUp) save = applyTraining(save, dogId, fx);
   let s: GameState = save === state.save ? state : { ...state, save };
   if (fx.bowlEaten) s = { ...s, bowls: s.bowls.filter((b) => b.id !== fx.bowlEaten) };
@@ -198,6 +254,22 @@ function applyEffects(state: GameState, dogId: DogId, fx: Effects): GameState {
     s = setToy(s, drop.id, (t) => ({ ...t, state: 'ground', carrier: null, pos: { ...drop.pos }, h: 0, v: { x: 0, z: 0, h: 0 } }));
   }
   return s;
+}
+
+/** F-ECO-2 : points des soins, si le besoin était réel (D-08), et des tours réussis. */
+function careGains(before: Dog, after: Dog, fx: Effects): number {
+  const G = BALANCE.gains;
+  const need = BALANCE.needs.realNeed;
+  let pts = 0;
+  if (fx.bowlEaten) {
+    if (fx.hungerDelta > 0 && before.needs.hunger < need.hunger) pts += G.meal;
+    if (fx.thirstDelta > 0 && before.needs.thirst < need.thirst) pts += G.meal;
+  }
+  // Bain terminé, ou brossage qui rend le pelage « Superbe ».
+  const groomed = fx.cleanSet !== null || (fx.cleanDelta > 0 && after.needs.cleanliness >= need.cleanliness);
+  if (groomed && before.needs.cleanliness < need.cleanliness) pts += G.groom;
+  if (fx.masteryUp) pts += G.trickRepeat;
+  return pts;
 }
 
 /** Répétitions, tours appris et maîtrise (F-DRE-2, F-DRE-4). */
@@ -222,11 +294,12 @@ function applyTraining(save: SaveGame, dogId: DogId, fx: Effects): SaveGame {
     return { ...d, tricks };
   });
   const perDog = learnedNow ? { ...save.day.perDog, [dogId]: { ...counters, newTricks: counters.newTricks + 1 } } : save.day.perDog;
-  return { ...save, dogs, day: { ...save.day, perDog } };
+  const next = { ...save, dogs, day: { ...save.day, perDog } };
+  return learnedNow ? awardPoints(next, dogId, BALANCE.gains.newTrick) : next;
 }
 
 function editTricks(state: GameState, dogId: DogId | undefined, f: (d: Dog) => Dog): GameState {
-  const id = dogId ?? state.save.homeDogIds[0];
+  const id = dogId ?? homeId(state);
   return { ...state, save: { ...state.save, dogs: state.save.dogs.map((d) => (d.id === id ? f(d) : d)) } };
 }
 
@@ -243,7 +316,7 @@ export function currentQuestions(save: SaveGame): QuestionPoint[] {
   return questionPoints(walkSeed(save));
 }
 
-const firstDog = (state: GameState, dogId?: DogId): Dog | undefined => state.save.dogs.find((d) => d.id === (dogId ?? state.save.homeDogIds[0]));
+const firstDog = (state: GameState, dogId?: DogId): Dog | undefined => state.save.dogs.find((d) => d.id === (dogId ?? homeId(state)));
 
 /** Fin de promenade : propreté et énergie si elle est allée au bout ; gains si elle était éligible (F-PRO-7). */
 function settleWalk(state: GameState, w: WalkState): GameState {
@@ -265,10 +338,38 @@ function settleWalk(state: GameState, w: WalkState): GameState {
   return { ...state, save, walk: w };
 }
 
+function stepRun(run: ContestSession['run'], dtMs: number): ContestSession['run'] {
+  switch (run.kind) {
+    case 'disc':
+      return stepDisc(run, dtMs);
+    case 'agility':
+      return stepAgility(run, dtMs);
+    case 'obedience':
+      return stepObedience(run, dtMs);
+  }
+}
+
+/** Un pas de concours ; à la fin, le classement et les gains. */
+function stepContest(state: GameState, dtMs: number): GameState {
+  const c = state.contest;
+  if (!c || c.result) return state;
+  const run = stepRun(c.run, dtMs);
+  if (!run.finished) return { ...state, contest: { ...c, run } };
+  const score = Math.round(run.score * 10) / 10;
+  const r = settleContest(state.save, c.dogId, c.contestId, score, c.seed, state.save.lastSeenAt, c.prize);
+  return { ...state, save: r.save, contest: { ...c, run, result: r.result } };
+}
+
+/** D-60 : à la pension, on nourrit, abreuve et brosse les chiots. */
+function boarded(d: Dog): Dog {
+  const k = BALANCE.family.hotelCare;
+  return { ...d, needs: { hunger: Math.max(d.needs.hunger, k), thirst: Math.max(d.needs.thirst, k), cleanliness: Math.max(d.needs.cleanliness, k), energy: 100 } };
+}
+
 /** Temps écoulé hors du jeu, appliqué à chaque chien. */
 function offline(save: SaveGame, from: number, to: number, tzOffsetMin: number): SaveGame {
   if (!(to > from)) return save;
-  return { ...save, dogs: save.dogs.map((d) => applyOffline(d, from, to, tzOffsetMin)) };
+  return { ...save, dogs: save.dogs.map((d) => (save.homeDogIds.includes(d.id) ? applyOffline(d, from, to, tzOffsetMin) : boarded(applyOffline(d, from, to, tzOffsetMin)))) };
 }
 
 function greetAll(state: GameState, absenceMs: number): GameState {
@@ -298,6 +399,12 @@ function clampFloor(p: Vec2): Vec2 {
 
 /** Réducteur pur : renvoie un nouvel état, ne modifie jamais celui reçu. */
 export function reduce(state: GameState, action: GameAction): GameState {
+  const next = reduceAction(state, action);
+  const save = grantUnlocks(next.save);
+  return save === next.save ? next : { ...next, save };
+}
+
+function reduceAction(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'session/start':
     case 'session/resume': {
@@ -325,6 +432,7 @@ export function reduce(state: GameState, action: GameAction): GameState {
         s = { ...state, save: { ...save, lastSeenAt: action.now }, night: isNight(action.now, action.tzOffsetMin) };
       }
       if (s.toys.length > 0) s = { ...s, toys: s.toys.map((t) => stepToy(t, action.dtMs)) };
+      if (s.contest && !s.contest.result) s = stepContest(s, action.dtMs);
       if (s.walk && !s.walk.finished) {
         const r = stepWalk(s.walk, action.dtMs, firstDog(s)?.traits.docility ?? 0.5);
         let save = s.save;
@@ -355,7 +463,7 @@ export function reduce(state: GameState, action: GameAction): GameState {
       return s;
     }
     case 'gesture':
-      return gestureAll(state, action.gesture, action.dogId ?? state.save.homeDogIds[0]);
+      return gestureAll(state, action.gesture, action.dogId ?? homeId(state));
     case 'care/bowl': {
       const pos = action.at
         ? { x: Math.min(F.maxX, Math.max(F.minX, action.at.x)), z: Math.min(F.maxZ, Math.max(F.minZ + 0.15, action.at.z)) }
@@ -367,6 +475,7 @@ export function reduce(state: GameState, action: GameAction): GameState {
 
     // ------------------------------------------------------------ adoption (F-ADO)
     case 'kennel/open': {
+      if (!availableBreeds(state.save.masterPoints).includes(action.breedId)) return state;
       const rng = createRng(state.save.rngState);
       const litter = rollLitter(rng, action.breedId);
       return { ...state, kennel: { breedId: action.breedId, litter }, save: { ...state.save, rngState: rng.getState() } };
@@ -376,11 +485,11 @@ export function reduce(state: GameState, action: GameAction): GameState {
     case 'adopt': {
       const pick = state.kennel?.litter[action.index];
       const name = validateName(action.name);
-      if (!pick || !name.ok) return state;
+      if (!pick || !name.ok || state.save.dogs.length >= BALANCE.family.maxDogs) return state;
       const price = adoptionPrice(state.save, pick.breedId);
       if (state.save.coins < price) return state;
       const dog = dogFromCandidate(pick, name.name);
-      const atHome = state.save.homeDogIds.length < 3;
+      const atHome = state.save.homeDogIds.length < BALANCE.family.maxHome;
       const save: SaveGame = {
         ...state.save,
         coins: state.save.coins - price,
@@ -388,7 +497,7 @@ export function reduce(state: GameState, action: GameAction): GameState {
         homeDogIds: atHome ? [...state.save.homeDogIds, dog.id] : state.save.homeDogIds,
         lastSeenAt: Math.max(state.save.lastSeenAt, action.now),
       };
-      return ensureMinds({ ...state, save, kennel: null });
+      return ensureMinds({ ...state, save, kennel: null, active: atHome ? dog.id : state.active });
     }
     case 'rename': {
       const name = validateName(action.name);
@@ -441,15 +550,15 @@ export function reduce(state: GameState, action: GameAction): GameState {
 
     // ------------------------------------------------------------ dressage (F-DRE)
     case 'train':
-      return gestureAll(state, { kind: 'train' }, action.dogId ?? state.save.homeDogIds[0]);
+      return gestureAll(state, { kind: 'train' }, action.dogId ?? homeId(state));
     case 'order':
-      return gestureAll(state, { kind: 'order', trickId: action.trickId }, action.dogId ?? state.save.homeDogIds[0]);
+      return gestureAll(state, { kind: 'order', trickId: action.trickId }, action.dogId ?? homeId(state));
     case 'voice/miss':
-      return gestureAll(state, { kind: 'voiceMiss' }, action.dogId ?? state.save.homeDogIds[0]);
+      return gestureAll(state, { kind: 'voiceMiss' }, action.dogId ?? homeId(state));
     case 'voice/similar':
-      return gestureAll(state, { kind: 'orderSimilar' }, action.dogId ?? state.save.homeDogIds[0]);
+      return gestureAll(state, { kind: 'orderSimilar' }, action.dogId ?? homeId(state));
     case 'call':
-      return gestureAll(state, { kind: 'call' }, action.dogId ?? state.save.homeDogIds[0]);
+      return gestureAll(state, { kind: 'call' }, action.dogId ?? homeId(state));
     case 'settings/mic':
       return { ...state, save: { ...state.save, settings: { ...state.save.settings, micAllowed: action.allowed } } };
     // ------------------------------------------------------------ promenade (F-PRO)
@@ -482,9 +591,63 @@ export function reduce(state: GameState, action: GameAction): GameState {
     case 'walk/close':
       return { ...state, walk: null };
 
+    // ------------------------------------------------------------ concours (F-CON)
+    case 'contest/enter': {
+      const dog = firstDog(state, action.dogId);
+      if (!dog || state.contest || !canEnter(dog, action.contestId).ok) return state;
+      const rng = createRng(state.save.rngState);
+      const seed = Math.floor(rng.next() * 2 ** 31);
+      const cls = dog.contestClass[action.contestId];
+      const run =
+        action.contestId === 'disc'
+          ? startDisc(dog.traits, dog.needs.energy)
+          : action.contestId === 'agility'
+            ? startAgility(dog.traits, dog.needs.energy)
+            : startObedience(dog, cls, seed);
+      const contest: ContestSession = { contestId: action.contestId, dogId: dog.id, contestClass: cls, prize: prizeLeft(state.save, dog.id) > 0, seed, run, result: null };
+      return { ...state, contest, save: { ...state.save, rngState: rng.getState() } };
+    }
+    case 'contest/throw': {
+      const c = state.contest;
+      return c && !c.result && c.run.kind === 'disc' ? { ...state, contest: { ...c, run: throwDisc(c.run, action.fx, action.fy) } } : state;
+    }
+    case 'contest/aim': {
+      const c = state.contest;
+      return c && !c.result && c.run.kind === 'agility' ? { ...state, contest: { ...c, run: aimAgility(c.run, action.at) } } : state;
+    }
+    case 'contest/order': {
+      const c = state.contest;
+      return c && !c.result && c.run.kind === 'obedience' ? { ...state, contest: { ...c, run: orderObedience(c.run, action.trickId) } } : state;
+    }
+    case 'contest/quit':
+      return state.contest && !state.contest.result ? { ...state, contest: null } : state;
+    case 'contest/close':
+      return { ...state, contest: null };
+
+    // ------------------------------------------------------------ plusieurs chiots (F-VIE-4)
+    case 'family/select':
+      return state.save.homeDogIds.includes(action.dogId) ? { ...state, active: action.dogId } : state;
+    case 'family/move': {
+      const home = state.save.homeDogIds;
+      const isHome = home.includes(action.dogId);
+      if (!state.save.dogs.some((d) => d.id === action.dogId) || state.walk || state.contest) return state;
+      if (action.to === 'home') {
+        if (isHome || home.length >= BALANCE.family.maxHome) return state;
+        return ensureMinds({ ...state, save: { ...state.save, homeDogIds: [...home, action.dogId] } });
+      }
+      const hotel = state.save.dogs.length - home.length;
+      if (!isHome || home.length <= 1 || hotel >= BALANCE.family.maxHotel) return state;
+      const minds = Object.fromEntries(Object.entries(state.minds).filter(([id]) => id !== action.dogId));
+      // Ce qu'il tenait reste au salon.
+      const toys = state.toys.map((t) => (t.carrier === action.dogId ? { ...t, state: 'ground' as const, carrier: null, h: 0 } : t));
+      return { ...state, minds, toys, active: state.active === action.dogId ? null : state.active, save: { ...state.save, homeDogIds: home.filter((id) => id !== action.dogId) } };
+    }
+    case 'settings/decor':
+      return availableDecors(state.save.masterPoints).includes(action.decor) ? { ...state, save: { ...state.save, settings: { ...state.save.settings, decor: action.decor } } } : state;
+
     // ------------------------------------------------------------ objets (F-ECO-3)
     case 'shop/buy': {
-      const def = shopCatalog().find((i) => i.id === action.itemId);
+      const def = shopCatalog().find((i) => i.id === action.itemId && !itemLocked(i.id, state.save.masterPoints));
       return def?.price ? { ...state, save: buy(state.save, def.id, def.price) } : state;
     }
     case 'market/buy': {
@@ -525,7 +688,7 @@ export function reduce(state: GameState, action: GameAction): GameState {
       return dog ? { ...state, save: awardPoints(state.save, dog.id, action.points) } : state;
     }
     case 'debug/spontaneous':
-      return gestureAll(state, { kind: 'forceSpontaneous', trick: action.trick }, state.save.homeDogIds[0]);
+      return gestureAll(state, { kind: 'forceSpontaneous', trick: action.trick }, homeId(state));
     case 'trick/forget':
       return editTricks(state, action.dogId, (d) => ({ ...d, tricks: d.tricks.filter((t) => t.trickId !== action.trickId) }));
     case 'trick/relabel': {

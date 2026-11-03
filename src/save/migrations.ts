@@ -31,6 +31,12 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
       isObj(d) ? { walks: { lastRewardedAt: null, count: 0 }, visited: { park: false, gym: false, market: false }, ...d } : d,
     ),
   }),
+  // v3 → v4 (jalon 6) : paliers de déblocage, décor du salon. Les paliers déjà atteints seront accordés au chargement.
+  3: (raw) => ({
+    unlockTier: 0,
+    ...raw,
+    settings: { decor: 'home', ...(isObj(raw.settings) ? raw.settings : {}) },
+  }),
 };
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 

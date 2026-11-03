@@ -1,6 +1,6 @@
 /** Modèle de données sauvegardé (SPEC, Modèle de données). */
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export type DogId = string;
 export type ItemId = string;
@@ -11,6 +11,8 @@ export type ContestId = 'disc' | 'agility' | 'obedience';
 export type Sex = 'f' | 'm';
 export type TemperamentId = 'sage' | 'joueur' | 'timide' | 'tetu';
 export type ContestClass = 0 | 1 | 2 | 3 | 4;
+/** Décor du salon (déblocages à 6 000 et 18 000 points). */
+export type DecorId = 'home' | 'seaside' | 'space';
 
 /** Empreinte vocale : suite de vecteurs MFCC (jalon 4). */
 export type VoiceTemplate = number[][];
@@ -84,6 +86,7 @@ export interface Settings {
   sfxVolume: number;
   /** null : jamais demandé. */
   micAllowed: boolean | null;
+  decor: DecorId;
 }
 
 export interface SaveGame {
@@ -93,6 +96,8 @@ export interface SaveGame {
   lastSeenAt: number;
   coins: number;
   masterPoints: number;
+  /** Paliers de déblocage déjà accordés (SPEC, Économie et progression). */
+  unlockTier: number;
   inventory: Record<ItemId, number>;
   discovered: { items: ItemId[]; tricks: TrickId[] };
   dogs: Dog[];

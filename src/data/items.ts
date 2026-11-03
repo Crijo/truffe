@@ -2,7 +2,7 @@
  * Objets de Truffe (F-ECO-3, F-ECO-4), tous créés pour le projet :
  * aucun nom, objet ou logo de marque.
  */
-export type ItemCategory = 'food' | 'toy' | 'accessory' | 'care' | 'found';
+export type ItemCategory = 'food' | 'toy' | 'accessory' | 'care' | 'found' | 'furniture';
 export type ItemId = string;
 export type EquipSlot = 'collar' | 'neck' | 'head' | 'eyes';
 /** Gabarit de dessin de l'icône (voir ui/itemIcon.ts). */
@@ -38,7 +38,10 @@ export type ItemShape =
   | 'bell'
   | 'card'
   | 'star'
-  | 'flower';
+  | 'flower'
+  | 'bigball'
+  | 'mouse'
+  | 'sofa';
 
 export interface ItemDef {
   id: ItemId;
@@ -52,6 +55,12 @@ export interface ItemDef {
   resale: number;
   /** Seulement à la brocante ou en promenade. */
   rare?: boolean;
+  /** Offert par un déblocage de points de maître (ni boutique, ni brocante). */
+  unlock?: boolean;
+  /** Jouet plus gros que les autres. */
+  big?: boolean;
+  /** Jouet mécanique : il roule tout seul un moment. */
+  motor?: boolean;
   slot?: EquipSlot;
   /** Jouet : sorte de jouet lancé. */
   toyKind?: 'ball' | 'disc' | 'rope';
@@ -103,6 +112,10 @@ export const ITEMS: ItemDef[] = [
   it({ id: 'carte-postale', label: 'Carte postale', category: 'found', shape: 'card', colors: [0xf8f1e4, 0x3f86c6], price: null, resale: 50, rare: true }),
   it({ id: 'etoile-mer', label: 'Étoile de mer', category: 'found', shape: 'star', colors: [0xf2a03d, 0xd9672e], price: null, resale: 60, rare: true }),
   it({ id: 'marguerite', label: 'Marguerite', category: 'found', shape: 'flower', colors: [0xffffff, 0xf2c94c], price: null, resale: 8 }),
+  // Déblocages (SPEC, Économie et progression).
+  it({ id: 'ballon', label: 'Gros ballon', category: 'toy', shape: 'bigball', colors: [0xe8564a, 0xffffff], price: null, resale: 40, unlock: true, big: true, toyKind: 'ball' }),
+  it({ id: 'canape', label: 'Petit canapé', category: 'furniture', shape: 'sofa', colors: [0x5f8fb0, 0xf2e2c4], price: null, resale: 150, unlock: true }),
+  it({ id: 'souris-meca', label: 'Souris mécanique', category: 'toy', shape: 'mouse', colors: [0x9aa3ab, 0xf28ab2], price: null, resale: 90, unlock: true, motor: true, toyKind: 'ball' }),
 ];
 
 export const ITEM_BY_ID: Record<ItemId, ItemDef> = Object.fromEntries(ITEMS.map((i) => [i.id, i]));

@@ -17,6 +17,7 @@ const S = BALANCE.sleep;
 const C = BALANCE.care;
 const TY = BALANCE.toys;
 const TR = BALANCE.training;
+const FAM = BALANCE.family;
 
 export type Posture = TrickPosture;
 export type Activity =
@@ -35,7 +36,9 @@ export type Activity =
   | 'chew'
   | 'tug'
   | 'fear'
-  | 'perform';
+  | 'perform'
+  /** F-VIE-4 : jouer avec un autre chiot de la maison. */
+  | 'play';
 export type Mood = 'calm' | 'happy' | 'content' | 'curious' | 'sulky' | 'startled' | 'asleep';
 export type BodyPart = 'head' | 'ear' | 'muzzle' | 'back' | 'flank' | 'belly' | 'tail' | 'paw';
 export type Gait = 'still' | 'walk' | 'trot' | 'run';
@@ -81,7 +84,8 @@ export type PuppyEventType =
   | 'handstand'
   | 'playdead'
   | 'dance'
-  | 'treat';
+  | 'treat'
+  | 'nibble';
 
 export interface PuppyEvent {
   seq: number;
@@ -165,6 +169,17 @@ export interface PuppyContext {
   tricks: readonly { trickId: TrickId; learned: boolean; repetitions: number; mastery: number }[];
   canLearnNew: boolean;
   repsNeeded: number;
+  /** F-VIE-4 : les autres chiots de la maison. */
+  selfId?: string | undefined;
+  friends?: readonly Friend[] | undefined;
+}
+
+export interface Friend {
+  id: string;
+  pos: Vec2;
+  activity: Activity;
+  /** Le chiot avec qui il joue. */
+  partner: string | null;
 }
 
 export interface Effects {
@@ -263,6 +278,9 @@ export interface PuppyMind {
   /** F-DRE-1 : ampoule au-dessus de la tête. */
   bulb: { trickId: TrickId; until: number } | null;
   perform: { trickId: TrickId; until: number } | null;
+  /** F-VIE-4 : partie de jeu avec un autre chiot. */
+  play: { partner: string; until: number; nextNibbleAt: number; orbit: number } | null;
+  lastPlayAt: number;
   recentOrders: number[];
   begUntil: number;
   /** Début d'un besoin urgent pendant la session (D-03). */
@@ -334,6 +352,8 @@ export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
     lastFearAt: NEVER,
     bulb: null,
     perform: null,
+    play: null,
+    lastPlayAt: NEVER,
     recentOrders: [],
     begUntil: 0,
     reactionSeq: 0,
@@ -532,7 +552,27 @@ export function baseScores(m: PuppyMind, ctx: PuppyContext): Partial<Record<Acti
   if (m.tug) out.tug = 100;
   if (fearAvailable(m, ctx)) out.fear = TY.scores.fearBase - ctx.traits.boldness * TY.scores.fearPerBoldness;
   if (m.perform && m.perform.until > m.t) out.perform = TR.orderScore;
+  if (m.play && m.play.until > m.t && friendOf(ctx, m.play.partner)) out.play = FAM.playScore + 20;
+  else {
+    const mate = playMate(m, ctx);
+    if (mate) out.play = mate.invited ? FAM.playScore + 40 : FAM.playScore + ctx.energy * 0.25;
+  }
   return out;
+}
+
+const friendOf = (ctx: PuppyContext, id: string): Friend | undefined => ctx.friends?.find((f) => f.id === id && f.activity !== 'sleep');
+
+/** F-VIE-4 : un autre chiot éveillé, tout près, avec qui jouer ; ou qui l'invite. */
+function playMate(m: PuppyMind, ctx: PuppyContext): { friend: Friend; invited: boolean } | null {
+  if (!ctx.friends || ctx.night || ctx.energy < 40 || m.bath.active || m.t - m.lastPlayAt < FAM.playCooldownMs) return null;
+  for (const f of ctx.friends) {
+    if (f.activity === 'play' && f.partner === ctx.selfId) return { friend: f, invited: true };
+  }
+  for (const f of ctx.friends) {
+    if (['sleep', 'eat', 'perform', 'play', 'groom'].includes(f.activity)) continue;
+    if (Math.hypot(f.pos.x - m.pos.x, f.pos.z - m.pos.z) <= FAM.playRange) return { friend: f, invited: false };
+  }
+  return null;
 }
 
 function decide(m: PuppyMind, ctx: PuppyContext): void {
@@ -560,10 +600,14 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
   const prev = m.activity;
   m.activity = a;
   m.activityStartedAt = m.t;
-  m.attentive = !['sulk', 'spontaneous', 'sleep', 'eat', 'fetch', 'chew', 'fear'].includes(a);
+  m.attentive = !['sulk', 'spontaneous', 'sleep', 'eat', 'fetch', 'chew', 'fear', 'play'].includes(a);
   if (prev === 'sniffHand') m.handPhase = null;
   if (prev === 'spontaneous') m.spontaneous = null;
   if (prev === 'eat') m.eating = null;
+  if (prev === 'play' && a !== 'play') {
+    m.play = null;
+    m.lastPlayAt = m.t;
+  }
 
   switch (a) {
     case 'wander': {
@@ -633,14 +677,38 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       m.postureLockUntil = 0;
       break;
     }
-    case 'sleep':
+    case 'sleep': {
       m.target = null;
       m.gait = 'still';
       m.look = { kind: 'ground' };
       m.postureLockUntil = 0;
       m.posture = 'lie';
       emit(m, 'yawn');
+      // F-VIE-4 : il va dormir contre un autre chiot endormi.
+      const mate = ctx.friends?.find((f) => f.activity === 'sleep');
+      if (mate) {
+        const side = mate.pos.x > 0 ? -1 : 1;
+        const spot = clampToFloor({ x: mate.pos.x + side * 0.17, z: mate.pos.z + 0.02 });
+        if (Math.hypot(spot.x - m.pos.x, spot.z - m.pos.z) > 0.05) {
+          m.target = spot;
+          m.gait = 'walk';
+          m.posture = 'stand';
+        }
+      }
       break;
+    }
+    case 'play': {
+      const mate = m.play ? friendOf(ctx, m.play.partner) : playMate(m, ctx)?.friend;
+      if (!mate) break;
+      if (!m.play || m.play.partner !== mate.id) {
+        const orbit = withRng(m, (rng) => (rng.next() < 0.5 ? -1 : 1));
+        m.play = { partner: mate.id, until: m.t + FAM.playMs, nextNibbleAt: m.t + 700, orbit };
+      }
+      m.postureLockUntil = 0;
+      m.look = { kind: 'point', ...mate.pos };
+      emit(m, 'playBow');
+      break;
+    }
     case 'groom':
       m.target = null;
       m.gait = 'still';
@@ -749,6 +817,7 @@ function arrive(m: PuppyMind): void {
   }
   if (m.activity === 'greet' && m.greet) m.greet.nextFeatAt = m.t + 200;
   if (m.activity === 'fetch' && m.holding) m.facing = 0;
+  if (m.activity === 'sleep') m.posture = 'lie';
   if (m.activity === 'eat' && m.eating) {
     m.facing = 0;
     m.look = { kind: 'ground' };
@@ -867,6 +936,29 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
       } else if (m.t >= e.nextBiteAt) {
         e.nextBiteAt = m.t + (e.kind === 'food' ? 420 : 300);
         emit(m, e.kind === 'food' ? 'chew' : 'lap');
+      }
+      break;
+    }
+    case 'play': {
+      const pl = m.play;
+      const mate = pl ? friendOf(ctx, pl.partner) : undefined;
+      if (!pl || !mate || m.t >= pl.until) {
+        m.play = null;
+        m.lastPlayAt = m.t;
+        m.happyUntil = m.t + 2000;
+        m.target = null;
+        m.gait = 'still';
+        break;
+      }
+      // Ils se tournent autour, se poursuivent et se mordillent.
+      const a = (m.t / 650) * pl.orbit;
+      m.target = clampToFloor({ x: mate.pos.x + Math.sin(a) * 0.16, z: mate.pos.z + Math.cos(a) * 0.1 });
+      m.gait = 'run';
+      m.look = { kind: 'point', ...mate.pos };
+      const d = Math.hypot(mate.pos.x - m.pos.x, mate.pos.z - m.pos.z);
+      if (d < 0.24 && m.t >= pl.nextNibbleAt) {
+        pl.nextNibbleAt = m.t + withRng(m, (rng) => rng.range(900, 1900));
+        emit(m, withRng(m, (rng) => (rng.next() < 0.7 ? 'nibble' : rng.next() < 0.5 ? 'playBow' : 'yip')));
       }
       break;
     }
@@ -994,7 +1086,7 @@ function computeMood(m: PuppyMind): Mood {
   if (m.activity === 'petted' || m.activity === 'sniffHand' || m.activity === 'groom') return 'content';
   if (m.activity === 'attend' || m.t < m.curiousUntil) return 'curious';
   if (m.activity === 'come') return m.gait === 'still' ? 'curious' : 'happy';
-  if (m.activity === 'fetch' || m.activity === 'tug') return 'happy';
+  if (m.activity === 'fetch' || m.activity === 'tug' || m.activity === 'play') return 'happy';
   if (m.activity === 'chew') return 'content';
   if (m.activity === 'fear') return 'curious';
   if (m.activity === 'perform') return 'happy';

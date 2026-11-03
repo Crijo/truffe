@@ -36,6 +36,9 @@ const SHAPES: Record<ItemShape, (a: string, b: string) => string> = {
   bell: (a, b) => `<path d="M14 32c0-12 4-18 10-18s10 6 10 18z" fill="${a}"/><rect x="11" y="31" width="26" height="4" rx="2" fill="${b}"/><circle cx="24" cy="38" r="3" fill="${b}"/>`,
   card: (a, b) => `<rect x="8" y="13" width="32" height="22" rx="2" fill="${a}" stroke="${b}" stroke-width="2"/><rect x="30" y="16" width="7" height="8" fill="${b}"/><path d="M12 22h14M12 27h14" stroke="${b}" stroke-width="2"/>`,
   star: (a, b) => `<path d="M24 8 28 19 40 19 30 26 34 38 24 31 14 38 18 26 8 19 20 19z" fill="${a}" stroke="${b}" stroke-width="2" stroke-linejoin="round"/>`,
+  bigball: (a, b) => `<circle cx="24" cy="24" r="17" fill="${a}"/><path d="M7 24h34M24 7c-8 8-8 26 0 34M24 7c8 8 8 26 0 34" stroke="${b}" stroke-width="2.5" fill="none"/>`,
+  mouse: (a, b) => `<ellipse cx="22" cy="28" rx="13" ry="8" fill="${a}"/><circle cx="13" cy="21" r="4" fill="${b}"/><circle cx="10" cy="28" r="1.6" fill="#2b2320"/><path d="M35 28c5 0 6-6 3-9" stroke="${a}" stroke-width="2" fill="none"/><path d="M24 20v-6m-3 0h6" stroke="${b}" stroke-width="2.5"/>`,
+  sofa: (a, b) => `<rect x="8" y="16" width="32" height="14" rx="4" fill="${a}"/><rect x="5" y="22" width="8" height="14" rx="3" fill="${a}"/><rect x="35" y="22" width="8" height="14" rx="3" fill="${a}"/><rect x="12" y="26" width="24" height="8" rx="2" fill="${b}"/>`,
   flower: (a, b) => `<g fill="${a}"><circle cx="24" cy="14" r="6"/><circle cx="34" cy="22" r="6"/><circle cx="30" cy="33" r="6"/><circle cx="18" cy="33" r="6"/><circle cx="14" cy="22" r="6"/></g><circle cx="24" cy="25" r="5" fill="${b}"/>`,
 };
 

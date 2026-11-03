@@ -271,6 +271,100 @@ export const BALANCE = {
     rarePriceFactor: 2.5,
   },
 
+  /** F-CON. */
+  contests: {
+    /** SPEC, Gains : 1re / 2e / 3e place en Débutant. */
+    points: [50, 30, 20],
+    coins: [300, 150, 75],
+    /** Multiplicateurs par classe, de Débutant à Champion. */
+    pointsMult: [1, 2, 3, 5, 8],
+    coinsMult: [1, 2, 4, 7, 12],
+    /** F-CON-5 : un échec rapporte tout de même quelques points. */
+    consolationPoints: 5,
+    /** F-CON-4 : monter de classe après 2 podiums (ou une victoire). */
+    podiumsToRise: 2,
+    /** F-CON-6. */
+    prizePerDay: 3,
+    rivals: 5,
+    /** Score des rivaux par classe : moyenne et écart (disque : points ; agilité : secondes ; obéissance : points). Un joueur parfait fait environ 380 au disque et 14 s en agilité.. */
+    rivalScores: {
+      disc: { mean: [70, 120, 170, 220, 280], spread: 0.3 },
+      agility: { mean: [32, 27, 23, 20, 17], spread: 0.15 },
+      obedience: { mean: [45, 65, 85, 105, 125], spread: 0.25 },
+    },
+    disc: {
+      durationMs: 60_000,
+      fieldM: 40,
+      halfWidthM: 12,
+      /** Vitesse du chiot : selon le trait d'énergie et l'énergie du moment. */
+      dogSpeedMps: [6, 9.5],
+      returnSpeedMps: 7,
+      /** Attrapé en l'air : points = mètres × 1,5 ; ramassé au sol : × 0,4. */
+      airMult: 1.5,
+      groundMult: 0.4,
+      catchHeightM: 1.6,
+      catchRadiusM: 1.4,
+      fingerSensitivity: 0.022,
+      minSpeedMps: 4,
+      maxSpeedMps: 22,
+      /** Le disque plane : portance et gravité réduite. */
+      startHeightM: 1.2,
+      liftMps: 1.5,
+      gravity: 1.8,
+      drag: 0.25,
+      /** Le chiot attend ici, près du joueur. */
+      homeY: 2,
+    },
+    agility: {
+      timeCapMs: 120_000,
+      dogSpeedMps: [3.6, 5.2],
+      /** Obstacle manqué ou refusé : pénalité. */
+      penaltyS: 5,
+      gateWidthM: 2.2,
+      seesawSlow: 0.45,
+      tunnelSlow: 0.8,
+    },
+    obedience: {
+      orderMs: 7000,
+      pointsPerTrick: 10,
+      /** Bonus de rapidité, au plus, si l'ordre est donné aussitôt. */
+      speedBonus: 8,
+    },
+  },
+
+  /** F-ECO-2 : points de maître des soins et du dressage (SPEC, Gains). */
+  gains: {
+    meal: 5,
+    groom: 10,
+    trickRepeat: 2,
+    newTrick: 30,
+  },
+
+  /** F-ECO : déblocages selon les points de maître. À 300, la corde du salon s'ouvre aussi (D-35). */
+  unlocks: [
+    { at: 300, items: ['ballon'], breeds: [], decor: null },
+    { at: 2000, items: ['canape'], breeds: ['husky'], decor: null },
+    { at: 6000, items: [], breeds: [], decor: 'seaside' },
+    { at: 10_000, items: ['souris-meca'], breeds: ['caniche'], decor: null },
+    { at: 18_000, items: [], breeds: [], decor: 'space' },
+    { at: 30_000, items: [], breeds: ['corgi'], decor: null },
+    { at: 50_000, items: [], breeds: ['dalmatien'], decor: null },
+  ],
+
+  /** F-VIE-4 et SPEC, Plusieurs chiens. */
+  family: {
+    maxHome: 3,
+    maxHotel: 5,
+    maxDogs: 8,
+    /** Jouer ensemble : score, durée, attente avant une nouvelle partie. */
+    playScore: 42,
+    playMs: 6000,
+    playCooldownMs: 25_000,
+    playRange: 0.7,
+    /** D-60 : à la pension, faim, soif et pelage ne descendent pas sous ce niveau. */
+    hotelCare: 70,
+  },
+
   /** Seuils des gestes (D-05 à D-07), en pixels CSS et millisecondes. */
   gestures: {
     tapMaxMovePx: 12,
