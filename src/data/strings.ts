@@ -222,6 +222,8 @@ export const DECOR_NAMES = { home: 'Maison', seaside: 'Bord de mer', space: 'Esp
 
 export const FAMILY = {
   title: 'Pension',
+  hint: 'Qui reste à la maison, et le décor',
+  adoptHint: 'Adopter un chiot de plus',
   home: 'À la maison',
   hotel: 'À la pension',
   toHotel: 'En pension',
@@ -230,5 +232,6 @@ export const FAMILY = {
   hotelFull: 'La pension est pleine (5 places).',
   lastHome: 'Garde au moins un chiot à la maison.',
   full: 'Tu as déjà 8 chiots : c’est le maximum.',
+  toHotelToast: 'La maison est pleine : ton nouveau chiot t’attend à la pension.',
   decor: 'Décor',
 } as const;

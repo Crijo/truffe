@@ -3,7 +3,7 @@
  * L'interface appelle les fonctions fournies ; elle ne touche jamais à l'état.
  */
 import { ITEMS, ITEM_BY_ID, type ItemCategory, type ItemId } from '../data/items';
-import { OUT } from '../data/strings';
+import { CONTEST, FAMILY, KENNEL, OUT } from '../data/strings';
 import { TRICKS, TRICK_IDS, type TrickId } from '../data/tricks';
 import { ICONS } from './icons';
 import { itemIcon } from './itemIcon';
@@ -19,6 +19,9 @@ export interface OutingHandlers {
   buy(id: ItemId, where: 'shop' | 'market'): string | null;
   sell(id: ItemId): void;
   openMap(): void;
+  openContests(): void;
+  openKennel(): void;
+  openFamily(): void;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = ''): HTMLElementTagNameMap[K] {
@@ -179,7 +182,20 @@ export function openOutings(h: OutingHandlers, onClose: () => void): void {
     p.root.remove();
     openMarket(h, onClose);
   });
-  grid.append(walk, shop, market);
+  const contests = btn(`${ICONS.trophy}<strong>${CONTEST.title}</strong><small>${CONTEST.hint}</small>`, 'out-choice', 'out-contests');
+  const kennel = btn(`${ICONS.home}<strong>${KENNEL.title}</strong><small>${FAMILY.adoptHint}</small>`, 'out-choice', 'out-kennel');
+  const family = btn(`${ICONS.paw}<strong>${FAMILY.title}</strong><small>${FAMILY.hint}</small>`, 'out-choice', 'out-family');
+  for (const [b, go] of [
+    [contests, h.openContests],
+    [kennel, h.openKennel],
+    [family, h.openFamily],
+  ] as const) {
+    b.addEventListener('click', () => {
+      p.root.remove();
+      go();
+    });
+  }
+  grid.append(walk, contests, shop, market, kennel, family);
   p.body.append(grid);
 }
 

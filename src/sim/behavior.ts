@@ -966,11 +966,11 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
       }
       // Ils se tournent autour, se poursuivent et se mordillent.
       const a = (m.t / 650) * pl.orbit;
-      m.target = clampToFloor({ x: mate.pos.x + Math.sin(a) * 0.16, z: mate.pos.z + Math.cos(a) * 0.1 });
+      m.target = clampToFloor({ x: mate.pos.x + Math.sin(a) * FAM.playOrbit, z: mate.pos.z + Math.cos(a) * FAM.playOrbit * 0.6 });
       m.gait = 'run';
       m.look = { kind: 'point', ...mate.pos };
       const d = Math.hypot(mate.pos.x - m.pos.x, mate.pos.z - m.pos.z);
-      if (d < 0.24 && m.t >= pl.nextNibbleAt) {
+      if (d < FAM.playOrbit * 1.4 && m.t >= pl.nextNibbleAt) {
         pl.nextNibbleAt = m.t + withRng(m, (rng) => rng.range(900, 1900));
         emit(m, withRng(m, (rng) => (rng.next() < 0.7 ? 'nibble' : rng.next() < 0.5 ? 'playBow' : 'yip')));
       }

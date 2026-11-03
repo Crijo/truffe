@@ -67,7 +67,8 @@ export class ToysView {
         g.ellipse(p.x, p.y, s * 0.07 * (1 - lift * 0.5), s * 0.025 * (1 - lift * 0.5)).fill({ color: 0x3a2618, alpha: 0.18 });
       }
       const col = t.itemId ? ITEM_BY_ID[t.itemId]?.colors : undefined;
-      if (t.kind === 'ball') this.ball(g, it.x, it.y, s, col);
+      // Le gros ballon (déblocage à 300 points) est bien plus gros.
+      if (t.kind === 'ball') this.ball(g, it.x, it.y, t.itemId && ITEM_BY_ID[t.itemId]?.big ? s * 2 : s, col);
       else if (t.kind === 'disc') this.disc(g, it.x, it.y, s, t.state === 'flying' ? Date.now() / 90 : 0, col);
       else this.rope(g, it.x, it.y, s, t, hand, mouth);
       if (t.state === 'ground') this.hitBoxes.push({ id: t.id, x: it.x, y: it.y, r: Math.max(30, s * 0.12) });

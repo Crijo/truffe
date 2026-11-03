@@ -23,6 +23,8 @@ export interface KennelHandlers {
   highlight(index: number | null): void;
   /** Renvoie un message d'erreur, ou null si l'adoption a eu lieu. */
   adopt(index: number, name: string): string | null;
+  /** Chenil ouvert depuis le salon : on peut repartir sans adopter. */
+  exit?: (() => void) | undefined;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = ''): HTMLElementTagNameMap[K] {
@@ -103,6 +105,12 @@ export function mountKennel(root: HTMLElement, h: KennelHandlers): { pickAt(inde
     wrap.innerHTML = '';
     wrap.className = 'kennel breeds';
     const head = el('header', 'k-head', `<h1>${KENNEL.title}</h1><p>${KENNEL.chooseBreed}</p>`);
+    if (h.exit) {
+      const exit = button(`${ICONS.close}<span>${KENNEL.back}</span>`, 'btn k-back');
+      exit.dataset.testid = 'kennel-exit';
+      exit.addEventListener('click', () => h.exit?.());
+      head.append(exit);
+    }
     const grid = el('div', 'k-grid');
     for (const b of h.breeds) {
       const card = button('', 'k-breed');

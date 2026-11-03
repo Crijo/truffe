@@ -3,6 +3,7 @@
  * x et z en unités de sol par seconde, hauteur h en unités du chiot.
  */
 import { BALANCE } from '../data/balance';
+import { ITEM_BY_ID } from '../data/items';
 import type { Vec2 } from './behavior';
 
 export type ToyKind = 'ball' | 'disc' | 'rope';
@@ -19,6 +20,8 @@ export interface Toy {
   carrier: string | null;
   /** Jouet du sac (couleur), ou le jouet de base. */
   itemId?: string | undefined;
+  /** Jouet mécanique : temps de roulement restant. */
+  motorMs?: number | undefined;
 }
 
 const T = BALANCE.toys;
@@ -39,7 +42,8 @@ export function throwToy(toy: Toy, vx: number, vz: number, _t: number): Toy {
   }
   const sp = Math.min(speed, T.maxSpeed);
   const vh = toy.kind === 'disc' ? 1 + 0.3 * sp : 1.3 + 0.55 * sp;
-  return { ...toy, state: 'flying', carrier: null, h: Math.max(toy.h, 0.3), v: { x, z, h: vh } };
+  const motorMs = toy.itemId && ITEM_BY_ID[toy.itemId]?.motor ? T.motor.ms : undefined;
+  return { ...toy, state: 'flying', carrier: null, h: Math.max(toy.h, 0.3), v: { x, z, h: vh }, motorMs };
 }
 
 export function stepToy(toy: Toy, dtMs: number): Toy {
@@ -70,6 +74,17 @@ export function stepToy(toy: Toy, dtMs: number): Toy {
   if (t.pos.z > F.maxZ) {
     t.pos.z = F.maxZ;
     t.v.z = 0;
+  }
+
+  // Jouet mécanique au sol : il file tout seul en zigzag tant que son ressort tourne.
+  if (t.h <= 0 && t.v.h <= 0 && (t.motorMs ?? 0) > 0) {
+    const left = (t.motorMs ?? 0) - dtMs;
+    const heading = Math.atan2(t.v.x, t.v.z) + Math.sin(left / 400) * T.motor.turn * dt;
+    t.h = 0;
+    t.v = { x: Math.sin(heading) * T.motor.speed, z: Math.cos(heading) * T.motor.speed, h: 0 };
+    t.state = 'ground';
+    t.motorMs = Math.max(0, left);
+    return t;
   }
 
   // Sol : rebond, puis roulement freiné.

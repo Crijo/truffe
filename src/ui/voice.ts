@@ -24,10 +24,12 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = '
 export class VoiceController {
   private readonly capture = new VoiceCapture();
   private listening = false;
+  /** Concours d'obéissance : l'ordre reconnu va à l'épreuve plutôt qu'au salon. */
+  orderHook: ((trickId: TrickId) => void) | null = null;
 
   constructor(
     private readonly store: GameStore,
-    private readonly dogId: DogId,
+    private readonly dogId: () => DogId,
     private readonly toast: (text: string) => void,
     private readonly save: () => void,
   ) {}
@@ -38,7 +40,7 @@ export class VoiceController {
   }
 
   private dog() {
-    return this.store.getState().save.dogs.find((d) => d.id === this.dogId);
+    return this.store.getState().save.dogs.find((d) => d.id === this.dogId());
   }
 
   /** Ordres connus avec leurs empreintes, et le nom du chiot. */
@@ -111,6 +113,7 @@ export class VoiceController {
       return;
     }
     if (r.id === NAME_ID) this.store.dispatch({ type: 'call' });
+    else if (this.orderHook) this.orderHook(r.id as TrickId);
     else this.store.dispatch({ type: 'order', trickId: r.id as TrickId });
     // SPEC : le jeu ajoute les exemples bien reconnus.
     if (r.distance < BALANCE.voice.acceptBelow * 0.6) {

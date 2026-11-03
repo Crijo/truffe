@@ -168,6 +168,8 @@ export const BALANCE = {
     bounce: 0.45,
     rollFriction: 1.4,
     discDrag: 0.3,
+    /** D-63 : la souris mécanique roule seule un moment après le lancer. */
+    motor: { ms: 5000, speed: 0.35, turn: 2.2 },
     maxSpeed: 2.4,
     /** Part de la vitesse du doigt transmise au jouet. */
     fingerSensitivity: 0.18,
@@ -361,6 +363,9 @@ export const BALANCE = {
     playMs: 6000,
     playCooldownMs: 25_000,
     playRange: 0.7,
+    /** Écart entre deux chiots qui jouent, et place de chaque nouveau chiot. */
+    playOrbit: 0.3,
+    spawnX: [0, -0.42, 0.42],
     /** D-60 : à la pension, faim, soif et pelage ne descendent pas sous ce niveau. */
     hotelCare: 70,
   },

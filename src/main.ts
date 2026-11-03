@@ -5,9 +5,9 @@ import { startAutosave } from './core/autosave';
 import { FixedStepper } from './core/loop';
 import { GameStore } from './core/store';
 import { BALANCE } from './data/balance';
-import { BREEDS, STARTER_BREEDS, coatOf, type BreedLook } from './data/breeds';
-import { KENNEL, NAME_ERRORS, NEED_WORDS, TRAINING } from './data/strings';
-import { GestureRecognizer } from './input/gestures';
+import { BREEDS, coatOf, type BreedLook } from './data/breeds';
+import { DECOR_NAMES, FAMILY, KENNEL, NAME_ERRORS, NEED_WORDS, TRAINING, UNLOCKS } from './data/strings';
+import { GestureRecognizer, type PuppyProbe } from './input/gestures';
 import { bindPointer, type PointerIntercept } from './input/pointer';
 import { ToyHand } from './input/toyHand';
 import { BowlsView } from './render/bowls';
@@ -18,9 +18,9 @@ import { ToysView } from './render/toys';
 import { openSaveStore } from './save/storage';
 import { adoptionPrice, validateName, type Candidate } from './sim/adoption';
 import { createMind, type CareTool, type Mood, type PuppyMind } from './sim/behavior';
-import { createGameState, createNewGame, unnamedDogs } from './sim/game';
+import { createGameState, createNewGame, homeId, unnamedDogs } from './sim/game';
 import { NEED_KINDS, localHour, needLevel } from './sim/needs';
-import type { CoatParams, DogId, TemperamentId } from './sim/state';
+import type { CoatParams, ContestId, DecorId, DogId, TemperamentId } from './sim/state';
 import { mountDebug, rewind, type DebugProbe } from './ui/debug';
 import { mountHud } from './ui/hud';
 import { mountKennel, nameDialog } from './ui/kennel';
@@ -36,6 +36,11 @@ import { openMap } from './ui/walkMap';
 import { mountWalkHud } from './ui/walkHud';
 import { OUT } from './data/strings';
 import { repsNeeded } from './sim/tricks';
+import { availableBreeds, availableDecors, itemLocked, ropeUnlocked, tierContent } from './sim/unlocks';
+import { canEnter, prizeLeft } from './sim/contests';
+import { ContestScene } from './render/contestScene';
+import { mountContestHud, openContests } from './ui/contests';
+import { openFamily } from './ui/family';
 
 const tz = (now: number): number => new Date(now).getTimezoneOffset();
 const params = new URLSearchParams(location.search);
@@ -55,14 +60,16 @@ function staticMind(pos: { x: number; z: number }, mood: Mood, facing = 0): Pupp
   return { ...m, posture: 'sit', mood, facing, excitement: mood === 'happy' ? 0.9 : 0.4 };
 }
 
-/** Portraits des races pour les cartes du chenil, dessinés une fois. */
-async function portraits(stage: Stage): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
+const breedOf = (id: string | undefined): BreedLook => BREEDS[id ?? 'beagle'] ?? (BREEDS.beagle as BreedLook);
+
+/** Portraits des races pour les cartes du chenil, dessinés une fois par race. */
+const pictures: Record<string, string> = {};
+async function portraits(stage: Stage, ids: readonly string[]): Promise<Record<string, string>> {
   const room = new Room();
   room.layout(400, 460);
-  for (const id of STARTER_BREEDS) {
+  for (const id of ids) {
     const breed = BREEDS[id];
-    if (!breed) continue;
+    if (!breed || pictures[id]) continue;
     const view = new PuppyView(breed, { base: 0, patch: 0, patchAmount: 1 }, room, { x: 0, z: 0.75 });
     const mind = { ...staticMind({ x: 0, z: 0.75 }, 'happy', 0.55), posture: 'stand' as const };
     for (let i = 0; i < 40; i++) view.update(50, mind, null);
@@ -70,10 +77,10 @@ async function portraits(stage: Stage): Promise<Record<string, string>> {
     const f = room.floorToScreen({ x: 0, z: 0.75 });
     const k = f.s * breed.size;
     const frame = new Rectangle(f.x - k * 0.85, f.y - k * 1.25, k * 1.7, k * 1.4);
-    out[id] = await stage.app.renderer.extract.base64({ target: view.container, frame });
+    pictures[id] = await stage.app.renderer.extract.base64({ target: view.container, frame });
     view.container.destroy({ children: true });
   }
-  return out;
+  return pictures;
 }
 
 async function boot(): Promise<void> {
@@ -120,25 +127,69 @@ async function boot(): Promise<void> {
     stepper.advance(ticker.deltaMS);
     const s = store.getState();
     stage.setHour(localHour(s.save.lastSeenAt, tz(s.save.lastSeenAt)));
+    stage.setDecor(s.save.settings.decor, (s.save.inventory.canape ?? 0) > 0);
     mode?.frame(ticker.deltaMS, performance.now());
   });
 
-  // ------------------------------------------------------------ salon
-  function living(dogId: DogId): void {
-    const state = store.getState();
-    const dogOf = () => store.getState().save.dogs.find((d) => d.id === dogId);
-    const dog = dogOf();
-    const firstMind = state.minds[dogId];
-    const breed: BreedLook | undefined = BREEDS[dog?.breedId ?? 'beagle'] ?? BREEDS.beagle;
-    if (!dog || !firstMind || !breed) throw new Error('aucun chiot');
+  // ------------------------------------------------------------ salon (F-VIE-4 : jusqu'à 3 chiots)
+  function living(): void {
+    const aid = (): DogId => homeId(store.getState()) ?? '';
+    const dogOf = () => store.getState().save.dogs.find((d) => d.id === aid());
+    const layer = new Container();
+    layer.sortableChildren = true;
+    stage.world.addChild(layer);
+    const ring = new Graphics();
+    ring.zIndex = -1;
+    layer.addChild(ring);
+    const views = new Map<DogId, PuppyView>();
+    const heard = new Map<DogId, number>();
 
-    const view = new PuppyView(breed, dog.coat, stage.room, firstMind.pos);
-    stage.world.addChild(view.container);
-    const bowls = new BowlsView(stage.world, stage.room);
-    const toysView = new ToysView(stage.world, stage.room);
+    /** Une vue par chiot de la maison ; celles des chiots partis à la pension disparaissent. */
+    const sync = (): void => {
+      const s = store.getState();
+      for (const [id, v] of views) {
+        if (!s.save.homeDogIds.includes(id)) {
+          v.container.destroy({ children: true });
+          views.delete(id);
+        }
+      }
+      for (const id of s.save.homeDogIds) {
+        const d = s.save.dogs.find((x) => x.id === id);
+        const m = s.minds[id];
+        if (views.has(id) || !d || !m) continue;
+        const v = new PuppyView(breedOf(d.breedId), d.coat, stage.room, m.pos);
+        v.onReaction = () => {
+          if (lastInputAt > 0) latencies.push(performance.now() - lastInputAt);
+          if (latencies.length > 50) latencies.shift();
+        };
+        layer.addChild(v.container);
+        views.set(id, v);
+        heard.set(id, m.events.at(-1)?.seq ?? 0);
+      }
+    };
+    sync();
+    const av = (): PuppyView | undefined => views.get(aid());
+    /** Les gestes visent le chiot actif (D-61). */
+    const probe: PuppyProbe = {
+      hitTest: (x, y) => av()?.probe.hitTest(x, y) ?? null,
+      nose: () => av()?.probe.nose() ?? { x: 0, y: 0 },
+      headTop: () => av()?.probe.headTop() ?? { x: 0, y: 0 },
+      headRadius: () => av()?.probe.headRadius() ?? 1,
+      toFloor: (x, y) => stage.room.screenToFloor(x, y),
+      bodyCenter: () => av()?.probe.bodyCenter() ?? { x: 0, y: 0 },
+    };
+    /** Le chiot sous le doigt, le plus en avant. */
+    const dogAt = (x: number, y: number): DogId | null => {
+      let best: { id: DogId; z: number } | null = null;
+      for (const [id, v] of views) if (v.probe.hitTest(x, y) !== null && (!best || v.container.zIndex > best.z)) best = { id, z: v.container.zIndex };
+      return best?.id ?? null;
+    };
+
+    const bowls = new BowlsView(layer, stage.room);
+    const toysView = new ToysView(layer, stage.room);
     let tool: CareTool | null = null;
 
-    const recognizer = new GestureRecognizer(view.probe, (gesture) => {
+    const recognizer = new GestureRecognizer(probe, (gesture) => {
       // Main présentée ou levée : le geste est reconnu après un maintien, la latence part de là.
       if (['present', 'presentEnd', 'raise', 'raiseEnd'].includes(gesture.kind)) lastInputAt = performance.now();
       if (tool) {
@@ -163,15 +214,11 @@ async function boot(): Promise<void> {
         const t = store.getState().toys.find((x) => x.state === 'held' || x.state === 'tug');
         return t ? { id: t.id, kind: t.kind } : null;
       },
-      mouth: () => view.mouthScreen(),
+      mouth: () => av()?.mouthScreen() ?? { x: 0, y: 0 },
     });
-    view.onReaction = () => {
-      if (lastInputAt > 0) latencies.push(performance.now() - lastInputAt);
-      if (latencies.length > 50) latencies.shift();
-    };
 
     let toast: (text: string) => void = () => undefined;
-    const voice = new VoiceController(store, dogId, (t) => toast(t), () => void autosave.saveNow());
+    const voice = new VoiceController(store, aid, (t) => toast(t), () => void autosave.saveNow());
     const training: TrainingHandlers = {
       tricks() {
         const d = dogOf();
@@ -207,7 +254,10 @@ async function boot(): Promise<void> {
     const save = () => void autosave.saveNow();
     const outings: OutingHandlers = {
       coins: () => store.getState().save.coins,
-      shop: () => shopCatalog().map((i) => ({ id: i.id, price: i.price ?? 0 })),
+      shop: () =>
+        shopCatalog()
+          .filter((i) => !itemLocked(i.id, store.getState().save.masterPoints))
+          .map((i) => ({ id: i.id, price: i.price ?? 0 })),
       market: () => marketStock(store.getState().save.day.dayKey).map((o) => ({ id: o.itemId, price: o.price })),
       inventory: () => store.getState().save.inventory,
       discovered: () => store.getState().save.discovered.items,
@@ -223,11 +273,13 @@ async function boot(): Promise<void> {
         save();
       },
       openMap: () => showMap(),
+      openContests: () => showContests(),
+      openKennel: () => showKennel(),
+      openFamily: () => showFamily(),
     };
 
     const showMap = (): void => {
-      const d = dogOf();
-      const last = d?.walks.lastRewardedAt ?? null;
+      const last = dogOf()?.walks.lastRewardedAt ?? null;
       openMap(
         {
           stamina: () => dogOf()?.stamina ?? 5,
@@ -246,9 +298,10 @@ async function boot(): Promise<void> {
     const startWalking = (route: string[]): void => {
       store.dispatch({ type: 'walk/start', route, now: Date.now() });
       const w0 = store.getState().walk;
-      if (!w0) return;
+      const d0 = dogOf();
+      if (!w0 || !d0) return;
       const salon = mode;
-      const scene = new WalkScene(breed, dogOf()?.coat ?? { base: 0, patch: 0, patchAmount: 1 }, () => dogOf()?.equipped ?? []);
+      const scene = new WalkScene(breedOf(d0.breedId), d0.coat, () => dogOf()?.equipped ?? []);
       scene.layout(stage.app.screen.width, stage.app.screen.height);
       stage.app.stage.addChild(scene.container);
       stage.world.visible = false;
@@ -308,6 +361,167 @@ async function boot(): Promise<void> {
       };
     };
 
+    // ---------------------------------------------------------- concours (F-CON)
+    const showContests = (): void => {
+      openContests(
+        {
+          coins: () => store.getState().save.coins,
+          dogName: () => dogOf()?.name ?? '',
+          info: (c) => {
+            const d = dogOf();
+            const check = d ? canEnter(d, c) : null;
+            return {
+              contestClass: d?.contestClass[c] ?? 0,
+              trophies: d?.trophies.filter((t) => t.contestId === c).length ?? 0,
+              refusal: check && !check.ok ? check.reason : null,
+            };
+          },
+          prizesLeft: () => prizeLeft(store.getState().save, aid()),
+          enter: (c) => startContest(c),
+        },
+        () => undefined,
+      );
+    };
+
+    const startContest = (c: ContestId): void => {
+      store.dispatch({ type: 'contest/enter', contestId: c });
+      const s0 = store.getState().contest;
+      const d0 = dogOf();
+      if (!s0 || !d0) return;
+      const salon = mode;
+      const scene = new ContestScene(breedOf(d0.breedId), d0.coat, () => dogOf()?.equipped ?? [], s0);
+      scene.layout(stage.app.screen.width, stage.app.screen.height);
+      stage.app.stage.addChild(scene.container);
+      stage.world.visible = false;
+      document.body.dataset.mode = 'contest';
+      voice.orderHook = (trickId) => store.dispatch({ type: 'contest/order', trickId });
+      if (window.__truffe) window.__truffe.fieldToScreen = (p) => scene.screenOf(p);
+      const back = (): void => {
+        hud.destroy();
+        scene.container.destroy({ children: true });
+        stage.world.visible = true;
+        voice.orderHook = null;
+        store.dispatch({ type: store.getState().contest?.result ? 'contest/close' : 'contest/quit' });
+        save();
+        mode = salon;
+        document.body.dataset.mode = 'living';
+      };
+      const hud = mountContestHud(s0, {
+        quit: back,
+        close: back,
+        order: (trickId) => store.dispatch({ type: 'contest/order', trickId }),
+        tricks: () => (dogOf()?.tricks ?? []).filter((t) => t.learned).map((t) => ({ id: t.trickId, label: t.command.label })),
+        micSupported: () => voice.supported(),
+        micHold: (start) => (start ? void voice.holdStart() : voice.holdEnd()),
+        dogName: () => dogOf()?.name ?? '',
+      });
+      // Geste du disque : la vitesse du doigt sur ses 100 dernières millisecondes.
+      let trail: { x: number; y: number; t: number }[] = [];
+      let saved = false;
+      const aim = (x: number, y: number): void => {
+        if (store.getState().contest?.run.kind === 'agility') store.dispatch({ type: 'contest/aim', at: scene.toField(x, y) });
+      };
+      mode = {
+        intercept: {
+          down(x, y, t) {
+            trail = [{ x, y, t }];
+            aim(x, y);
+            return true;
+          },
+          move(x, y, t) {
+            if (trail.length === 0) return;
+            trail.push({ x, y, t });
+            trail = trail.filter((p) => t - p.t <= 100);
+            aim(x, y);
+          },
+          up(x, y, t) {
+            const run = store.getState().contest?.run;
+            if (run?.kind === 'disc' && trail.length > 0) {
+              const first = trail.find((p) => t - p.t <= 100) ?? trail[0];
+              if (first) {
+                const dt = Math.max(16, t - first.t);
+                store.dispatch({ type: 'contest/throw', fx: (x - first.x) / dt, fy: (first.y - y) / dt });
+              }
+            }
+            if (run?.kind === 'agility') store.dispatch({ type: 'contest/aim', at: null });
+            trail = [];
+          },
+          cancel() {
+            trail = [];
+            store.dispatch({ type: 'contest/aim', at: null });
+          },
+        },
+        frame(dtMs, t) {
+          const c = store.getState().contest;
+          if (!c) return;
+          scene.layout(stage.app.screen.width, stage.app.screen.height);
+          for (const e of scene.update(dtMs, c, t)) sfx.play(e);
+          hud.update(c);
+          if (c.result && !saved) {
+            saved = true;
+            save();
+          }
+        },
+      };
+    };
+
+    // ---------------------------------------------------------- chenil et pension
+    const showKennel = (): void => {
+      if (store.getState().save.dogs.length >= BALANCE.family.maxDogs) {
+        toast(FAMILY.full);
+        return;
+      }
+      const salon = mode;
+      layer.visible = false;
+      const restore = (): void => {
+        layer.visible = true;
+        mode = salon;
+        recognizerRef.current = recognizer;
+        document.body.dataset.mode = 'living';
+      };
+      void kennel({
+        exit: restore,
+        adopted: (id) => {
+          restore();
+          sync();
+          if (store.getState().save.homeDogIds.includes(id)) store.dispatch({ type: 'family/select', dogId: id });
+          else toast(FAMILY.toHotelToast);
+        },
+      });
+    };
+
+    const showFamily = (): void => {
+      openFamily(
+        {
+          dogs: () => {
+            const s = store.getState().save;
+            return s.dogs.map((d) => ({ id: d.id, name: d.name, breed: breedOf(d.breedId).label, home: s.homeDogIds.includes(d.id) }));
+          },
+          move(id, to) {
+            const s = store.getState().save;
+            const home = s.homeDogIds.length;
+            if (to === 'home' && home >= BALANCE.family.maxHome) return FAMILY.homeFull;
+            if (to === 'hotel' && home <= 1) return FAMILY.lastHome;
+            if (to === 'hotel' && s.dogs.length - home >= BALANCE.family.maxHotel) return FAMILY.hotelFull;
+            store.dispatch({ type: 'family/move', dogId: id, to });
+            sync();
+            save();
+            return null;
+          },
+          decors: () => {
+            const s = store.getState().save;
+            const open = availableDecors(s.masterPoints);
+            return (['home', 'seaside', 'space'] as const).map((id) => ({ id, unlocked: open.includes(id), current: s.settings.decor === id }));
+          },
+          setDecor(id: DecorId) {
+            store.dispatch({ type: 'settings/decor', decor: id });
+            save();
+          },
+        },
+        () => undefined,
+      );
+    };
+
     const hudApi = mountHud(document.body, {
       training,
       items: {
@@ -340,6 +554,7 @@ async function boot(): Promise<void> {
         if (start) void voice.holdStart();
         else voice.holdEnd();
       },
+      ropeUnlocked: () => ropeUnlocked(store.getState().save.masterPoints),
       dropBowl(kind, at) {
         sfx.unlock();
         const floor = at ? stage.room.screenToFloor(at.x, at.y) : null;
@@ -358,7 +573,7 @@ async function boot(): Promise<void> {
       },
       card() {
         const d = dogOf();
-        const m = store.getState().minds[dogId];
+        const m = store.getState().minds[aid()];
         return {
           rows: NEED_KINDS.map((kind) => {
             const level = needLevel(kind, d?.needs[kind] ?? 0);
@@ -366,7 +581,7 @@ async function boot(): Promise<void> {
           }),
           asleep: m?.activity === 'sleep',
           name: d?.name || KENNEL.renameTitle,
-          breed: breed.label,
+          breed: breedOf(d?.breedId).label,
           sex: d?.sex ?? 'm',
           temperament: d?.temperament ?? 'joueur',
         };
@@ -375,7 +590,7 @@ async function boot(): Promise<void> {
         let last = '';
         store.subscribe(() => {
           const d = dogOf();
-          const key = d ? NEED_KINDS.map((k) => needLevel(k, d.needs[k])).join() + (store.getState().minds[dogId]?.activity === 'sleep') + d.name : '';
+          const key = d ? aid() + NEED_KINDS.map((k) => needLevel(k, d.needs[k])).join() + (store.getState().minds[aid()]?.activity === 'sleep') + d.name : '';
           if (key !== last) {
             last = key;
             fn();
@@ -386,15 +601,17 @@ async function boot(): Promise<void> {
 
     toast = hudApi.toast;
 
-    // Sons : chaque nouvel événement du chiot.
-    let heardSeq = firstMind.events.at(-1)?.seq ?? 0;
+    // Sons de chaque chiot ; annonces des déblocages.
     let bulbHinted = false;
+    let tier = store.getState().save.unlockTier;
     store.subscribe((s) => {
-      const m = s.minds[dogId];
-      if (!m) return;
-      for (const e of m.events) {
-        if (e.seq > heardSeq) {
-          heardSeq = e.seq;
+      for (const id of s.save.homeDogIds) {
+        const m = s.minds[id];
+        if (!m) continue;
+        let seq = heard.get(id) ?? 0;
+        for (const e of m.events) {
+          if (e.seq <= seq) continue;
+          seq = e.seq;
           sfx.play(e.type);
           if (e.type === 'learned') toast(TRAINING.learnedToast);
           if (e.type === 'bulb' && !bulbHinted) {
@@ -402,6 +619,19 @@ async function boot(): Promise<void> {
             toast(TRAINING.bulbHint);
           }
         }
+        heard.set(id, seq);
+      }
+      for (; tier < s.save.unlockTier; tier++) {
+        const c = tierContent(tier);
+        if (!c) continue;
+        const said: string[] = [];
+        const items: readonly string[] = c.items;
+        if (items.includes('ballon')) said.push(UNLOCKS.rope);
+        if (items.includes('canape')) said.push(UNLOCKS.sofa);
+        if (items.includes('souris-meca')) said.push(UNLOCKS.toy);
+        for (const b of c.breeds) said.push(b === 'dalmatien' ? UNLOCKS.secret : UNLOCKS.breed.replace('{breed}', breedOf(b).label));
+        if (c.decor) said.push(UNLOCKS.decor.replace('{decor}', DECOR_NAMES[c.decor]));
+        toast(`${UNLOCKS.title} ${said.join(' ')}`);
       }
     });
 
@@ -409,11 +639,17 @@ async function boot(): Promise<void> {
       intercept: {
         down: (x, y, t) => {
           // F-DRE-1 : toucher l'ampoule associe un ordre.
-          if (view.bulbAt(x, y)) {
-            store.dispatch({ type: 'train' });
-            void autosave.saveNow();
-            return true;
+          for (const [id, v] of views) {
+            if (v.bulbAt(x, y)) {
+              store.dispatch({ type: 'family/select', dogId: id });
+              store.dispatch({ type: 'train' });
+              void autosave.saveNow();
+              return true;
+            }
           }
+          // D-61 : toucher un chiot en fait le chiot actif.
+          const hit = dogAt(x, y);
+          if (hit && hit !== aid()) store.dispatch({ type: 'family/select', dogId: hit });
           return hand.down(x, y, t);
         },
         move: (x, y, t) => hand.move(x, y, t),
@@ -423,27 +659,43 @@ async function boot(): Promise<void> {
       frame(dtMs, t) {
         recognizer.update(t);
         const s = store.getState();
-        const mind = s.minds[dogId];
-        if (mind) view.update(dtMs, mind, hand.hand ?? recognizer.pointerAt(t), dogOf()?.needs.cleanliness ?? 100, dogOf()?.equipped ?? []);
-        bowls.update(s.bowls, mind);
-        toysView.update(dtMs, s.toys, hand.hand, () => {
-          const p = view.mouthScreen();
-          return { ...p, z: view.container.zIndex + 0.001 };
+        if (views.size !== s.save.homeDogIds.length) sync();
+        const active = aid();
+        for (const [id, v] of views) {
+          const m = s.minds[id];
+          const d = s.save.dogs.find((x) => x.id === id);
+          if (m && d) v.update(dtMs, m, id === active ? (hand.hand ?? recognizer.pointerAt(t)) : null, d.needs.cleanliness, d.equipped);
+        }
+        // Avec plusieurs chiots, un anneau discret sous le chiot actif.
+        ring.clear();
+        const am = s.minds[active];
+        if (views.size > 1 && am) {
+          const f = stage.room.floorToScreen(am.pos);
+          const k = f.s * breedOf(s.save.dogs.find((d) => d.id === active)?.breedId).size;
+          ring.ellipse(f.x, f.y, k * 0.4, k * 0.11).stroke({ width: 3, color: 0xb5562a, alpha: 0.45 });
+        }
+        bowls.update(s.bowls, am);
+        toysView.update(dtMs, s.toys, hand.hand, (id) => {
+          const v = views.get(id);
+          if (!v) return null;
+          const p = v.mouthScreen();
+          return { ...p, z: v.container.zIndex + 0.001 };
         });
       },
     };
 
     if (DEBUG) {
-      const probe: DebugProbe = { store, dogId, latencies, probe: view.probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => view.bulbScreen() };
-      mountDebug(probe);
+      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null };
+      mountDebug(debugProbe);
     }
 
     // Chiot des jalons 1 et 2 : il ne lui manque qu'un nom.
-    if (unnamedDogs(store.getState().save).some((d) => d.id === dogId)) {
+    const unnamed = unnamedDogs(store.getState().save)[0];
+    if (unnamed) {
       nameDialog(document.body, KENNEL.renameTitle, (raw) => {
         const r = validateName(raw);
         if (!r.ok) return NAME_ERRORS[r.reason];
-        store.dispatch({ type: 'rename', dogId, name: r.name });
+        store.dispatch({ type: 'rename', dogId: unnamed.id, name: r.name });
         void autosave.saveNow();
         return null;
       });
@@ -452,9 +704,13 @@ async function boot(): Promise<void> {
   }
 
   // ------------------------------------------------------------ chenil
-  async function kennel(): Promise<void> {
+  /** Sans options : premier chiot, puis le salon. Depuis le salon : on peut repartir. */
+  async function kennel(opts?: { exit: () => void; adopted: (id: DogId) => void }): Promise<void> {
     document.body.dataset.mode = 'kennel';
-    const pics = await portraits(stage);
+    const breedIds = availableBreeds(store.getState().save.masterPoints);
+    const pics = await portraits(stage, breedIds);
+    const salonRecognizer = recognizerRef.current;
+    recognizerRef.current = null;
     const layer = new Container();
     layer.sortableChildren = true;
     stage.world.addChild(layer);
@@ -469,9 +725,15 @@ async function boot(): Promise<void> {
       x: foot.x + (p.x - foot.x) / KENNEL_SCALE,
       y: foot.y + (p.y - foot.y) / KENNEL_SCALE,
     });
+    const leave = (): void => {
+      ui.destroy();
+      layer.destroy({ children: true });
+      store.dispatch({ type: 'kennel/close' });
+      recognizerRef.current = salonRecognizer;
+    };
 
     const ui = mountKennel(document.body, {
-      breeds: STARTER_BREEDS.map((id) => {
+      breeds: breedIds.map((id) => {
         const b = BREEDS[id];
         return {
           id,
@@ -516,16 +778,23 @@ async function boot(): Promise<void> {
         const r = validateName(raw);
         if (!r.ok) return NAME_ERRORS[r.reason];
         const t = Date.now();
+        const count = store.getState().save.dogs.length;
         store.dispatch({ type: 'adopt', index, name: r.name, now: t, tzOffsetMin: tz(t) });
         const s = store.getState();
         const dog = s.save.dogs.at(-1);
-        if (!dog || dog.name !== r.name) return NAME_ERRORS.chars;
+        if (!dog || s.save.dogs.length === count) return s.save.coins < adoptionPrice(s.save, s.kennel?.breedId ?? '') ? OUT.notEnough : NAME_ERRORS.chars;
         void autosave.saveNow();
-        ui.destroy();
-        layer.destroy({ children: true });
-        living(dog.id);
+        leave();
+        if (opts) opts.adopted(dog.id);
+        else living();
         return null;
       },
+      exit: opts
+        ? () => {
+            leave();
+            opts.exit();
+          }
+        : undefined,
     });
 
     mode = {
@@ -567,13 +836,15 @@ async function boot(): Promise<void> {
     const bg = new Graphics().rect(0, 0, w, h).fill(0xfdf6ea);
     layer.addChild(bg);
     const views: { view: PuppyView; mind: PuppyMind }[] = [];
-    STARTER_BREEDS.forEach((id, i) => {
+    const ids = Object.keys(BREEDS);
+    const rows = Math.ceil(ids.length / 2);
+    ids.forEach((id, i) => {
       const breed = BREEDS[id];
       if (!breed) return;
       const room = new Room();
-      room.layout(w / 2, h / 3);
+      room.layout(w / 2, h / rows);
       const view = new PuppyView(breed, { base: 0, patch: 0, patchAmount: 1 }, room, { x: 0, z: 0.85 });
-      view.container.position.set((i % 2) * (w / 2), Math.floor(i / 2) * (h / 3) - h * 0.06);
+      view.container.position.set((i % 2) * (w / 2), Math.floor(i / 2) * (h / rows) - (h / rows) * 0.18);
       if (params.has('silhouette')) view.container.tint = 0x2b2320;
       layer.addChild(view.container);
       views.push({ view, mind: { ...staticMind({ x: 0, z: 0.85 }, 'calm', Math.PI / 2), posture: 'stand' } });
@@ -597,12 +868,12 @@ async function boot(): Promise<void> {
 
   const quick = DEBUG ? params.get('adopt') : null;
   if (DEBUG && params.has('gallery')) gallery();
-  else if (store.getState().save.homeDogIds[0]) living(store.getState().save.homeDogIds[0] ?? '');
+  else if (store.getState().save.homeDogIds[0]) living();
   else if (quick && BREEDS[quick]) {
     // Raccourci de test : adoption immédiate du premier chiot de la race.
     store.dispatch({ type: 'kennel/open', breedId: quick });
     store.dispatch({ type: 'adopt', index: 0, name: 'Truffe', now: Date.now(), tzOffsetMin: tz(Date.now()) });
-    living(store.getState().save.homeDogIds[0] ?? '');
+    living();
   } else await kennel();
   document.body.dataset.ready = 'true';
 }

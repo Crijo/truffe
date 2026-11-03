@@ -152,6 +152,7 @@ export function unnamedDogs(save: SaveGame): Dog[] {
 
 const emptyCounters = (): DogDailyCounters => ({ masterPoints: 0, caresses: 0, newTricks: 0, prizeContests: 0 });
 const F = BALANCE.puppy.floor;
+const P_HOME_Z = BALANCE.puppy.floor.home.z;
 const clamp100 = (v: number): number => Math.min(100, Math.max(0, v));
 
 /** Le chiot visé par défaut : le chiot actif s'il est à la maison, sinon le premier. */
@@ -196,7 +197,12 @@ function ensureMinds(state: GameState): GameState {
   if (missing.length === 0) return state;
   const rng = createRng(state.save.rngState);
   const minds = { ...state.minds };
-  for (const id of missing) minds[id] = createMind(Math.floor(rng.next() * 2 ** 32));
+  // F-VIE-4 : chaque nouveau chiot arrive à sa place, pas sur les autres.
+  const spots = BALANCE.family.spawnX;
+  for (const id of missing) {
+    const i = Object.keys(minds).length;
+    minds[id] = createMind(Math.floor(rng.next() * 2 ** 32), { x: spots[i % spots.length] ?? 0, z: P_HOME_Z });
+  }
   return { ...state, save: { ...state.save, rngState: rng.getState() }, minds };
 }
 

@@ -104,6 +104,12 @@ export class ContestScene {
     return this.toFloor(run.dog);
   }
 
+  /** Mètres du terrain → écran. */
+  screenOf(p: { x: number; y: number }): { x: number; y: number } {
+    const s = this.screen(p);
+    return { x: s.x, y: s.y };
+  }
+
   private screen(p: { x: number; y: number }): { x: number; y: number; s: number } {
     return this.room.floorToScreen(this.toFloor(p));
   }

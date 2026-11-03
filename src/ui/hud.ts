@@ -39,6 +39,8 @@ export interface HudHandlers {
   openBook(): void;
   /** Micro maintenu : commencer ou finir d'écouter un ordre à la voix. */
   micHold(start: boolean): void;
+  /** D-35 : la corde du salon arrive avec le premier déblocage. */
+  ropeUnlocked(): boolean;
 }
 
 /** Durée d'appui au-delà de laquelle le bouton Micro écoute au lieu d'ouvrir la liste. */
@@ -198,7 +200,11 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     bag.hidden = sheet !== bag;
     card.hidden = sheet !== card;
     orders.hidden = sheet !== orders;
-    if (sheet === bag) renderOwned();
+    if (sheet === bag) {
+      renderOwned();
+      const rope = toyItems[2];
+      if (rope) rope.hidden = !h.ropeUnlocked();
+    }
     if (sheet === card) renderCard();
     if (sheet === orders) renderOrders(ordersBox, h.training, () => show(null));
   };

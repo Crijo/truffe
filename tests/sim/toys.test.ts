@@ -267,3 +267,18 @@ describe('F-JEU-4 : objet inconnu et chiot timide', () => {
     for (let seed = 1; seed <= 20; seed++) expect(mind(throwFrom(adopted(seed, 'tetu'), 'disc', 0, -1)).activity).not.toBe('fear');
   });
 });
+
+describe('D-63 : souris mécanique', () => {
+  it('après le lancer, elle roule seule un moment, puis s’arrête', async () => {
+    const { createToy, stepToy, throwToy } = await import('../../src/sim/toys');
+    let t = throwToy({ ...createToy('m', 'ball', { x: 0, z: 0.7 }), itemId: 'souris-meca' }, 0, -0.3, 0);
+    for (let i = 0; i < 20; i++) t = stepToy(t, 100);
+    const a = { ...t.pos };
+    for (let i = 0; i < 10; i++) t = stepToy(t, 100);
+    expect(Math.hypot(t.pos.x - a.x, t.pos.z - a.z)).toBeGreaterThan(0.1);
+    for (let i = 0; i < 80; i++) t = stepToy(t, 100);
+    const b = { ...t.pos };
+    t = stepToy(t, 100);
+    expect(t.pos).toEqual(b);
+  });
+});

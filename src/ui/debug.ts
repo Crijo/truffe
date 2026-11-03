@@ -10,6 +10,8 @@ export interface DebugProbe {
   fps: () => number;
   rewind: (ms: number) => void;
   bulb: () => { x: number; y: number; r: number } | null;
+  /** Concours en cours : mètres du terrain → écran (tests au doigt). */
+  fieldToScreen?: ((p: { x: number; y: number }) => { x: number; y: number }) | undefined;
 }
 
 declare global {
