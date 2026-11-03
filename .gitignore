@@ -3,3 +3,6 @@ dist
 playwright-report
 test-results
 *.log
+
+# Enregistrements vocaux de test : générés en local, non publiés (voir ASSETS.md)
+tests/fixtures/voice/

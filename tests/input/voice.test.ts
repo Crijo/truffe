@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../../src/data/balance';
@@ -9,6 +9,11 @@ import { features, mfcc, trimSilence } from '../../src/input/voice/mfcc';
 
 const SR = 16000;
 const DIR = join(__dirname, '..', 'fixtures', 'voice');
+/**
+ * Enregistrements de synthèse vocale générés en local par scripts/make-voice-fixtures.ps1 ;
+ * ils ne sont pas publiés (licence de la voix non vérifiée) : sans eux, ces tests sautent.
+ */
+const HAS_FIXTURES = existsSync(join(DIR, 'assis-h0.wav'));
 
 /** Lit un WAV PCM 16 bits mono. */
 function wav(name: string): Float32Array {
@@ -75,7 +80,7 @@ describe('MFCC (13 coefficients, fenêtres de 25 ms, pas de 10 ms)', () => {
   });
 });
 
-describe('Détection de la parole', () => {
+describe.skipIf(!HAS_FIXTURES)('Détection de la parole', () => {
   it('retire le silence avant et après', () => {
     const x = wav('assis-h0');
     const t = trimSilence(x, SR);
@@ -91,7 +96,7 @@ describe('Détection de la parole', () => {
   });
 });
 
-describe('DTW normalisée par la longueur', () => {
+describe.skipIf(!HAS_FIXTURES)('DTW normalisée par la longueur', () => {
   it('vaut 0 pour deux suites identiques et supporte des longueurs différentes', () => {
     const a = feat(wav('patte-h0'));
     expect(dtw(a, a)).toBeCloseTo(0, 6);
@@ -101,9 +106,9 @@ describe('DTW normalisée par la longueur', () => {
   });
 });
 
-describe('Reconnaissance (critère : ≥ 80 % sur 5 ordres et 20 essais)', () => {
+describe.skipIf(!HAS_FIXTURES)('Reconnaissance (critère : ≥ 80 % sur 5 ordres et 20 essais)', () => {
   const ORDERS = ['assis', 'couche', 'patte', 'tourne', 'debout'];
-  const commands: VoiceCommand[] = ORDERS.map((id) => ({ id, templates: ['h0', 'hm1', 'hp1'].map((t) => feat(wav(`${id}-${t}`))) }));
+  const commands: VoiceCommand[] = HAS_FIXTURES ? ORDERS.map((id) => ({ id, templates: ['h0', 'hm1', 'hp1'].map((t) => feat(wav(`${id}-${t}`))) })) : [];
 
   it('reconnaît au moins 80 % des essais', () => {
     let ok = 0;

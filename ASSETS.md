@@ -38,7 +38,7 @@ Tous synthétisés en direct par Web Audio dans `src/audio/sfx.ts` : aucun fichi
 
 | Ressource | Fichier | Origine |
 | --- | --- | --- |
-| Enregistrements vocaux de test | `tests/fixtures/voice/*.wav` | Synthèse vocale de Windows (voix française installée avec le système), générés par `scripts/make-voice-fixtures.ps1`. Servent uniquement aux tests de reconnaissance ; à remplacer par des enregistrements CC0 avant toute diffusion du dépôt si la licence de la voix l'exige. |
+| Enregistrements vocaux de test | `tests/fixtures/voice/*.wav` | Synthèse vocale de Windows (voix française installée avec le système), générés par `scripts/make-voice-fixtures.ps1`. Servent uniquement aux tests de reconnaissance. **Non publiés** dans le dépôt public (licence de la voix non vérifiée) : à régénérer en local. |
 
 ## Polices
 
