@@ -85,7 +85,9 @@ export type PuppyEventType =
   | 'playdead'
   | 'dance'
   | 'treat'
-  | 'nibble';
+  | 'nibble'
+  /** Halètement, après avoir couru. */
+  | 'pant';
 
 export interface PuppyEvent {
   seq: number;
@@ -931,6 +933,7 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
         }
       }
       if (m.t >= gr.until) {
+        if (gr.intensity >= 2) emit(m, 'pant');
         m.greet = null;
         m.happyUntil = m.t + 3000;
       }
@@ -957,6 +960,7 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
       const pl = m.play;
       const mate = pl ? friendOf(ctx, pl.partner) : undefined;
       if (!pl || !mate || m.t >= pl.until) {
+        if (pl) emit(m, 'pant');
         m.play = null;
         m.lastPlayAt = m.t;
         m.happyUntil = m.t + 2000;

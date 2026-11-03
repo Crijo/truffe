@@ -94,6 +94,10 @@ export class Sfx {
         this.burst(t, 0.04, 3000, 1.2, 0.3);
         this.burst(t + 0.15, 0.04, 3000, 1.2, 0.25);
         break;
+      case 'pant':
+        // Halètement : souffles rapides, alternés.
+        for (let i = 0; i < 8; i++) this.burst(t + i * 0.17, 0.11, i % 2 ? 1500 : 1100, 0.9, 0.16);
+        break;
       case 'snore':
         this.burst(t, 0.9, 380, 0.7, 0.12);
         break;

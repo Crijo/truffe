@@ -235,3 +235,20 @@ export const FAMILY = {
   toHotelToast: 'La maison est pleine : ton nouveau chiot t’attend à la pension.',
   decor: 'Décor',
 } as const;
+
+export const SETTINGS = {
+  title: 'Réglages',
+  hint: 'Sons, animations, sauvegarde',
+  reduceMotion: 'Réduire les animations',
+  music: 'Musique',
+  sfx: 'Bruitages',
+  voices: 'Effacer mes empreintes vocales',
+  voicesDone: 'Empreintes vocales effacées.',
+  saveTitle: 'Sauvegarde',
+  saveHint: 'Garde une copie de ta partie dans un fichier, ou reprends-la sur un autre appareil.',
+  export: 'Exporter',
+  import: 'Importer',
+  importSure: 'La partie actuelle sera remplacée par celle du fichier. Continuer ?',
+  importBad: 'Ce fichier n’est pas une sauvegarde de Truffe.',
+  privacy: 'Aucun son ne quitte ton appareil : seules des empreintes de ta voix sont gardées, et le fichier exporté les contient.',
+} as const;

@@ -1,5 +1,6 @@
 import './style.css';
 import { Container, Graphics, Rectangle } from 'pixi.js';
+import { Music } from './audio/music';
 import { Sfx } from './audio/sfx';
 import { startAutosave } from './core/autosave';
 import { FixedStepper } from './core/loop';
@@ -41,6 +42,9 @@ import { canEnter, prizeLeft } from './sim/contests';
 import { ContestScene } from './render/contestScene';
 import { mountContestHud, openContests } from './ui/contests';
 import { openFamily } from './ui/family';
+import { openSettings } from './ui/settings';
+import { exportFileName, exportSave, importSave } from './save/transfer';
+import { SETTINGS } from './data/strings';
 
 const tz = (now: number): number => new Date(now).getTimezoneOffset();
 const params = new URLSearchParams(location.search);
@@ -90,13 +94,25 @@ async function boot(): Promise<void> {
   const saves = await openSaveStore();
   const now = Date.now();
   const loaded = await saves.load();
-  const store = new GameStore(createGameState(loaded ?? createNewGame(now, (Math.random() * 2 ** 32) >>> 0)));
+  const fresh = createNewGame(now, (Math.random() * 2 ** 32) >>> 0);
+  // Nouvelle partie : on suit la préférence « réduire les animations » de l'appareil.
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) fresh.settings.reduceMotion = true;
+  const store = new GameStore(createGameState(loaded ?? fresh));
   store.dispatch({ type: 'session/start', now, tzOffsetMin: tz(now) });
   const autosave = startAutosave(store, saves);
   await autosave.saveNow();
 
   const stage = await createStage(host);
   const sfx = new Sfx(store.getState().save.settings.sfxVolume);
+  const music = new Music(store.getState().save.settings.musicVolume);
+  const applySettings = (): void => {
+    const st = store.getState().save.settings;
+    sfx.setVolume(st.sfxVolume);
+    music.setVolume(st.musicVolume);
+    PuppyView.reduceMotion = st.reduceMotion;
+    document.body.classList.toggle('reduce-motion', st.reduceMotion);
+  };
+  applySettings();
   let mode: Mode | null = null;
   let lastInputAt = 0;
   const latencies: number[] = [];
@@ -115,6 +131,7 @@ async function boot(): Promise<void> {
     (t) => {
       lastInputAt = t;
       sfx.unlock();
+      music.unlock();
     },
     router,
   );
@@ -276,6 +293,40 @@ async function boot(): Promise<void> {
       openContests: () => showContests(),
       openKennel: () => showKennel(),
       openFamily: () => showFamily(),
+      openSettings: () =>
+        openSettings(
+          {
+            get: () => store.getState().save.settings,
+            set(patch) {
+              store.dispatch({ type: 'settings/set', patch });
+              applySettings();
+              save();
+            },
+            clearVoices: () => voice.clearAll(),
+            exportSave() {
+              const t = Date.now();
+              const blob = new Blob([exportSave(store.getState().save, t)], { type: 'application/json' });
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = exportFileName(t);
+              a.click();
+              window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            },
+            async importSave(text) {
+              let game;
+              try {
+                game = importSave(text);
+              } catch {
+                return SETTINGS.importBad;
+              }
+              autosave.stop();
+              await saves.save(game);
+              location.reload();
+              return null;
+            },
+          },
+          () => undefined,
+        ),
     };
 
     const showMap = (): void => {
@@ -306,6 +357,7 @@ async function boot(): Promise<void> {
       stage.app.stage.addChild(scene.container);
       stage.world.visible = false;
       document.body.dataset.mode = 'walk';
+      music.setScene('outdoor');
       let leashHand: { x: number; y: number } | null = null;
       let barks = 0;
       const back = (): void => {
@@ -316,6 +368,7 @@ async function boot(): Promise<void> {
         save();
         mode = salon;
         document.body.dataset.mode = 'living';
+        music.setScene('home');
       };
       const hud = mountWalkHud({
         finish: () => store.dispatch({ type: 'walk/finish' }),
@@ -394,6 +447,7 @@ async function boot(): Promise<void> {
       stage.app.stage.addChild(scene.container);
       stage.world.visible = false;
       document.body.dataset.mode = 'contest';
+      music.setScene('contest');
       voice.orderHook = (trickId) => store.dispatch({ type: 'contest/order', trickId });
       if (window.__truffe) window.__truffe.fieldToScreen = (p) => scene.screenOf(p);
       const back = (): void => {
@@ -405,6 +459,7 @@ async function boot(): Promise<void> {
         save();
         mode = salon;
         document.body.dataset.mode = 'living';
+        music.setScene('home');
       };
       const hud = mountContestHud(s0, {
         quit: back,
@@ -551,6 +606,7 @@ async function boot(): Promise<void> {
       openBook: () => openBook(outings, () => undefined),
       micHold(start) {
         sfx.unlock();
+        music.unlock();
         if (start) void voice.holdStart();
         else voice.holdEnd();
       },

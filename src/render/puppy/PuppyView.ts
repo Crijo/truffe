@@ -155,6 +155,8 @@ export class PuppyView {
   ];
   private gaitPhase = 0;
   private wagPhase = 0;
+  /** Réglage « réduire les animations » : sauts, tours et rebonds bien plus sobres. */
+  static reduceMotion = false;
   private breathPhase = 0;
   private blinkAt = 1.5;
   private blinkUntil = 0;
@@ -408,7 +410,7 @@ export class PuppyView {
     const breath = Math.sin(this.breathPhase) * 0.022;
     this.wagPhase += dt * Math.PI * 2 * E.wagHz * (0.6 + ex * 0.8);
     const petted = mind.activity === 'petted';
-    const bounce = E.bounce * (1 - moving) * Math.abs(Math.sin(now * 6.5)) * 0.022;
+    const bounce = E.bounce * (1 - moving) * Math.abs(Math.sin(now * 6.5)) * 0.022 * (PuppyView.reduceMotion ? 0.25 : 1);
 
     step('bodyY', this.bodyYFor(mind.posture) - (E.crouch + O.crouch) * 0.07 + O.bodyY + bounce + moving * Math.abs(Math.sin(gp * 2)) * 0.014);
     step('bodyZ', pose.bodyZ + O.bodyZ);
@@ -658,6 +660,13 @@ export class PuppyView {
         default:
           break;
       }
+    }
+    if (PuppyView.reduceMotion) {
+      // Les tours restent lisibles, sans grands mouvements du corps entier.
+      o.rootY *= 0.35;
+      o.yaw *= 0.25;
+      o.roll *= 0.35;
+      o.pitch *= 0.35;
     }
     return o;
   }

@@ -93,6 +93,7 @@ export type GameAction =
   | { type: 'voice/similar'; dogId?: DogId }
   | { type: 'call'; dogId?: DogId }
   | { type: 'settings/mic'; allowed: boolean }
+  | { type: 'settings/set'; patch: Partial<Pick<SaveGame['settings'], 'reduceMotion' | 'musicVolume' | 'sfxVolume'>> }
   | { type: 'walk/start'; route: Route; now: number; questions?: QuestionPoint[] }
   | { type: 'walk/leash'; lane: number | null }
   | { type: 'walk/pickup' }
@@ -565,6 +566,13 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       return gestureAll(state, { kind: 'orderSimilar' }, action.dogId ?? homeId(state));
     case 'call':
       return gestureAll(state, { kind: 'call' }, action.dogId ?? homeId(state));
+    case 'settings/set': {
+      const p = action.patch;
+      const vol = (v: number | undefined, cur: number): number => (v === undefined ? cur : Math.min(1, Math.max(0, v)));
+      const cur = state.save.settings;
+      const settings = { ...cur, reduceMotion: p.reduceMotion ?? cur.reduceMotion, musicVolume: vol(p.musicVolume, cur.musicVolume), sfxVolume: vol(p.sfxVolume, cur.sfxVolume) };
+      return { ...state, save: { ...state.save, settings } };
+    }
     case 'settings/mic':
       return { ...state, save: { ...state.save, settings: { ...state.save.settings, micAllowed: action.allowed } } };
     // ------------------------------------------------------------ promenade (F-PRO)

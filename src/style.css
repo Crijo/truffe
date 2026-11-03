@@ -1174,3 +1174,42 @@ body[data-mode='walk'] .hud {
 .contest-hud [hidden] {
   display: none;
 }
+
+/* ---------------------------------------------------------------- réglages */
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--paper-2);
+  font-size: 17px;
+}
+
+.setting input[type='checkbox'] {
+  width: 26px;
+  height: 26px;
+  accent-color: var(--accent);
+}
+
+.setting input[type='range'] {
+  flex: 0 1 55%;
+  accent-color: var(--accent);
+}
+
+.setting-row {
+  display: flex;
+  gap: 10px;
+}
+
+.setting-row .btn {
+  flex: 1;
+}
+
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+}
