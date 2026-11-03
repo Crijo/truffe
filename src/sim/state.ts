@@ -1,6 +1,6 @@
 /** Modèle de données sauvegardé (SPEC, Modèle de données). */
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export type DogId = string;
 export type ItemId = string;
@@ -58,6 +58,10 @@ export interface Dog {
   equipped: ItemId[];
   /** F-JEU-4 : nombre d'approches de chaque sorte d'objet. */
   familiar: Record<ItemId, number>;
+  /** F-PRO-7 : dernière promenade avec gains. */
+  walks: { lastRewardedAt: number | null; count: number };
+  /** Lieux visités en promenade (F-CON : un concours s'ouvre après une visite). */
+  visited: { park: boolean; gym: boolean; market: boolean };
 }
 
 export interface DogDailyCounters {

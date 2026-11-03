@@ -26,6 +26,15 @@ import { mountHud } from './ui/hud';
 import { mountKennel, nameDialog } from './ui/kennel';
 import type { TrainingHandlers } from './ui/training';
 import { VoiceController } from './ui/voice';
+import { ITEM_BY_ID } from './data/items';
+import { marketStock, shopCatalog } from './sim/economy';
+import { currentQuestions } from './sim/game';
+import { extendRoute, maxMeters, routeMeters, walkGains } from './sim/walk';
+import { WalkScene } from './render/walkScene';
+import { openBook, openMarket, openOutings, type OutingHandlers } from './ui/outings';
+import { openMap } from './ui/walkMap';
+import { mountWalkHud } from './ui/walkHud';
+import { OUT } from './data/strings';
 import { repsNeeded } from './sim/tricks';
 
 const tz = (now: number): number => new Date(now).getTimezoneOffset();
@@ -195,8 +204,137 @@ async function boot(): Promise<void> {
       },
     };
 
+    const save = () => void autosave.saveNow();
+    const outings: OutingHandlers = {
+      coins: () => store.getState().save.coins,
+      shop: () => shopCatalog().map((i) => ({ id: i.id, price: i.price ?? 0 })),
+      market: () => marketStock(store.getState().save.day.dayKey).map((o) => ({ id: o.itemId, price: o.price })),
+      inventory: () => store.getState().save.inventory,
+      discovered: () => store.getState().save.discovered.items,
+      learnedTricks: () => (dogOf()?.tricks ?? []).filter((t) => t.learned).map((t) => t.trickId),
+      buy(id, where) {
+        const before = store.getState().save.coins;
+        store.dispatch({ type: where === 'shop' ? 'shop/buy' : 'market/buy', itemId: id });
+        save();
+        return store.getState().save.coins === before ? OUT.notEnough : null;
+      },
+      sell(id) {
+        store.dispatch({ type: 'market/sell', itemId: id });
+        save();
+      },
+      openMap: () => showMap(),
+    };
+
+    const showMap = (): void => {
+      const d = dogOf();
+      const last = d?.walks.lastRewardedAt ?? null;
+      openMap(
+        {
+          stamina: () => dogOf()?.stamina ?? 5,
+          maxMeters: () => maxMeters(dogOf()?.stamina ?? 5),
+          questions: () => currentQuestions(store.getState().save),
+          waitMinutes: () => (last === null ? 0 : Math.max(0, Math.ceil((BALANCE.walk.cooldownMs - (Date.now() - last)) / 60_000))),
+          extend: (r, node) => extendRoute(r, node, dogOf()?.stamina ?? 5),
+          meters: (r) => routeMeters(r),
+          start: (r) => startWalking(r),
+        },
+        () => undefined,
+      );
+    };
+
+    /** Promenade : la scène de profil remplace le salon le temps de la marche. */
+    const startWalking = (route: string[]): void => {
+      store.dispatch({ type: 'walk/start', route, now: Date.now() });
+      const w0 = store.getState().walk;
+      if (!w0) return;
+      const salon = mode;
+      const scene = new WalkScene(breed, dogOf()?.coat ?? { base: 0, patch: 0, patchAmount: 1 }, () => dogOf()?.equipped ?? []);
+      scene.layout(stage.app.screen.width, stage.app.screen.height);
+      stage.app.stage.addChild(scene.container);
+      stage.world.visible = false;
+      document.body.dataset.mode = 'walk';
+      let leashHand: { x: number; y: number } | null = null;
+      let barks = 0;
+      const back = (): void => {
+        hud.destroy();
+        scene.container.destroy({ children: true });
+        stage.world.visible = true;
+        store.dispatch({ type: 'walk/close' });
+        save();
+        mode = salon;
+        document.body.dataset.mode = 'living';
+      };
+      const hud = mountWalkHud({
+        finish: () => store.dispatch({ type: 'walk/finish' }),
+        pickup: () => store.dispatch({ type: 'walk/pickup' }),
+        enter: () => {
+          const w = store.getState().walk;
+          const place = w?.pause ? w.plan.events[w.pause.index]?.place : undefined;
+          store.dispatch({ type: 'walk/enter' });
+          if (place === 'market') openMarket(outings, () => store.dispatch({ type: 'walk/continue' }));
+        },
+        continue: () => store.dispatch({ type: 'walk/continue' }),
+        close: back,
+        gains: (w) => (w.rewarded ? { points: walkGains(w.plan.lengthM).points + w.pointsDelta, stamina: BALANCE.walk.stamina } : null),
+      });
+      mode = {
+        intercept: {
+          down(x, y) {
+            leashHand = { x, y };
+            store.dispatch({ type: 'walk/leash', lane: scene.laneAt(y) });
+            return true;
+          },
+          move(x, y) {
+            if (!leashHand) return;
+            leashHand = { x, y };
+            store.dispatch({ type: 'walk/leash', lane: scene.laneAt(y) });
+          },
+          up() {
+            leashHand = null;
+            store.dispatch({ type: 'walk/leash', lane: null });
+          },
+          cancel() {
+            leashHand = null;
+          },
+        },
+        frame(dtMs) {
+          const w = store.getState().walk;
+          if (!w) return;
+          scene.layout(stage.app.screen.width, stage.app.screen.height);
+          scene.update(dtMs, w, leashHand);
+          hud.update(w);
+          for (; barks < w.barks.length; barks++) sfx.play('bark');
+        },
+      };
+    };
+
     const hudApi = mountHud(document.body, {
       training,
+      items: {
+        owned: () => {
+          const s0 = store.getState().save;
+          const worn = dogOf()?.equipped ?? [];
+          return Object.entries(s0.inventory)
+            .filter(([, n]) => n > 0)
+            .map(([id, count]) => ({ id, count, worn: worn.includes(id) }));
+        },
+        use(id) {
+          sfx.unlock();
+          store.dispatch({ type: 'use', itemId: id });
+          save();
+        },
+        equip(id) {
+          store.dispatch({ type: 'equip', itemId: id });
+          save();
+        },
+        armToy(id) {
+          sfx.unlock();
+          const kind = ITEM_BY_ID[id]?.toyKind;
+          if (kind) hand.arm(kind, id);
+        },
+      },
+      openOutings: () => openOutings(outings, () => undefined),
+      openBook: () => openBook(outings, () => undefined),
       micHold(start) {
         sfx.unlock();
         if (start) void voice.holdStart();
@@ -286,7 +424,7 @@ async function boot(): Promise<void> {
         recognizer.update(t);
         const s = store.getState();
         const mind = s.minds[dogId];
-        if (mind) view.update(dtMs, mind, hand.hand ?? recognizer.pointerAt(t), dogOf()?.needs.cleanliness ?? 100);
+        if (mind) view.update(dtMs, mind, hand.hand ?? recognizer.pointerAt(t), dogOf()?.needs.cleanliness ?? 100, dogOf()?.equipped ?? []);
         bowls.update(s.bowls, mind);
         toysView.update(dtMs, s.toys, hand.hand, () => {
           const p = view.mouthScreen();

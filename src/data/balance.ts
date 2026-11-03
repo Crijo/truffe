@@ -223,6 +223,54 @@ export const BALANCE = {
     band: 0.35,
   },
 
+  /** F-PRO. */
+  walk: {
+    /** Longueur d'une rue du plan. */
+    edgeM: 50,
+    /** D-13 : 1 point d'endurance = 100 m. */
+    metersPerStamina: 100,
+    /** F-PRO-7 : une promenade avec gains toutes les 30 minutes. */
+    cooldownMs: 30 * 60_000,
+    /** Vitesse de marche dans la vue de profil (le temps de jeu est raccourci). */
+    speedMps: 8,
+    /** F-PRO-4 : points « ? » sur le plan. */
+    questionPoints: 3,
+    hiddenGiftEveryM: 120,
+    hiddenGiftChance: 0.45,
+    poopChance: 0.8,
+    /** F-PRO-6 : temps pour ramasser. */
+    pickupMs: 6000,
+    /** Un cadeau se ramasse si le chiot passe dans sa voie. */
+    laneTolerance: 0.35,
+    sparkleLeadM: 30,
+    barkLeadM: 35,
+    encounterMs: 4000,
+    poopStopMs: 1800,
+    /** SPEC, Gains : 10 points + 1 par 100 m ; ramasser +5, oublier −5. */
+    points: { base: 10, per100m: 1, pickup: 5, forget: -5 },
+    /** SPEC, Jauges : affection +3, propreté −10 par promenade. */
+    affection: 3,
+    cleanliness: -10,
+    energy: -5,
+    stamina: 1,
+    /** La laisse tire le chiot vers la voie voulue ; il résiste moins s'il est docile. */
+    leashPull: 2.4,
+    wanderPull: 0.9,
+  },
+
+  /** F-ECO. */
+  economy: {
+    /** F-ECO-2 : plafond quotidien de points de maître par chiot (hors concours). */
+    dailyPointsCap: 200,
+    /** D-49 : pièces de départ, avant les concours. */
+    welcomeCoins: 300,
+    /** F-ECO-3 : la brocante change chaque jour. */
+    marketSize: 6,
+    marketPriceVariation: 0.2,
+    /** Prix à la brocante d'un objet sans prix de boutique. */
+    rarePriceFactor: 2.5,
+  },
+
   /** Seuils des gestes (D-05 à D-07), en pixels CSS et millisecondes. */
   gestures: {
     tapMaxMovePx: 12,

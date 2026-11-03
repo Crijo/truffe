@@ -23,6 +23,7 @@ const MIN_FLING_PX_S = 160;
 
 export class ToyHand {
   private armed: ToyKind | null = null;
+  private armedItem: string | undefined;
   private pressing = false;
   private samples: { x: number; y: number; t: number }[] = [];
   /** Position du doigt qui tient un jouet, pour le dessiner. */
@@ -31,8 +32,9 @@ export class ToyHand {
   constructor(private readonly d: ToyHandDeps) {}
 
   /** Jouet choisi dans le Sac : le prochain appui le prend en main. */
-  arm(kind: ToyKind | null): void {
+  arm(kind: ToyKind | null, itemId?: string): void {
     this.armed = kind;
+    this.armedItem = itemId;
   }
 
   get isArmed(): boolean {
@@ -43,7 +45,7 @@ export class ToyHand {
   down(x: number, y: number, t: number): boolean {
     const front = this.d.toFloor(x, y) ?? { x: 0, z: 0.88 };
     if (this.armed) {
-      this.d.dispatch({ type: 'toy/hold', kind: this.armed, at: front });
+      this.d.dispatch({ type: 'toy/hold', kind: this.armed, at: front, itemId: this.armedItem });
       this.armed = null;
     } else {
       const id = this.d.toyAt(x, y);

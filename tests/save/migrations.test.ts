@@ -72,3 +72,46 @@ describe('Migration v1 → v2 (jalon 3 : sexe, tempérament, objets familiers)',
     expect(g.dogs).toEqual([]);
   });
 });
+
+describe('Migration v2 → v3 (jalon 5 : promenades, lieux visités, pièces de bienvenue)', () => {
+  const v2 = {
+    ...createNewGame(1000, 1),
+    version: 2,
+    coins: 40,
+    dogs: [
+      {
+        id: 'dog-xyz',
+        name: 'Biscotte',
+        breedId: 'teckel',
+        coat: { base: 0, patch: 0, patchAmount: 1 },
+        sex: 'f',
+        temperament: 'sage',
+        familiar: { ball: 3 },
+        traits: { docility: 0.8, energy: 0.4, boldness: 0.5 },
+        needs: { hunger: 50, thirst: 40, cleanliness: 70, energy: 90 },
+        affection: 42,
+        stamina: 6,
+        tricks: [],
+        contestClass: { disc: 0, agility: 0, obedience: 0 },
+        trophies: [],
+        equipped: [],
+      },
+    ],
+    homeDogIds: ['dog-xyz'],
+  };
+
+  it('ajoute les promenades et les lieux visités, et les pièces de bienvenue', () => {
+    const g = migrate(structuredClone(v2));
+    const d = g.dogs[0];
+    expect(d?.walks).toEqual({ lastRewardedAt: null, count: 0 });
+    expect(d?.visited).toEqual({ park: false, gym: false, market: false });
+    expect(d?.stamina).toBe(6);
+    expect(d?.familiar).toEqual({ ball: 3 });
+    expect(g.coins).toBe(40 + 300);
+  });
+
+  it('une sauvegarde v1 passe aussi jusqu’à la version courante', () => {
+    const g = migrate({ ...createNewGame(1, 1), version: 1 });
+    expect(g.version).toBe(SAVE_VERSION);
+  });
+});

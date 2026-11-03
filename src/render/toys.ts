@@ -1,4 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
+import { ITEM_BY_ID } from '../data/items';
 import type { Toy } from '../sim/toys';
 import type { Room } from './room';
 
@@ -65,25 +66,26 @@ export class ToysView {
         const lift = Math.min(1, t.h);
         g.ellipse(p.x, p.y, s * 0.07 * (1 - lift * 0.5), s * 0.025 * (1 - lift * 0.5)).fill({ color: 0x3a2618, alpha: 0.18 });
       }
-      if (t.kind === 'ball') this.ball(g, it.x, it.y, s);
-      else if (t.kind === 'disc') this.disc(g, it.x, it.y, s, t.state === 'flying' ? Date.now() / 90 : 0);
+      const col = t.itemId ? ITEM_BY_ID[t.itemId]?.colors : undefined;
+      if (t.kind === 'ball') this.ball(g, it.x, it.y, s, col);
+      else if (t.kind === 'disc') this.disc(g, it.x, it.y, s, t.state === 'flying' ? Date.now() / 90 : 0, col);
       else this.rope(g, it.x, it.y, s, t, hand, mouth);
       if (t.state === 'ground') this.hitBoxes.push({ id: t.id, x: it.x, y: it.y, r: Math.max(30, s * 0.12) });
     }
   }
 
-  private ball(g: Graphics, x: number, y: number, s: number): void {
+  private ball(g: Graphics, x: number, y: number, s: number, col?: readonly [number, number]): void {
     const r = s * 0.055;
-    g.circle(x, y, r).fill(BALL).stroke({ width: 2, color: OUTLINE, alpha: 0.7 });
-    g.moveTo(x - r * 0.8, y - r * 0.3).quadraticCurveTo(x, y + r * 0.4, x + r * 0.8, y - r * 0.3).stroke({ width: r * 0.28, color: BALL_STRIPE, cap: 'round' });
+    g.circle(x, y, r).fill(col?.[0] ?? BALL).stroke({ width: 2, color: OUTLINE, alpha: 0.7 });
+    g.moveTo(x - r * 0.8, y - r * 0.3).quadraticCurveTo(x, y + r * 0.4, x + r * 0.8, y - r * 0.3).stroke({ width: r * 0.28, color: col?.[1] ?? BALL_STRIPE, cap: 'round' });
     g.circle(x - r * 0.35, y - r * 0.45, r * 0.18).fill({ color: 0xffffff, alpha: 0.6 });
   }
 
-  private disc(g: Graphics, x: number, y: number, s: number, spin: number): void {
+  private disc(g: Graphics, x: number, y: number, s: number, spin: number, col?: readonly [number, number]): void {
     const rx = s * 0.12;
     const ry = s * 0.04;
-    g.ellipse(x, y, rx, ry).fill(DISC).stroke({ width: 2, color: OUTLINE, alpha: 0.7 });
-    g.ellipse(x, y - ry * 0.15, rx * 0.62, ry * 0.55).stroke({ width: 2, color: DISC_RIM, alpha: 0.9 });
+    g.ellipse(x, y, rx, ry).fill(col?.[0] ?? DISC).stroke({ width: 2, color: OUTLINE, alpha: 0.7 });
+    g.ellipse(x, y - ry * 0.15, rx * 0.62, ry * 0.55).stroke({ width: 2, color: col?.[1] ?? DISC_RIM, alpha: 0.9 });
     g.circle(x + Math.cos(spin) * rx * 0.5, y + Math.sin(spin) * ry * 0.4, s * 0.008).fill(DISC_RIM);
   }
 

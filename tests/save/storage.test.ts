@@ -39,3 +39,25 @@ describe('Sauvegarde IndexedDB', () => {
     expect(await s.load()).toBeNull();
   });
 });
+
+describe('Achats et équipement après rechargement (critère du jalon 5)', () => {
+  it('le sac, les pièces et les accessoires portés survivent à la réouverture', async () => {
+    const { startWithDog } = await import('../sim/fixtures');
+    const { reduce } = await import('../../src/sim/game');
+    let s = startWithDog(Date.UTC(2026, 10, 3, 13), -60);
+    s = { ...s, save: { ...s.save, coins: 1000 } };
+    s = reduce(s, { type: 'shop/buy', itemId: 'bonnet' });
+    s = reduce(s, { type: 'shop/buy', itemId: 'biscuit' });
+    s = reduce(s, { type: 'equip', itemId: 'bonnet' });
+    s = reduce(s, { type: 'market/sell', itemId: 'biscuit' });
+    const s1 = await openSaveStore();
+    await s1.save(s.save);
+    s1.close();
+    const loaded = await (await openSaveStore()).load();
+    expect(loaded?.coins).toBe(s.save.coins);
+    expect(loaded?.inventory.bonnet).toBe(1);
+    expect(loaded?.inventory.biscuit ?? 0).toBe(0);
+    expect(loaded?.dogs[0]?.equipped).toEqual(['bonnet']);
+    expect(loaded?.discovered.items).toEqual(expect.arrayContaining(['bonnet', 'biscuit']));
+  });
+});

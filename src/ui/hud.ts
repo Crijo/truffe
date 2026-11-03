@@ -8,6 +8,9 @@ import type { Sex, TemperamentId } from '../sim/state';
 import type { ToyKind } from '../sim/toys';
 import { ICONS, type IconName } from './icons';
 import { renderOrders, renderTricks, type TrainingHandlers } from './training';
+import { ITEM_BY_ID } from '../data/items';
+import { OUT } from '../data/strings';
+import { itemIcon } from './itemIcon';
 
 export interface CardRow {
   kind: NeedKind;
@@ -25,6 +28,15 @@ export interface HudHandlers {
   armToy(kind: ToyKind): void;
   onChange(fn: () => void): void;
   training: TrainingHandlers;
+  /** Objets du sac (F-ECO-3) et ce qu'on en fait. */
+  items: {
+    owned(): { id: string; count: number; worn: boolean }[];
+    use(id: string): void;
+    equip(id: string): void;
+    armToy(id: string): void;
+  };
+  openOutings(): void;
+  openBook(): void;
   /** Micro maintenu : commencer ou finir d'écouter un ordre à la voix. */
   micHold(start: boolean): void;
 }
@@ -60,11 +72,11 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   const bMic = button('mic', UI.mic);
   const bCard = button('card', UI.card);
   bMic.dataset.testid = 'mic';
-  for (const b of [bOut]) {
-    b.disabled = true;
-    b.title = UI.soon;
-    b.dataset.soon = UI.soon;
-  }
+  bOut.dataset.testid = 'out';
+  bOut.addEventListener('click', () => {
+    show(null);
+    h.openOutings();
+  });
   bar.append(bBag, bOut, bMic, bCard);
 
   // Sac.
@@ -93,7 +105,37 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   });
   bagGrid.append(iFood, iWater, iBrush, iBath, ...toyItems);
   const bagClose = button('close', UI.close, 'close');
-  bag.append(bagClose, bagGrid);
+  const ownedTitle = el('h3', 'subtitle', OUT.myItems);
+  const ownedGrid = el('div', 'grid owned');
+  bag.append(bagClose, bagGrid, ownedTitle, ownedGrid);
+  const renderOwned = (): void => {
+    ownedGrid.innerHTML = '';
+    const owned = h.items.owned();
+    ownedTitle.hidden = owned.length === 0;
+    for (const o of owned) {
+      const def = ITEM_BY_ID[o.id];
+      if (!def) continue;
+      const verb = def.slot ? (o.worn ? OUT.worn : OUT.wear) : def.toyKind ? '' : def.food?.treat ? OUT.give : def.category === 'found' ? '' : OUT.use;
+      const b = el('button', `item owned${o.worn ? ' worn' : ''}`, `${itemIcon(def)}<span>${def.label}</span><small class="hint">× ${o.count}${verb ? ` · ${verb}` : ''}</small>`);
+      b.type = 'button';
+      b.dataset.testid = `own-${o.id}`;
+      b.setAttribute('aria-pressed', String(o.worn));
+      b.addEventListener('click', () => {
+        if (def.slot) {
+          h.items.equip(o.id);
+          renderOwned();
+        } else if (def.toyKind) {
+          show(null);
+          h.items.armToy(o.id);
+          toast(TOY_HINT);
+        } else if (def.category !== 'found') {
+          show(null);
+          h.items.use(o.id);
+        }
+      });
+      ownedGrid.append(b);
+    }
+  };
 
   // Fiche.
   const card = el('section', 'sheet');
@@ -105,7 +147,13 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   const cardSub = el('p', 'sub');
   const rows = el('ul', 'rows');
   const tricksBox = el('section', 'tricks-box');
-  card.append(cardClose, cardTitle, cardSub, rows, tricksBox);
+  const bookBtn = button('book', OUT.book, 'mini');
+  bookBtn.dataset.testid = 'open-book';
+  bookBtn.addEventListener('click', () => {
+    show(null);
+    h.openBook();
+  });
+  card.append(cardClose, cardTitle, cardSub, rows, bookBtn, tricksBox);
 
   // Liste d'ordres (bouton Micro touché brièvement).
   const orders = el('section', 'sheet');
@@ -150,6 +198,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     bag.hidden = sheet !== bag;
     card.hidden = sheet !== card;
     orders.hidden = sheet !== orders;
+    if (sheet === bag) renderOwned();
     if (sheet === card) renderCard();
     if (sheet === orders) renderOrders(ordersBox, h.training, () => show(null));
   };

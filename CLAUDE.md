@@ -4,9 +4,9 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-**Jalon 4 : dressage** — F-DRE, obéissance, puis reconnaissance vocale (boutons d'abord, micro ensuite).
+**Jalon 5 : promenade et objets** — F-PRO, F-ECO-3, F-ECO-4, boutique, brocante et carnet.
 
-Jalons 0 à 3 : validés.
+Jalons 0 à 4 : validés.
 
 Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run check` au vert **et** vérification de ses critères d'acceptation dans un navigateur. À la fin de chaque jalon : bilan critère par critère, mode d'emploi sur téléphone, liste de ce que le joueur doit vérifier lui-même, puis arrêt jusqu'à son accord.
 

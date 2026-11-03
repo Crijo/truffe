@@ -97,7 +97,7 @@ describe('F-ADO-4 : prix', () => {
     expect(s.save.homeDogIds).toEqual([d?.id]);
     expect(s.minds[d?.id ?? '']).toBeDefined();
     expect(s.kennel).toBeNull();
-    expect(s.save.coins).toBe(0);
+    expect(s.save.coins).toBe(BALANCE.economy.welcomeCoins); // le premier chiot est offert
   });
 
   it('un nom invalide n’adopte pas', () => {

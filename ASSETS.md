@@ -13,6 +13,9 @@ Toute ressource du dépôt est créée pour le projet ou placée sous licence CC
 | Chiots articulés des 6 races et leurs robes | `src/render/puppy/PuppyView.ts`, `src/data/breeds.ts` | Ellipsoïdes projetés et dessinés par le code ; proportions, formes d'oreilles et de queues et couleurs choisies pour Truffe d'après l'allure générale des races réelles | Propre au projet |
 | Portraits du chenil | générés au lancement | Rendu des chiots ci-dessus | Propre au projet |
 | Balle, disque, corde et leurs icônes | `src/render/toys.ts`, `src/ui/icons.ts` | Formes dessinées par le code et SVG à la main | Propre au projet |
+| 36 objets (noms et icônes) | `src/data/items.ts`, `src/ui/itemIcon.ts` | Noms français courants et SVG dessinés à la main pour Truffe, aucune marque | Propre au projet |
+| Accessoires portés par le chiot | `src/render/puppy/PuppyView.ts` | Formes dessinées par le code | Propre au projet |
+| Plan de la ville, décor de promenade, enseignes | `src/ui/walkMap.ts`, `src/render/walkScene.ts` | SVG et formes dessinés par le code | Propre au projet |
 | Idées de noms du chenil | `src/data/strings.ts` | Mots français courants choisis pour Truffe | Propre au projet |
 
 ## Sons

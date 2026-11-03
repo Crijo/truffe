@@ -22,7 +22,7 @@ describe('Partie neuve', () => {
     expect(g.version).toBe(SAVE_VERSION);
     expect(g.createdAt).toBe(T0);
     expect(g.lastSeenAt).toBe(T0);
-    expect(g.coins).toBe(0);
+    expect(g.coins).toBe(BALANCE.economy.welcomeCoins);
     expect(g.masterPoints).toBe(0);
     expect(g.dogs).toEqual([]);
     expect(g.homeDogIds).toEqual([]);

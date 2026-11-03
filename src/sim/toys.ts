@@ -17,6 +17,8 @@ export interface Toy {
   h: number;
   v: { x: number; z: number; h: number };
   carrier: string | null;
+  /** Jouet du sac (couleur), ou le jouet de base. */
+  itemId?: string | undefined;
 }
 
 const T = BALANCE.toys;

@@ -80,7 +80,8 @@ export type PuppyEventType =
   | 'flip'
   | 'handstand'
   | 'playdead'
-  | 'dance';
+  | 'dance'
+  | 'treat';
 
 export interface PuppyEvent {
   seq: number;
@@ -107,6 +108,8 @@ export interface BowlView {
   id: string;
   kind: BowlKind;
   pos: Vec2;
+  /** Ce que la gamelle apporte (pâtée, lait) ; sinon le repas ordinaire. */
+  meal?: number | undefined;
 }
 
 export type LookTarget =
@@ -142,6 +145,7 @@ export type Gesture =
   | { kind: 'order'; trickId: TrickId }
   | { kind: 'orderSimilar' }
   | { kind: 'voiceMiss' }
+  | { kind: 'treat' }
   | { kind: 'call' }
   | { kind: 'forceSpontaneous'; trick: TrickId };
 
@@ -243,7 +247,7 @@ export interface PuppyMind {
   happyUntil: number;
   curiousUntil: number;
 
-  eating: { bowlId: string; kind: BowlKind; until: number | null; nextBiteAt: number } | null;
+  eating: { bowlId: string; kind: BowlKind; meal: number; until: number | null; nextBiteAt: number } | null;
   bath: { active: boolean; foam: number; soaped: boolean; rinsed: boolean; wet: number };
   brush: { gained: number; accumPx: number; lastAt: number };
   shineUntil: number;
@@ -622,7 +626,7 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
     case 'eat': {
       const b = bestBowl(ctx);
       if (!b) break;
-      m.eating = { bowlId: b.bowl.id, kind: b.bowl.kind, until: null, nextBiteAt: 0 };
+      m.eating = { bowlId: b.bowl.id, kind: b.bowl.kind, meal: b.bowl.meal ?? (b.bowl.kind === 'food' ? N.meal : N.water), until: null, nextBiteAt: 0 };
       m.target = clampToFloor({ x: b.bowl.pos.x, z: b.bowl.pos.z - C.bowlOffsetZ });
       m.gait = 'trot';
       m.look = { kind: 'point', ...b.bowl.pos };
@@ -853,8 +857,8 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
       const e = m.eating;
       if (!e || e.until === null) break;
       if (m.t >= e.until) {
-        if (e.kind === 'food') fx.hungerDelta += N.meal;
-        else fx.thirstDelta += N.water;
+        if (e.kind === 'food') fx.hungerDelta += e.meal;
+        else fx.thirstDelta += e.meal;
         fx.bowlEaten = e.bowlId;
         m.eating = null;
         m.happyUntil = m.t + 2500;
@@ -1312,6 +1316,14 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
     case 'orderSimilar':
       // F-DRE-3 : ordre trop proche d'un autre, point d'interrogation bleu.
       emit(m, 'similar');
+      break;
+    case 'treat':
+      // Une friandise donnée à la main.
+      m.happyUntil = m.t + 2500;
+      m.excitement = 1;
+      m.look = { kind: 'player' };
+      emit(m, 'treat');
+      emit(m, 'lickLips');
       break;
     case 'voiceMiss':
       // F-DRE-3 : ordre mal compris à la voix, point d'interrogation rouge.

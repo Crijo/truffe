@@ -4,6 +4,7 @@
  */
 import { Container, Graphics } from 'pixi.js';
 import { coatOf, type BreedLook, type Coat } from '../../data/breeds';
+import { ITEM_BY_ID } from '../../data/items';
 import type { PuppyProbe } from '../../input/gestures';
 import type { BodyPart, Posture, PuppyEvent, PuppyEventType, PuppyMind } from '../../sim/behavior';
 import type { CoatParams } from '../../sim/state';
@@ -169,6 +170,10 @@ export class PuppyView {
   private noseS = { x: 0, y: 0 };
   private headTopS = { x: 0, y: 0 };
   private mouthS = { x: 0, y: 0 };
+  private neckS = { x: 0, y: 0 };
+  /** Yeux à l'écran (null : de dos), pour les lunettes. */
+  private eyeS: Record<1 | -1, { x: number; y: number; r: number; rot: number } | null> = { 1: null, [-1]: null };
+  private equipped: readonly string[] = [];
   private bulbS: { x: number; y: number; r: number } | null = null;
   private bodyCS = { x: 0, y: 0 };
   private bodyUpS = { x: 0, y: -1, len: 1 };
@@ -231,6 +236,76 @@ export class PuppyView {
     return POSTURES[p].feet.map((f) => [f[0] * kx, f[1], f[2] * kz] as V3) as [V3, V3, V3, V3];
   }
 
+  /** Collier à l'écran, pour accrocher la laisse. */
+  neckScreen(): { x: number; y: number } {
+    return this.neckS;
+  }
+
+  /** Accessoires portés : collier, foulard, chapeau, nœud, lunettes. */
+  private accessories(neckC: V3, Rb: M3, headC: V3, Rh: M3, headZ: number): void {
+    const g = this.g('wear');
+    g.zIndex = headZ + 0.02;
+    const cg = this.g('collar');
+    cg.zIndex = headZ - 0.002;
+    if (this.equipped.length === 0) return;
+    const B = this.breed;
+    const s = this.s;
+    const hex = (id: string, k: 0 | 1) => ITEM_BY_ID[id]?.colors[k] ?? 0xd23b3b;
+    const front = this.facing(apply(Rh, [0, 0, 1]));
+    const angle = this.screenAngle(headC, Rh);
+    for (const id of this.equipped) {
+      const slot = ITEM_BY_ID[id]?.slot;
+      const shape = ITEM_BY_ID[id]?.shape;
+      if (slot === 'collar') {
+        const e = this.cam.ellipse(Rb, [B.head[0] * 0.66, B.head[1] * 0.18, B.head[2] * 0.66]);
+        const c = this.toS(add(neckC, apply(Rb, [0, -B.head[1] * 0.2, 0])));
+        cg.ellipse(c.x, c.y, e.a * s, Math.max(3, e.b * s)).stroke({ width: Math.max(4, s * 0.035), color: hex(id, 0) });
+        cg.circle(c.x, c.y + Math.max(3, e.b * s) + s * 0.012, s * 0.022).fill(hex(id, 1)).stroke({ width: 1.5, color: 0x4a2f1f, alpha: 0.6 });
+      } else if (slot === 'neck') {
+        const c = this.toS(add(neckC, apply(Rb, [0, -B.head[1] * 0.25, B.head[2] * 0.2])));
+        const w = B.head[0] * s * (0.55 + 0.35 * Math.abs(front));
+        g.moveTo(c.x - w, c.y - s * 0.02).lineTo(c.x + w, c.y - s * 0.02).lineTo(c.x, c.y + s * 0.2).closePath().fill(hex(id, 0)).stroke({ width: 2, color: 0x4a2f1f, alpha: 0.5 });
+        g.circle(c.x, c.y + s * 0.07, s * 0.014).fill(hex(id, 1));
+      } else if (slot === 'head') {
+        const top = this.toS(add(headC, apply(Rh, [0, B.head[1] * 0.92, -B.head[2] * 0.1])));
+        const hw = B.head[0] * s;
+        const ca = Math.cos(angle);
+        const sa = Math.sin(angle);
+        const at = (dx: number, dy: number) => ({ x: top.x + dx * ca - dy * sa, y: top.y + dx * sa + dy * ca });
+        if (shape === 'hat') {
+          const l = at(-hw * 0.75, 0);
+          const r = at(hw * 0.75, 0);
+          const t = at(0, -hw * 0.95);
+          g.moveTo(l.x, l.y).quadraticCurveTo(at(-hw * 0.7, -hw * 0.9).x, at(-hw * 0.7, -hw * 0.9).y, t.x, t.y).quadraticCurveTo(at(hw * 0.7, -hw * 0.9).x, at(hw * 0.7, -hw * 0.9).y, r.x, r.y).closePath().fill(hex(id, 0)).stroke({ width: 2, color: 0x4a2f1f, alpha: 0.5 });
+          g.moveTo(l.x, l.y).lineTo(r.x, r.y).stroke({ width: hw * 0.22, color: hex(id, 1), cap: 'round' });
+          g.circle(t.x, t.y, hw * 0.16).fill(hex(id, 1));
+        } else if (shape === 'strawhat') {
+          g.ellipse(top.x, top.y, hw * 1.25, hw * 0.3).fill(hex(id, 0)).stroke({ width: 2, color: 0x8a6a1a, alpha: 0.6 });
+          const d = at(0, -hw * 0.25);
+          g.ellipse(d.x, d.y, hw * 0.6, hw * 0.42).fill(hex(id, 0)).stroke({ width: 2, color: 0x8a6a1a, alpha: 0.6 });
+          g.rect(d.x - hw * 0.6, d.y + hw * 0.05, hw * 1.2, hw * 0.14).fill(hex(id, 1));
+        } else if (shape === 'crown') {
+          for (let k = -2; k <= 2; k++) {
+            const q = at(k * hw * 0.32, Math.abs(k) * hw * 0.08);
+            g.circle(q.x, q.y, hw * 0.17).fill(k % 2 ? hex(id, 1) : hex(id, 0)).stroke({ width: 1.5, color: 0x4a2f1f, alpha: 0.4 });
+          }
+        } else {
+          // Nœud, posé sur le côté de la tête.
+          const q = this.toS(add(headC, apply(Rh, [B.head[0] * 0.55, B.head[1] * 0.75, B.head[2] * 0.2])));
+          const k = hw * 0.32;
+          g.moveTo(q.x, q.y).lineTo(q.x - k * 1.2, q.y - k * 0.8).lineTo(q.x - k * 1.2, q.y + k * 0.8).closePath().fill(hex(id, 0));
+          g.moveTo(q.x, q.y).lineTo(q.x + k * 1.2, q.y - k * 0.8).lineTo(q.x + k * 1.2, q.y + k * 0.8).closePath().fill(hex(id, 0));
+          g.circle(q.x, q.y, k * 0.4).fill(hex(id, 1));
+        }
+      } else if (slot === 'eyes') {
+        const l = this.eyeS[1];
+        const r = this.eyeS[-1];
+        for (const e of [l, r]) if (e) g.circle(e.x, e.y, e.r * 1.35).fill({ color: hex(id, 1), alpha: 0.35 }).stroke({ width: Math.max(2.5, s * 0.02), color: hex(id, 0) });
+        if (l && r) g.moveTo(l.x, l.y).lineTo(r.x, r.y).stroke({ width: Math.max(2, s * 0.015), color: hex(id, 0) });
+      }
+    }
+  }
+
   /** Ampoule à l'écran (null si éteinte). */
   bulbScreen(): { x: number; y: number; r: number } | null {
     return this.bulbS;
@@ -287,7 +362,8 @@ export class PuppyView {
 
   // ------------------------------------------------------------ animation
 
-  update(dtMs: number, mind: PuppyMind, pointer: { x: number; y: number } | null, cleanliness = 100): void {
+  update(dtMs: number, mind: PuppyMind, pointer: { x: number; y: number } | null, cleanliness = 100, equipped: readonly string[] = []): void {
+    this.equipped = equipped;
     const dt = Math.min(dtMs, 50) / 1000;
     const now = (this.t += dt);
     this.consume(mind.events, now);
@@ -742,6 +818,8 @@ export class PuppyView {
       this.eye(side, headC, Rh, headZ);
       this.ear(side, headC, Rh, headYaw, headRoll, headZ, O, dt, now);
     }
+    this.neckS = this.toS(neckC);
+    this.accessories(neckC, Rb, headC, Rh, headZ);
     this.extras(mind, bodyC, Rb, bodyR, headC, Rh, bodyZ, now);
   }
 
@@ -941,12 +1019,14 @@ export class PuppyView {
     if (f < 0.1) {
       g.visible = false;
       this.gfx.get(`brow${side}`)?.clear();
+      this.eyeS[side] = null;
       return;
     }
     const p = this.toS(pos);
     const s = this.s;
     const rx = B.eyeRadius * s * (0.3 + 0.7 * f);
     const ry = B.eyeRadius * s * 1.08;
+    this.eyeS[side] = { x: p.x, y: p.y, r: Math.max(rx, ry), rot: this.screenAngle(headC, Rh) };
     g.position.set(p.x, p.y);
     g.rotation = this.screenAngle(headC, Rh);
     g.zIndex = headZ + 0.01;

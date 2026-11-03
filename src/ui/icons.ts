@@ -24,6 +24,11 @@ export const ICONS = {
   ball: svg('<circle cx="24" cy="24" r="15"/><path d="M11 20c8 5 18 5 26 0"/>'),
   disc: svg('<ellipse cx="24" cy="26" rx="18" ry="8"/><ellipse cx="24" cy="24" rx="10" ry="4"/>'),
   rope: svg('<path d="M8 32c6-12 12 4 18-8s10 4 14-6"/><circle cx="8" cy="32" r="3.5"/><circle cx="40" cy="18" r="3.5"/>'),
+  coin: svg('<circle cx="24" cy="24" r="15"/><path d="M24 16v16M19 20h8a3 3 0 0 1 0 6h-6a3 3 0 0 0 0 6h8"/>'),
+  map: svg('<path d="M8 12l10-4 12 4 10-4v28l-10 4-12-4-10 4z"/><path d="M18 8v28M30 12v28"/>'),
+  tag: svg('<path d="M8 24 24 8h14v14L22 38z"/><circle cx="31" cy="15" r="2.5"/>'),
+  book: svg('<path d="M10 10h12a4 4 0 0 1 4 4v24a3 3 0 0 0-3-3H10zM38 10H28a4 4 0 0 0-4 4"/><path d="M38 10v25H27"/>'),
+  home: svg('<path d="M8 24 24 10l16 14M12 21v17h24V21"/><path d="M21 38V28h6v10"/>'),
   paw: svg('<ellipse cx="24" cy="31" rx="9" ry="7"/><circle cx="13" cy="20" r="3.5"/><circle cx="20" cy="13" r="3.5"/><circle cx="28" cy="13" r="3.5"/><circle cx="35" cy="20" r="3.5"/>'),
 } as const;
 

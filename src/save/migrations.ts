@@ -1,3 +1,4 @@
+import { BALANCE } from '../data/balance';
 import { SAVE_VERSION, type SaveGame } from '../sim/state';
 
 export class SaveError extends Error {}
@@ -20,6 +21,14 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
     ...raw,
     dogs: (Array.isArray(raw.dogs) ? raw.dogs : []).map((d: unknown) =>
       isObj(d) ? { sex: sexFromId(d.id), temperament: 'joueur', familiar: {}, ...d } : d,
+    ),
+  }),
+  // v2 → v3 (jalon 5) : promenades, lieux visités ; pièces de bienvenue (D-49).
+  2: (raw) => ({
+    ...raw,
+    coins: (isNum(raw.coins) ? raw.coins : 0) + BALANCE.economy.welcomeCoins,
+    dogs: (Array.isArray(raw.dogs) ? raw.dogs : []).map((d: unknown) =>
+      isObj(d) ? { walks: { lastRewardedAt: null, count: 0 }, visited: { park: false, gym: false, market: false }, ...d } : d,
     ),
   }),
 };
