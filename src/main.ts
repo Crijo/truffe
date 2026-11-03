@@ -143,7 +143,7 @@ async function boot(): Promise<void> {
   stage.app.ticker.add((ticker) => {
     stepper.advance(ticker.deltaMS);
     const s = store.getState();
-    stage.setHour(localHour(s.save.lastSeenAt, tz(s.save.lastSeenAt)));
+    stage.setHour(localHour(s.save.lastSeenAt, tz(s.save.lastSeenAt)), s.save.settings.brightness);
     stage.setDecor(s.save.settings.decor, (s.save.inventory.canape ?? 0) > 0);
     mode?.frame(ticker.deltaMS, performance.now());
   });

@@ -1,6 +1,6 @@
 /** Modèle de données sauvegardé (SPEC, Modèle de données). */
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export type DogId = string;
 export type ItemId = string;
@@ -87,6 +87,8 @@ export interface Settings {
   /** null : jamais demandé. */
   micAllowed: boolean | null;
   decor: DecorId;
+  /** D-72 : de 0 (nuit sombre) à 1 (pas de voile de nuit). */
+  brightness: number;
 }
 
 export interface SaveGame {

@@ -6,8 +6,8 @@ import { SETTINGS } from '../data/strings';
 import { panel } from './outings';
 
 export interface SettingsHandlers {
-  get(): { reduceMotion: boolean; musicVolume: number; sfxVolume: number };
-  set(patch: { reduceMotion?: boolean; musicVolume?: number; sfxVolume?: number }): void;
+  get(): { reduceMotion: boolean; musicVolume: number; sfxVolume: number; brightness: number };
+  set(patch: { reduceMotion?: boolean; musicVolume?: number; sfxVolume?: number; brightness?: number }): void;
   clearVoices(): void;
   exportSave(): void;
   /** Renvoie un message d'erreur, ou null (la page se recharge). */
@@ -80,6 +80,7 @@ export function openSettings(h: SettingsHandlers, onClose: () => void): void {
   const row = el('div', 'setting-row');
   row.append(exp, imp, file);
   p.body.append(
+    slider(SETTINGS.brightness, s.brightness, 'brightness', (v) => h.set({ brightness: v })),
     motion,
     slider(SETTINGS.music, s.musicVolume, 'music-volume', (v) => h.set({ musicVolume: v })),
     slider(SETTINGS.sfx, s.sfxVolume, 'sfx-volume', (v) => h.set({ sfxVolume: v })),

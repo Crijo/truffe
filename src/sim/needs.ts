@@ -48,3 +48,9 @@ export function isNight(now: number, tzOffsetMin: number): boolean {
   const S = BALANCE.sleep;
   return h >= S.nightStartHour || h < S.nightEndHour;
 }
+
+/** D-72 : opacité du voile de nuit, selon la part de nuit (0 à 1) et la luminosité choisie (0 à 1). */
+export function nightAlpha(night: number, brightness: number): number {
+  const b = Math.min(1, Math.max(0, brightness));
+  return BALANCE.display.nightMaxAlpha * Math.min(1, Math.max(0, night)) * (1 - b);
+}

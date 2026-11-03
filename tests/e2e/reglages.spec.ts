@@ -47,3 +47,44 @@ test.describe('Jalon 7 : réglages et sauvegarde', () => {
     await expect(page.getByRole('status').filter({ hasText: 'pas une sauvegarde' })).toBeVisible();
   });
 });
+
+test('D-72 : la luminosité éclaircit le salon le soir', async ({ page }) => {
+  await fresh(page);
+  // Force le soir (23 h) : la teinte de nuit s'applique.
+  await page.evaluate(() => {
+    const t = window.__truffe;
+    if (!t) return;
+    const s = t.store.getState();
+    const d = new Date();
+    d.setHours(23, 0, 0, 0);
+    t.store.replaceForDebug({ ...s, save: { ...s.save, lastSeenAt: d.getTime() } });
+  });
+  const shot = async (v: string, name: string): Promise<number> => {
+    await page.getByTestId('out').click();
+    await page.getByTestId('out-settings').click();
+    await page.getByTestId('brightness').fill(v);
+    await page.getByTestId('panel-close').click();
+    await page.waitForTimeout(400);
+    const png = await page.screenshot({ path: `test-results/luminosite-${name}.png` });
+    // Luminosité moyenne de la capture, décodée par le navigateur.
+    return page.evaluate(async (b64) => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${b64}`;
+      await img.decode();
+      const g = document.createElement('canvas');
+      g.width = 40;
+      g.height = 80;
+      const x = g.getContext('2d');
+      if (!x) return 0;
+      x.drawImage(img, 0, 0, 40, 80);
+      const d = x.getImageData(0, 0, 40, 80).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) sum += (d[i] ?? 0) + (d[i + 1] ?? 0) + (d[i + 2] ?? 0);
+      return sum / (d.length / 4) / 3;
+    }, png.toString('base64'));
+  };
+  const dark = await shot('0', 'min');
+  const light = await shot('100', 'max');
+  expect(light).toBeGreaterThan(dark + 20);
+  expect(await page.evaluate(() => window.__truffe?.store.getState().save.settings.brightness)).toBe(1);
+});

@@ -242,6 +242,7 @@ export const SETTINGS = {
   title: 'Réglages',
   hint: 'Sons, animations, sauvegarde',
   reduceMotion: 'Réduire les animations',
+  brightness: 'Luminosité',
   music: 'Musique',
   sfx: 'Bruitages',
   voices: 'Effacer mes empreintes vocales',

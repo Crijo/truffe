@@ -37,6 +37,11 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
     ...raw,
     settings: { decor: 'home', ...(isObj(raw.settings) ? raw.settings : {}) },
   }),
+  // v4 → v5 : réglage de luminosité (D-72).
+  4: (raw) => ({
+    ...raw,
+    settings: { brightness: BALANCE.display.defaultBrightness, ...(isObj(raw.settings) ? raw.settings : {}) },
+  }),
 };
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 

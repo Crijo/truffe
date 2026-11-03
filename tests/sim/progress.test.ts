@@ -298,6 +298,19 @@ describe('F-VIE-4 : ils jouent, se mordillent et dorment ensemble', () => {
   });
 });
 
+describe('Migration v4 → v5 (luminosité)', () => {
+  it('ajoute la luminosité par défaut et garde les autres réglages', () => {
+    const g = createNewGame(1000, 1);
+    const old: Record<string, unknown> = { ...g.settings, musicVolume: 0.2 };
+    delete old.brightness;
+    const v4 = { ...g, version: 4, settings: old };
+    const out = migrate(v4);
+    expect(out.version).toBe(SAVE_VERSION);
+    expect(out.settings.brightness).toBe(BALANCE.display.defaultBrightness);
+    expect(out.settings.musicVolume).toBe(0.2);
+  });
+});
+
 describe('Migration v3 → v4 (jalon 6)', () => {
   it('ajoute le palier de déblocage et le décor', () => {
     const v3: Record<string, unknown> = { ...createNewGame(1000, 1), version: 3 };

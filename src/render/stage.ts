@@ -1,5 +1,6 @@
 import { Application, Container, Graphics } from 'pixi.js';
 import type { DecorId } from '../sim/state';
+import { nightAlpha } from '../sim/needs';
 import { Room } from './room';
 
 /** Palettes du salon : aplats doux de livre illustré ; deux décors à débloquer (D-63). */
@@ -17,7 +18,7 @@ export interface Stage {
   /** Calque du chiot et des objets au sol, trié par profondeur. */
   world: Container;
   /** Teinte selon l'heure locale (décor qui change discrètement). */
-  setHour(hour: number): void;
+  setHour(hour: number, brightness: number): void;
   /** Décor du salon et canapé (déblocages). */
   setDecor(decor: DecorId, sofa: boolean): void;
 }
@@ -103,7 +104,7 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
   let tint = 0;
   const drawNight = (): void => {
     night.clear();
-    if (tint > 0) night.rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0x1f2546, alpha: 0.38 * tint });
+    if (tint > 0) night.rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0x1f2546, alpha: tint });
   };
   drawRoom();
   app.renderer.on('resize', () => {
@@ -115,8 +116,8 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
     app,
     room,
     world,
-    setHour(hour) {
-      const t = Math.round(nightFactor(hour) * 50) / 50;
+    setHour(hour, brightness) {
+      const t = Math.round(nightAlpha(nightFactor(hour), brightness) * 100) / 100;
       if (t === tint) return;
       tint = t;
       drawNight();

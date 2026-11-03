@@ -96,7 +96,7 @@ export type GameAction =
   | { type: 'voice/similar'; dogId?: DogId }
   | { type: 'call'; dogId?: DogId }
   | { type: 'settings/mic'; allowed: boolean }
-  | { type: 'settings/set'; patch: Partial<Pick<SaveGame['settings'], 'reduceMotion' | 'musicVolume' | 'sfxVolume'>> }
+  | { type: 'settings/set'; patch: Partial<Pick<SaveGame['settings'], 'reduceMotion' | 'musicVolume' | 'sfxVolume' | 'brightness'>> }
   | { type: 'walk/start'; route: Route; now: number; questions?: QuestionPoint[] }
   | { type: 'walk/leash'; lane: number | null }
   | { type: 'walk/pickup' }
@@ -139,7 +139,7 @@ export function createNewGame(now: number, seed: number): SaveGame {
     dogs: [],
     homeDogIds: [],
     day: { dayKey: '', perDog: {} },
-    settings: { reduceMotion: false, musicVolume: 0.6, sfxVolume: 0.8, micAllowed: null, decor: 'home' },
+    settings: { reduceMotion: false, musicVolume: 0.6, sfxVolume: 0.8, micAllowed: null, decor: 'home', brightness: BALANCE.display.defaultBrightness },
     rngState: seed >>> 0,
     stats: { sessions: 0 },
   };
@@ -585,7 +585,7 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       const p = action.patch;
       const vol = (v: number | undefined, cur: number): number => (v === undefined ? cur : Math.min(1, Math.max(0, v)));
       const cur = state.save.settings;
-      const settings = { ...cur, reduceMotion: p.reduceMotion ?? cur.reduceMotion, musicVolume: vol(p.musicVolume, cur.musicVolume), sfxVolume: vol(p.sfxVolume, cur.sfxVolume) };
+      const settings = { ...cur, reduceMotion: p.reduceMotion ?? cur.reduceMotion, musicVolume: vol(p.musicVolume, cur.musicVolume), sfxVolume: vol(p.sfxVolume, cur.sfxVolume), brightness: vol(p.brightness, cur.brightness) };
       return { ...state, save: { ...state.save, settings } };
     }
     case 'settings/mic':

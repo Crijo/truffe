@@ -3,6 +3,9 @@
  * Aucune valeur chiffrée de gameplay ne doit être écrite en dur ailleurs.
  */
 export const BALANCE = {
+  /** D-72 : luminosité de la scène. La nuit assombrit le salon d'autant moins que la luminosité est haute. */
+  display: { defaultBrightness: 0.7, nightMaxAlpha: 0.6 },
+
   time: {
     /** Pas fixe de la simulation (SPEC, Temps et sauvegarde). */
     simStepMs: 100,
