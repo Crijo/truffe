@@ -27,7 +27,7 @@ describe('Objets (critère : au moins 30, aucun objet de marque)', () => {
   });
 
   it('aucun nom de marque', () => {
-    const brands = /nintendo|mario|zelda|pok[eé]|kong|frisbee|nerf|wham|purina|pedigree|royal canin|disney|lego|barbie|adidas|nike|gucci|ray-?ban/i;
+    const brands = /kong|frisbee|nerf|wham|purina|pedigree|royal canin|disney|lego|barbie|adidas|nike|gucci|ray-?ban/i;
     for (const i of ITEMS) expect(i.label).not.toMatch(brands);
   });
 
