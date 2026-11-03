@@ -3,14 +3,13 @@ import { BALANCE } from '../../src/data/balance';
 import { dayKeyAt } from '../../src/sim/day';
 import { createGameState, createNewGame, reduce, type GameState } from '../../src/sim/game';
 import { SAVE_VERSION } from '../../src/sim/state';
+import { startWithDog } from './fixtures';
 
 const T0 = Date.UTC(2026, 10, 3, 12, 0, 0);
 const TZ = -60; // Paris en hiver : getTimezoneOffset() = -60
 const HOUR = 3_600_000;
 
-function started(now = T0): GameState {
-  return reduce(createGameState(createNewGame(now, 1)), { type: 'session/start', now, tzOffsetMin: TZ });
-}
+const started = (now = T0): GameState => startWithDog(now, TZ);
 const dog = (s: GameState) => {
   const d = s.save.dogs[0];
   if (!d) throw new Error('aucun chien');
@@ -31,21 +30,12 @@ describe('Partie neuve', () => {
     expect(g.stats.sessions).toBe(0);
   });
 
-  it('jalon 1 : un beagle de départ est créé à la première session', () => {
+  it('jalon 3 : aucun chiot imposé ; le chiot adopté a son esprit dès son arrivée', () => {
+    expect(reduce(createGameState(createNewGame(T0, 1)), { type: 'session/start', now: T0, tzOffsetMin: TZ }).save.dogs).toEqual([]);
     const s = started();
-    expect(s.save.dogs).toHaveLength(1);
-    expect(dog(s).breedId).toBe('beagle');
     expect(dog(s).affection).toBe(BALANCE.start.affection);
     expect(s.save.homeDogIds).toEqual([dog(s).id]);
     expect(s.minds[dog(s).id]).toBeDefined();
-  });
-
-  it('les traits du chiot de départ restent à ±0,1 du tempérament', () => {
-    const t = dog(started()).traits;
-    const ref = BALANCE.temperaments.joueur;
-    expect(Math.abs(t.docility - ref.docility)).toBeLessThanOrEqual(0.1);
-    expect(Math.abs(t.energy - ref.energy)).toBeLessThanOrEqual(0.1);
-    expect(Math.abs(t.boldness - ref.boldness)).toBeLessThanOrEqual(0.1);
   });
 });
 

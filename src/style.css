@@ -252,3 +252,250 @@ body {
     transition: none !important;
   }
 }
+
+/* ---------------------------------------------------------------- jouets, fiche */
+
+.sheet .grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.sheet .item {
+  min-height: 84px;
+}
+
+.sub {
+  margin: -6px 0 10px;
+  color: #6b5444;
+  font-size: 14px;
+}
+
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(10px, env(safe-area-inset-bottom)) + 90px);
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: rgb(61 43 31 / 0.88);
+  color: #fff;
+  font-size: 15px;
+  pointer-events: none;
+}
+
+.toast[hidden] {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- chenil */
+
+.kennel {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.kennel > * {
+  pointer-events: auto;
+}
+
+.kennel.breeds {
+  background: var(--paper);
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.k-head h1 {
+  margin: 4px 0 2px;
+  font-size: 26px;
+}
+
+.k-head p {
+  margin: 0 0 14px;
+  font-size: 17px;
+  color: #6b5444;
+}
+
+.k-head.small {
+  position: relative;
+  padding: 10px 14px;
+  border-radius: 18px;
+  background: rgb(253 246 234 / 0.92);
+}
+
+.k-head.small h1 {
+  font-size: 20px;
+}
+
+.k-head.small p {
+  margin: 0;
+}
+
+.k-back {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.k-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.k-breed {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-height: 150px;
+  padding: 8px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font: 600 16px/1.2 inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.k-breed img {
+  width: 100%;
+  max-width: 150px;
+  height: 110px;
+  object-fit: contain;
+}
+
+.k-breed:focus-visible,
+.k-pup:focus-visible {
+  outline: 3px solid var(--accent);
+}
+
+.kennel.litter {
+  justify-content: space-between;
+}
+
+.k-pups {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: auto;
+  margin-bottom: 10px;
+}
+
+.k-pup {
+  display: grid;
+  gap: 2px;
+  min-height: 96px;
+  padding: 8px 6px;
+  border: 3px solid transparent;
+  border-radius: 16px;
+  background: rgb(253 246 234 / 0.95);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.k-pup small {
+  color: #6b5444;
+  font-size: 12px;
+}
+
+.k-pup[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+
+.btn.primary {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 17px;
+}
+
+.btn.primary:disabled {
+  background: #c9b8a6;
+  opacity: 1;
+}
+
+.k-choose {
+  width: 100%;
+}
+
+.kennel.naming .k-pups,
+.kennel.naming .k-choose {
+  visibility: hidden;
+}
+
+.name-box {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--paper);
+  box-shadow: 0 8px 28px rgb(61 43 31 / 0.25);
+}
+
+.name-box .hint {
+  margin: 0 0 8px;
+  color: #6b5444;
+}
+
+.name-input {
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 2px solid #c9b8a6;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  font: 600 20px inherit;
+  font-family: inherit;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.name-input:focus {
+  outline: 3px solid var(--accent);
+  border-color: transparent;
+}
+
+.ideas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.chip {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font: 600 15px inherit;
+  font-family: inherit;
+}
+
+.error {
+  min-height: 1.2em;
+  margin: 0 0 8px;
+  color: var(--urgent);
+  font-weight: 600;
+}
+
+.row-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

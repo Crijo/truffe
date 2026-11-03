@@ -4,7 +4,7 @@ test.describe('Jalon 0 : socle', () => {
   test('affiche une scène plein écran sur téléphone', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto('/?debug');
+    await page.goto('/?debug&adopt=beagle');
     await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
 
     const vp = page.viewportSize();
@@ -23,7 +23,7 @@ test.describe('Jalon 0 : socle', () => {
   });
 
   test('une valeur enregistrée survit au rechargement', async ({ page }) => {
-    await page.goto('/?debug');
+    await page.goto('/?debug&adopt=beagle');
     const debug = page.getByTestId('debug');
     await expect(debug).toHaveAttribute('data-sessions', /\d+/);
     const first = Number(await debug.getAttribute('data-sessions'));

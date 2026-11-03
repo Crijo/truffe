@@ -4,10 +4,25 @@ export class SaveError extends Error {}
 
 type Raw = Record<string, unknown>;
 
-/** Une migration fait passer une sauvegarde de la version n à n + 1. */
-const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {};
-
 const isObj = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Sexe stable tiré de l'identifiant, pour les chiens créés avant le jalon 3. */
+function sexFromId(id: unknown): 'f' | 'm' {
+  let h = 0;
+  for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % 2 === 0 ? 'f' : 'm';
+}
+
+/** Une migration fait passer une sauvegarde de la version n à n + 1. */
+const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
+  // v1 → v2 (jalon 3) : sexe, tempérament visible, objets familiers. Le chiot de départ était « joueur ».
+  1: (raw) => ({
+    ...raw,
+    dogs: (Array.isArray(raw.dogs) ? raw.dogs : []).map((d: unknown) =>
+      isObj(d) ? { sex: sexFromId(d.id), temperament: 'joueur', familiar: {}, ...d } : d,
+    ),
+  }),
+};
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
 function validate(raw: Raw): SaveGame {

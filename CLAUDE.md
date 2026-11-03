@@ -4,9 +4,9 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-**Jalon 2 : besoins et temps** — F-SOIN, F-VIE-1, F-VIE-3, jauges et calcul hors ligne.
+**Jalon 3 : adoption et jeu** — F-ADO, F-JEU, 6 races, tempéraments et activités par score.
 
-Jalons 0 (socle) et 1 (chiot vivant) : validés.
+Jalons 0 (socle), 1 (chiot vivant) et 2 (besoins et temps) : validés.
 
 Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run check` au vert **et** vérification de ses critères d'acceptation dans un navigateur. À la fin de chaque jalon : bilan critère par critère, mode d'emploi sur téléphone, liste de ce que le joueur doit vérifier lui-même, puis arrêt jusqu'à son accord.
 
@@ -21,6 +21,8 @@ Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run ch
 | `npm run check` | Lint + types + tests unitaires (doit passer avant tout commit) |
 | `npm run lint` / `npm run typecheck` / `npm test` | Étapes séparées de `check` |
 | `npm run e2e` | Parcours Playwright (Chromium) |
+
+Paramètres de débogage de l'URL : `?debug` (panneau d'état, `window.__truffe`), `&adopt=beagle` (adoption immédiate, pour les tests), `&gallery` et `&gallery&silhouette` (les 6 races côte à côte).
 
 ## Architecture
 

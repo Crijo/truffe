@@ -55,6 +55,20 @@ export class Room {
     return { x: ((x - this.w / 2) / hw) * F.maxX, z };
   }
 
+  /**
+   * Vitesse du doigt (px/s) en vitesse au sol, à la hauteur `y` de l'écran (F-JEU-1).
+   * Un geste vers le haut lance vers le fond de la pièce.
+   */
+  fingerToFloorVelocity(vxPx: number, vyPx: number, y: number): { vx: number; vz: number } {
+    const z = Math.min(1, Math.max(0, (y - this.yBack) / (this.yFront - this.yBack)));
+    // Un geste vif (≈ 1 500 px/s) lance à travers la pièce sans tout faire rebondir sur les murs.
+    const k = BALANCE.toys.fingerSensitivity;
+    return {
+      vx: (vxPx / (this.halfWidth(z) || 1)) * F.maxX * k,
+      vz: (vyPx / (this.yFront - this.yBack)) * k,
+    };
+  }
+
   /** Unités du chiot par unité de sol (x, z), pour viser un point du sol. */
   floorUnits(z: number): { x: number; z: number } {
     const s = this.scaleAt(z);

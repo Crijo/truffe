@@ -20,7 +20,7 @@ export async function pointOn(page: Page, part: string): Promise<{ x: number; y:
 export const debug = (page: Page) => page.getByTestId('debug');
 
 export async function fresh(page: Page): Promise<void> {
-  await page.goto('/?debug');
+  await page.goto('/?debug&adopt=beagle');
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await page.waitForTimeout(1200);
 }

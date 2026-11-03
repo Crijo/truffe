@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../../src/data/balance';
-import { createGameState, createNewGame, reduce, type GameAction, type GameState } from '../../src/sim/game';
+import { reduce, type GameAction, type GameState } from '../../src/sim/game';
 import type { Gesture } from '../../src/sim/behavior';
+import { startWithDog } from './fixtures';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -12,9 +13,7 @@ const T0 = Date.UTC(2026, 10, 3, 13, 0);
 const NIGHT = Date.UTC(2026, 10, 3, 22, 0);
 const C = BALANCE.care;
 
-function start(now = T0): GameState {
-  return reduce(createGameState(createNewGame(now, 1)), { type: 'session/start', now, tzOffsetMin: TZ });
-}
+const start = (now = T0): GameState => startWithDog(now, TZ);
 const dog = (s: GameState) => {
   const d = s.save.dogs[0];
   if (!d) throw new Error('aucun chien');

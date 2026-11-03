@@ -16,7 +16,7 @@ export function rollTraits(rng: Rng, temperament: Temperament): Dog['traits'] {
   };
 }
 
-/** Jalon 1 : un beagle joueur, en attendant l'adoption du jalon 3. */
+/** Beagle joueur de référence (tests ; le jeu passe par le chenil depuis le jalon 3). */
 export function createStarterDog(rng: Rng): Dog {
   const s = BALANCE.start;
   return {
@@ -24,6 +24,9 @@ export function createStarterDog(rng: Rng): Dog {
     name: '',
     breedId: 'beagle',
     coat: { base: 0, patch: 0, patchAmount: 1 },
+    sex: 'm',
+    temperament: 'joueur',
+    familiar: {},
     traits: rollTraits(rng, 'joueur'),
     needs: { hunger: s.hunger, thirst: s.thirst, cleanliness: s.cleanliness, energy: s.energy },
     affection: s.affection,

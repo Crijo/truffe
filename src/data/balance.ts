@@ -133,6 +133,56 @@ export const BALANCE = {
     shineMs: 10 * 60_000,
   },
 
+  /** F-ADO. */
+  adoption: {
+    litterSize: 3,
+    nameMaxLength: 12,
+  },
+
+  /** SPEC, Obéissance : P = base + docilité + affection + maîtrise − malus, bornée. */
+  obedience: {
+    base: 0.15,
+    perDocility: 0.3,
+    perAffection: 0.4,
+    perMastery: 0.2,
+    min: 0.1,
+    max: 0.98,
+    masteryStep: 0.05,
+    malusUrgent: 0.2,
+    malusTired: 0.15,
+    tiredBelow: 20,
+    malusSpam: 0.1,
+    spamCount: 5,
+    spamWindowMs: 60_000,
+  },
+
+  /** F-JEU. Unités : sol pour x et z, unités du chiot pour la hauteur. */
+  toys: {
+    scores: { fetchBase: 60, fetchPerEnergy: 0.25, fearBase: 90, fearPerBoldness: 80 },
+    /** Un jouet « vient d'être lancé » pendant ce temps. */
+    thrownMemoryMs: 12_000,
+    energyPerThrow: 1,
+    /** F-JEU-2 : chance de rapporter, sinon mâchouiller ou ignorer. */
+    plan: { fetchBase: 0.15, fetchPerAffection: 0.45, fetchPerDocility: 0.3, fetchPerEnergyTrait: 0.15, chewPerEnergyTrait: 0.65 },
+    gravity: { ball: 9, disc: 3.2, rope: 9 },
+    bounce: 0.45,
+    rollFriction: 1.4,
+    discDrag: 0.3,
+    maxSpeed: 2.4,
+    /** Part de la vitesse du doigt transmise au jouet. */
+    fingerSensitivity: 0.18,
+    grabDistance: 0.07,
+    chewMs: 6000,
+    dropOffsetZ: 0.1,
+    /** F-JEU-4 : habitué après tant d'approches. */
+    familiarAfter: 3,
+    fearMs: 2600,
+    fearCooldownMs: 3000,
+    timidBelow: 0.4,
+    /** F-JEU-3. */
+    tug: { winPx: 600, idleMs: 2000, yankEveryMs: 600, yankChance: 0.14 },
+  },
+
   /** Seuils des gestes (D-05 à D-07), en pixels CSS et millisecondes. */
   gestures: {
     tapMaxMovePx: 12,

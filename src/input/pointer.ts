@@ -1,8 +1,17 @@
 import type { GestureRecognizer } from './gestures';
 
-/** Relie les pointer events du canevas (doigt, souris, stylet) au reconnaisseur de gestes. */
-export function bindPointer(el: HTMLElement, rec: GestureRecognizer, onInput: (t: number) => void): void {
+/** Gestionnaire prioritaire (jouet en main) : prend l'appui s'il le concerne. */
+export interface PointerIntercept {
+  down(x: number, y: number, t: number): boolean;
+  move(x: number, y: number, t: number): void;
+  up(x: number, y: number, t: number): void;
+  cancel(): void;
+}
+
+/** Relie les pointer events du canevas (doigt, souris, stylet) aux gestes et aux jouets. */
+export function bindPointer(el: HTMLElement, recognizer: () => GestureRecognizer | null, onInput: (t: number) => void, intercept?: PointerIntercept): void {
   let active: number | null = null;
+  let toAux = false;
   const pos = (e: PointerEvent) => {
     const r = el.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -15,15 +24,17 @@ export function bindPointer(el: HTMLElement, rec: GestureRecognizer, onInput: (t
     el.setPointerCapture(e.pointerId);
     const p = pos(e);
     onInput(e.timeStamp);
-    rec.down(p.x, p.y, e.timeStamp, kind(e));
+    toAux = intercept?.down(p.x, p.y, e.timeStamp) ?? false;
+    if (!toAux) recognizer()?.down(p.x, p.y, e.timeStamp, kind(e));
   });
   el.addEventListener('pointermove', (e) => {
     const p = pos(e);
     if (active === e.pointerId) {
       onInput(e.timeStamp);
-      rec.move(p.x, p.y, e.timeStamp);
+      if (toAux) intercept?.move(p.x, p.y, e.timeStamp);
+      else recognizer()?.move(p.x, p.y, e.timeStamp);
     } else if (active === null && e.pointerType === 'mouse') {
-      rec.hover(p.x, p.y, e.timeStamp);
+      recognizer()?.hover(p.x, p.y, e.timeStamp);
     }
   });
   const end = (e: PointerEvent) => {
@@ -31,16 +42,20 @@ export function bindPointer(el: HTMLElement, rec: GestureRecognizer, onInput: (t
     active = null;
     const p = pos(e);
     onInput(e.timeStamp);
-    rec.up(p.x, p.y, e.timeStamp);
+    if (toAux) intercept?.up(p.x, p.y, e.timeStamp);
+    else recognizer()?.up(p.x, p.y, e.timeStamp);
+    toAux = false;
   };
   el.addEventListener('pointerup', end);
   el.addEventListener('pointercancel', (e) => {
     if (active !== e.pointerId) return;
     active = null;
-    rec.cancel();
+    if (toAux) intercept?.cancel();
+    else recognizer()?.cancel();
+    toAux = false;
   });
   el.addEventListener('pointerleave', (e) => {
-    if (e.pointerType === 'mouse' && active === null) rec.leave();
+    if (e.pointerType === 'mouse' && active === null) recognizer()?.leave();
   });
   el.addEventListener('contextmenu', (e) => e.preventDefault());
 }

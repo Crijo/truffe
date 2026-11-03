@@ -3,9 +3,10 @@
  * Lit l'esprit du chiot (sim/) et ne le modifie jamais.
  */
 import { Container, Graphics } from 'pixi.js';
-import type { BreedLook } from '../../data/breeds';
+import { coatOf, type BreedLook, type Coat } from '../../data/breeds';
 import type { PuppyProbe } from '../../input/gestures';
-import type { BodyPart, PuppyEvent, PuppyEventType, PuppyMind } from '../../sim/behavior';
+import type { BodyPart, Posture, PuppyEvent, PuppyEventType, PuppyMind } from '../../sim/behavior';
+import type { CoatParams } from '../../sim/state';
 import type { Room } from '../room';
 import {
   Camera,
@@ -161,6 +162,7 @@ export class PuppyView {
   private headS = { x: 0, y: 0 };
   private noseS = { x: 0, y: 0 };
   private headTopS = { x: 0, y: 0 };
+  private mouthS = { x: 0, y: 0 };
   private bodyCS = { x: 0, y: 0 };
   private bodyUpS = { x: 0, y: -1, len: 1 };
 
@@ -171,8 +173,12 @@ export class PuppyView {
   /** Directions fixes à la surface du corps et de la tête : bulles, taches, gouttes. */
   private readonly spots: { onHead: boolean; dir: V3; r: number }[] = [];
 
+  /** Robe de ce chiot. */
+  private readonly coat: Coat;
+
   constructor(
     private readonly breed: BreedLook,
+    coatParams: CoatParams,
     private readonly room: Room,
     start: { x: number; z: number },
   ) {
@@ -180,13 +186,17 @@ export class PuppyView {
     this.pz = start.z;
     this.container.addChild(this.shadow, this.body);
     this.body.sortableChildren = true;
-    const stand = POSTURES.stand;
+    const base = coatOf(breed, coatParams.base);
+    // Deux chiots d'une même robe ne sont jamais tout à fait de la même teinte.
+    const k = Math.abs(coatParams.patch) * 0.08;
+    const toward = coatParams.patch > 0 ? 0xffffff : 0x000000;
+    this.coat = { ...base, fur: shade(base.fur, k, toward), ear: shade(base.ear, k, toward) };
     this.sp = Object.fromEntries(Object.keys(SPRING_OMEGA).map((k) => [k, new Spring(0)])) as Record<SpringName, Spring>;
-    this.sp.bodyY.x = stand.bodyY;
-    this.sp.headUp.x = stand.headUp;
-    this.sp.headFwd.x = stand.headFwd;
-    this.feet = stand.feet.flatMap((f) => f.map((v) => new Spring(v)));
-    this.fur = breed.colors.fur;
+    this.sp.bodyY.x = this.bodyYFor('stand');
+    this.sp.headUp.x = POSTURES.stand.headUp;
+    this.sp.headFwd.x = POSTURES.stand.headFwd;
+    this.feet = this.feetFor('stand').flatMap((f) => f.map((v) => new Spring(v)));
+    this.fur = this.coat.fur;
     this.fx.zIndex = 100;
     this.body.addChild(this.fx);
     for (let i = 0; i < 30; i++) {
@@ -195,6 +205,27 @@ export class PuppyView {
       const y = onHead ? 0.2 + Math.random() * 0.7 : -0.2 + Math.random() * 1.1;
       this.spots.push({ onHead, dir: norm([Math.cos(a), y, Math.sin(a)]), r: 0.6 + Math.random() * 0.6 });
     }
+  }
+
+  /** Hauteur du centre du corps selon la posture, d'après les proportions de la race. */
+  private bodyYFor(p: Posture): number {
+    const B = this.breed;
+    if (p === 'stand') return B.leg.standHeight;
+    if (p === 'sit') return Math.max(B.body[1] * 1.05, B.leg.standHeight * 0.75);
+    if (p === 'lie') return B.body[1] * 0.89;
+    return B.body[0] * 0.98;
+  }
+
+  /** Pattes de la posture, mises à l'échelle du corps de la race (référence : beagle). */
+  private feetFor(p: Posture): [V3, V3, V3, V3] {
+    const kx = this.breed.body[0] / 0.24;
+    const kz = this.breed.body[2] / 0.4;
+    return POSTURES[p].feet.map((f) => [f[0] * kx, f[1], f[2] * kz] as V3) as [V3, V3, V3, V3];
+  }
+
+  /** Position écran de la gueule (jouet porté). */
+  mouthScreen(): { x: number; y: number } {
+    return this.mouthS;
   }
 
   // ------------------------------------------------------------ sonde pour les gestes
@@ -241,7 +272,7 @@ export class PuppyView {
     const now = (this.t += dt);
     this.consume(mind.events, now);
     this.cleanliness = cleanliness;
-    this.fur = shade(this.breed.colors.fur, 0.28 * mind.bath.wet, 0x4a3020);
+    this.fur = shade(this.coat.fur, 0.28 * mind.bath.wet, 0x4a3020);
 
     // Position au sol et orientation.
     const k = 1 - Math.exp(-dt * 10);
@@ -260,7 +291,7 @@ export class PuppyView {
     this.container.zIndex = this.pz;
     this.ox = fs.x;
     this.oy = fs.y;
-    this.s = fs.s;
+    this.s = fs.s * this.breed.size;
 
     const O = this.offsets(now);
     const pose = POSTURES[mind.posture];
@@ -283,12 +314,13 @@ export class PuppyView {
     const petted = mind.activity === 'petted';
     const bounce = E.bounce * (1 - moving) * Math.abs(Math.sin(now * 6.5)) * 0.022;
 
-    step('bodyY', pose.bodyY - (E.crouch + O.crouch) * 0.07 + O.bodyY + bounce + moving * Math.abs(Math.sin(gp * 2)) * 0.014);
+    step('bodyY', this.bodyYFor(mind.posture) - (E.crouch + O.crouch) * 0.07 + O.bodyY + bounce + moving * Math.abs(Math.sin(gp * 2)) * 0.014);
     step('bodyZ', pose.bodyZ + O.bodyZ);
     step('pitch', pose.pitch + O.pitch + (running ? moving * Math.sin(gp) * 0.09 : 0));
     step('roll', pose.roll + O.roll, 0.8);
-    step('headUp', pose.headUp);
-    step('headFwd', pose.headFwd);
+    const kh = this.breed.head[1] / 0.215;
+    step('headUp', pose.headUp * kh);
+    step('headFwd', pose.headFwd * (this.breed.head[2] / 0.215));
     step('headTilt', E.headTilt + O.headTilt + (petted ? Math.sin(now * 1.6) * 0.15 : 0), 0.7);
     step('earLift', clamp(E.earLift + O.earLift - 0.7 * mind.bath.wet, -1, 1.2));
     step('tailUp', E.tailUp + O.tailUp);
@@ -321,7 +353,7 @@ export class PuppyView {
 
     // Pattes.
     const phases = running ? [0, 0.6, Math.PI, Math.PI + 0.6] : [0, Math.PI, Math.PI, 0];
-    pose.feet.forEach((f, i) => {
+    this.feetFor(mind.posture).forEach((f, i) => {
       const ph = gp + (phases[i] ?? 0);
       let fx = f[0];
       let fy = f[1] + Math.max(0, Math.cos(ph)) * (running ? 0.085 : 0.055) * moving;
@@ -560,7 +592,6 @@ export class PuppyView {
 
   private draw(mind: PuppyMind, O: Offsets, breath: number, dt: number, now: number): void {
     const B = this.breed;
-    const C = B.colors;
     const sp = this.sp;
     const s = this.s;
     this.hits = [];
@@ -595,9 +626,9 @@ export class PuppyView {
 
     // Corps et taches.
     const bodyZ = this.ell('body', bodyC, Rb, bodyR, this.fur, { hit: 'body' });
-    if (C.saddle !== null) this.patch('saddle', bodyC, bodyZ, inBody([0, B.body[1] * 0.26, -B.body[2] * 0.12]), Rb, [B.body[0] * 0.92, B.body[1] * 0.74, B.body[2] * 0.78], C.saddle);
-    this.patch('belly', bodyC, bodyZ, inBody([0, -B.body[1] * 0.3, B.body[2] * 0.05]), Rb, [B.body[0] * 0.8, B.body[1] * 0.7, B.body[2] * 0.8], C.white);
-    this.ell('chest', inBody([0, -0.01, B.body[2] * 0.62]), Rb, B.chest, C.white, { hit: 'body' });
+    if (this.coat.saddle !== null) this.patch('saddle', bodyC, bodyZ, inBody([0, B.body[1] * 0.26, -B.body[2] * 0.12]), Rb, [B.body[0] * 0.92, B.body[1] * 0.74, B.body[2] * 0.78], this.coat.saddle);
+    this.patch('belly', bodyC, bodyZ, inBody([0, -B.body[1] * 0.3, B.body[2] * 0.05]), Rb, [B.body[0] * 0.8, B.body[1] * 0.7, B.body[2] * 0.8], this.coat.chest);
+    this.ell('chest', inBody([0, -0.01, B.body[2] * 0.62]), Rb, B.chest, this.coat.chest, { hit: 'body' });
     const cs = this.toS(bodyC);
     const up = this.toS(inBody([0, B.body[1], 0]));
     const ux = up.x - cs.x;
@@ -617,7 +648,7 @@ export class PuppyView {
       const hip = inBody(h);
       const fl: V3 = [this.feet[i * 3]?.x ?? 0, (this.feet[i * 3 + 1]?.x ?? 0) + lift * 0.75, this.feet[i * 3 + 2]?.x ?? 0];
       const foot = apply(Ry, fl);
-      this.leg(`leg${i}`, hip, foot, Ry, this.fur, C.white);
+      this.leg(`leg${i}`, hip, foot, Ry, this.fur, this.coat.paws);
     });
 
     // Queue.
@@ -629,12 +660,13 @@ export class PuppyView {
 
     // Tête, museau, nez.
     const headZ = this.ell('head', headC, Rh, B.head, this.fur, { hit: 'head' });
-    this.patch('blaze', headC, headZ, inHead([0, 0.045, 0.1]), Rh, [0.045, 0.12, 0.11], C.white);
+    if (this.coat.blaze) this.patch('blaze', headC, headZ, inHead([0, 0.045, 0.1]), Rh, [B.head[0] * 0.19, B.head[1] * 0.56, B.head[2] * 0.51], this.coat.chest);
+    else this.gfx.get('blaze')?.clear();
     const muzzleC = inHead(B.muzzleAt);
-    const muzzleZ = this.ell('muzzle', muzzleC, Rh, B.muzzle, C.white, { hit: 'muzzle' });
+    const muzzleZ = this.ell('muzzle', muzzleC, Rh, B.muzzle, this.coat.muzzle, { hit: 'muzzle' });
     const twitch = O.nose > 0 ? 1 + Math.sin(now * 40) * 0.08 * O.nose : 1;
     const noseC = inHead([0, B.muzzleAt[1] + 0.035, B.muzzleAt[2] + B.muzzle[2] * 0.9]);
-    this.ell('nose', noseC, Rh, [B.nose[0] * twitch, B.nose[1] * twitch, B.nose[2]], C.nose, { z: Math.max(muzzleZ, this.cam.depth(noseC)) + 0.002, hit: 'muzzle' });
+    this.ell('nose', noseC, Rh, [B.nose[0] * twitch, B.nose[1] * twitch, B.nose[2]], B.colors.nose, { z: Math.max(muzzleZ, this.cam.depth(noseC)) + 0.002, hit: 'muzzle' });
     this.noseHighlight(noseC, Rh);
     this.noseS = this.toS(noseC);
     this.headS = this.toS(headC);
@@ -749,35 +781,51 @@ export class PuppyView {
     this.ell(`${name}paw`, add(foot, apply(Ry, [0, 0.035, 0.03])), Ry, [0.066, 0.045, 0.08], paw, { z: z + 0.001, hit: 'paw' });
   }
 
+  /** Forme de queue par type : port de base, courbure, effilement. */
+  private static readonly TAILS = {
+    straight: { lift: -0.3, curl: 0.22, taper: [1, 0.85, 0.7], segs: 3 },
+    otter: { lift: -0.5, curl: 0.12, taper: [1.2, 0.85, 0.5], segs: 3 },
+    whip: { lift: -0.1, curl: 0.4, taper: [1, 0.8, 0.55], segs: 4 },
+    bushy: { lift: -1.0, curl: 0.16, taper: [0.9, 1.15, 1.0, 0.7], segs: 4 },
+    curl: { lift: 0.6, curl: 1.25, taper: [1, 0.95, 0.85, 0.75, 0.6], segs: 5 },
+  } as const;
+
   private tail(base: V3, Rb: M3): void {
     const T = this.breed.tail;
+    const shape = PuppyView.TAILS[T.type];
     const sp = this.sp;
-    const wag = sp.wagAmp.x * Math.sin(this.wagPhase);
-    let elev = -0.3 + sp.tailUp.x * 1.15;
+    const curled = T.type === 'curl';
+    // Une queue en tire-bouchon remue peu, et se déroule quand il a peur ou boude.
+    const wag = sp.wagAmp.x * Math.sin(this.wagPhase) * (curled ? 0.35 : 1);
+    const up = sp.tailUp.x;
+    let elev = shape.lift + up * (curled ? 0.6 : 1.15);
+    const curl = curled ? shape.curl * Math.max(0.1, up + 0.4) : shape.curl * Math.max(0, up);
+    const n = shape.segs;
     const pts: V3[] = [base];
-    for (let i = 0; i < 3; i++) {
-      elev += 0.22 * Math.max(0, sp.tailUp.x);
-      const w = wag * (0.6 + 0.4 * i);
+    for (let i = 0; i < n; i++) {
+      elev += curl;
+      const w = wag * (0.6 + (0.4 * i) / Math.max(1, n - 1) * 2);
       const d: V3 = [Math.sin(w) * Math.cos(elev), Math.sin(elev), -Math.cos(w) * Math.cos(elev)];
       const prev = pts[i] ?? base;
-      pts.push(add(prev, scale(apply(Rb, d), T.length / 3)));
+      pts.push(add(prev, scale(apply(Rb, d), T.length / n)));
     }
     const sc = pts.map((p) => this.toS(p));
-    const z = this.cam.depth(pts[2] ?? base);
+    const z = this.cam.depth(pts[Math.floor(n / 2)] ?? base);
     const g = this.g('tail');
     const outline = shade(this.fur, 0.55, this.breed.colors.outline);
-    const widths = [1, 0.85, 0.7].map((k) => T.width * this.s * k);
-    for (let i = 0; i < 3; i++) {
+    const widths = Array.from({ length: n }, (_, i) => T.width * this.s * (shape.taper[i] ?? 0.6));
+    for (let i = 0; i < n; i++) {
       const a = sc[i];
       const b = sc[i + 1];
       if (!a || !b) continue;
       g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: (widths[i] ?? 1) + this.ol * 2, color: outline, cap: 'round' });
     }
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < n; i++) {
       const a = sc[i];
       const b = sc[i + 1];
       if (!a || !b) continue;
-      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: widths[i] ?? 1, color: i === 2 ? this.breed.colors.white : this.fur, cap: 'round' });
+      const tip = i === n - 1 && this.coat.tailTip !== null;
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: widths[i] ?? 1, color: tip ? (this.coat.tailTip ?? this.fur) : this.fur, cap: 'round' });
       this.hits.push({ part: 'tail', z, kind: 'capsule', ax: a.x, ay: a.y, bx: b.x, by: b.y, r: (widths[i] ?? 1) / 2 + 4 });
     }
     g.position.set(0, 0);
@@ -891,13 +939,14 @@ export class PuppyView {
     const g = this.g('mouth');
     const pos = add(muzzleC, apply(Rh, [0, -B.muzzle[1] * 0.5, B.muzzle[2] * 0.8]));
     const p = this.toS(pos);
+    this.mouthS = p;
     const f = this.facing(apply(Rh, [0, -0.35, 1]));
     g.position.set(p.x, p.y);
     g.rotation = this.screenAngle(muzzleC, Rh);
     g.zIndex = muzzleZ + 0.003;
     const open = clamp(sp.mouth.x, 0, 1.3);
     const tongue = clamp(sp.tongue.x, 0, 1.2);
-    const line = shade(B.colors.white, 0.75, B.colors.outline);
+    const line = shade(this.coat.muzzle, 0.75, B.colors.outline);
     const lw = Math.max(1.2, s * 0.011);
     const w = B.muzzle[0] * s * 0.55 * Math.max(0.35, f);
     if (f > 0.12) {
@@ -933,21 +982,64 @@ export class PuppyView {
     st.swing.step(lift < 0 ? 0.9 * -lift : 0, dt, 9, 0.35);
     const spread = st.spread.x;
     const swing = st.swing.x;
-    const anchorL: V3 = [side * B.head[0] * 0.8, B.head[1] * 0.45, -B.head[2] * 0.12];
+    const folded = B.ear.type === 'folded';
+    const anchorL: V3 = folded ? [side * B.head[0] * 0.72, B.head[1] * 0.7, B.head[2] * 0.05] : [side * B.head[0] * 0.8, B.head[1] * 0.45, -B.head[2] * 0.12];
     const anchor = add(headC, apply(Rh, anchorL));
     const dirL: V3 = [side * Math.sin(spread), -Math.cos(spread) * Math.cos(swing), -Math.sin(swing) * Math.cos(spread)];
     const dir = apply(mul(rotY(headYaw), rotZ(headRoll * 0.6)), dirL);
     const len = B.ear.length;
+    const g = this.g(`ear${side}`);
+    const color = this.coat.ear;
+    const outline = shade(color, 0.5, B.colors.outline);
+
+    if (B.ear.type === 'erect') {
+      // Oreille dressée : triangle vers le haut, rabattu en arrière quand il a peur ou boude.
+      const up = lift < 0 ? -lift : 0;
+      const spreadE = 0.28 + 0.5 * up + flap * 0.4;
+      const back = 1.1 * up;
+      const anchorE = add(headC, apply(Rh, [side * B.head[0] * 0.55, B.head[1] * 0.72, -B.head[2] * 0.05]));
+      const dirE = apply(Rh, [side * Math.sin(spreadE), Math.cos(spreadE) * Math.cos(back), -Math.sin(back)]);
+      const a = this.toS(anchorE);
+      const tip = this.toS(add(anchorE, scale(dirE, len)));
+      const dx = tip.x - a.x;
+      const dy = tip.y - a.y;
+      const dl = Math.hypot(dx, dy) || 1;
+      const wide = 0.35 + 0.65 * Math.abs(this.facing(apply(Rh, [0, 0, 1])));
+      const hw = B.ear.width * 0.5 * this.s * wide;
+      const nx = (-dy / dl) * hw;
+      const ny = (dx / dl) * hw;
+      g.moveTo(a.x + nx, a.y + ny)
+        .quadraticCurveTo(a.x + dx * 0.6 + nx * 0.7, a.y + dy * 0.6 + ny * 0.7, tip.x, tip.y)
+        .quadraticCurveTo(a.x + dx * 0.6 - nx * 0.7, a.y + dy * 0.6 - ny * 0.7, a.x - nx, a.y - ny)
+        .closePath()
+        .fill(color)
+        .stroke({ width: this.ol, color: outline, alpha: 0.9, join: 'round' });
+      if (this.facing(apply(Rh, [0, 0, 1])) > 0.2 && up < 0.6) {
+        const k = 0.55;
+        g.moveTo(a.x + nx * k, a.y + ny * k)
+          .quadraticCurveTo(a.x + dx * 0.55 + nx * 0.35, a.y + dy * 0.55 + ny * 0.35, a.x + dx * 0.82, a.y + dy * 0.82)
+          .quadraticCurveTo(a.x + dx * 0.55 - nx * 0.35, a.y + dy * 0.55 - ny * 0.35, a.x - nx * k, a.y - ny * k)
+          .closePath()
+          .fill({ color: 0xe9a89c, alpha: 0.85 });
+      }
+      g.position.set(0, 0);
+      g.rotation = 0;
+      const z = headZ - 0.004 + (this.cam.depth(anchorE) > this.cam.depth(headC) + 0.05 ? 0.008 : 0);
+      g.zIndex = z;
+      this.hits.push({ part: 'ear', z, kind: 'capsule', ax: a.x, ay: a.y, bx: tip.x, by: tip.y, r: hw * 0.7 });
+      return;
+    }
+
+    // Oreille tombante (ou repliée, plus courte) : pend avec souplesse.
     const center = add(anchor, scale(dir, len * 0.5));
     const a = this.toS(anchor);
     const b = this.toS(add(anchor, dir));
     const pl = Math.hypot(b.x - a.x, b.y - a.y) / this.s;
     const c = this.toS(center);
-    const g = this.g(`ear${side}`);
     const rx = Math.max(0.4, pl) * len * 0.5 * this.s;
     const ry = B.ear.width * 0.5 * this.s;
-    g.ellipse(0, 0, rx, ry).fill(B.colors.ear);
-    g.stroke({ width: this.ol, color: shade(B.colors.ear, 0.5, B.colors.outline), alpha: 0.9 });
+    g.ellipse(0, 0, rx, ry).fill(color);
+    g.stroke({ width: this.ol, color: outline, alpha: 0.9 });
     g.position.set(c.x, c.y);
     g.rotation = Math.atan2(b.y - a.y, b.x - a.x);
     const front = this.cam.depth(center) > this.cam.depth(headC);

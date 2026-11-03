@@ -24,7 +24,7 @@ async function settle(page: Page, ms = 600) {
 }
 
 async function fresh(page: Page) {
-  await page.goto('/?debug');
+  await page.goto('/?debug&adopt=beagle');
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   // Ramène le chiot au calme, debout, au milieu.
   await settle(page, 1200);

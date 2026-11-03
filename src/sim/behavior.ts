@@ -6,11 +6,13 @@
 import { BALANCE } from '../data/balance';
 import { isUrgent } from './needs';
 import { createRng, type Rng } from './rng';
+import type { ToyKind, ToyState } from './toys';
 
 const P = BALANCE.puppy;
 const N = BALANCE.needs;
 const S = BALANCE.sleep;
 const C = BALANCE.care;
+const TY = BALANCE.toys;
 
 export type Posture = 'stand' | 'sit' | 'lie' | 'side';
 export type Activity =
@@ -24,7 +26,11 @@ export type Activity =
   | 'greet'
   | 'eat'
   | 'sleep'
-  | 'groom';
+  | 'groom'
+  | 'fetch'
+  | 'chew'
+  | 'tug'
+  | 'fear';
 export type Mood = 'calm' | 'happy' | 'content' | 'curious' | 'sulky' | 'startled' | 'asleep';
 export type BodyPart = 'head' | 'ear' | 'muzzle' | 'back' | 'flank' | 'belly' | 'tail' | 'paw';
 export type Gait = 'still' | 'walk' | 'trot' | 'run';
@@ -70,6 +76,15 @@ export interface Vec2 {
   z: number;
 }
 
+export interface ToyView {
+  id: string;
+  kind: ToyKind;
+  state: ToyState;
+  pos: Vec2;
+  h: number;
+  carrier: string | null;
+}
+
 export interface BowlView {
   id: string;
   kind: BowlKind;
@@ -97,7 +112,12 @@ export type Gesture =
   | { kind: 'groomStart' }
   | { kind: 'groomEnd' }
   | { kind: 'scrub'; tool: CareTool; distancePx: number }
-  | { kind: 'bowl' };
+  | { kind: 'bowl' }
+  | { kind: 'toyThrown'; toyId: string; toyKind: ToyKind }
+  | { kind: 'ropeOffered'; toyId: string }
+  | { kind: 'tug'; pullPx: number }
+  | { kind: 'ropeRelease' }
+  | { kind: 'toyTaken'; toyId: string };
 
 export interface PuppyContext {
   traits: { docility: number; energy: number; boldness: number };
@@ -108,6 +128,9 @@ export interface PuppyContext {
   cleanliness: number;
   night: boolean;
   bowls: readonly BowlView[];
+  toys: readonly ToyView[];
+  /** F-JEU-4 : approches de chaque sorte d'objet. */
+  familiar: Readonly<Record<string, number>>;
 }
 
 export interface Effects {
@@ -119,6 +142,15 @@ export interface Effects {
   /** Propreté imposée (bain terminé). */
   cleanSet: number | null;
   bowlEaten: string | null;
+  /** Le chiot prend un jouet dans la gueule. */
+  toyGrab: string | null;
+  toyDrop: { id: string; pos: Vec2 } | null;
+  /** Corde attrapée : tirée des deux côtés. */
+  toyTug: string | null;
+  /** Corde lâchée : le joueur la garde. */
+  toyRelease: string | null;
+  /** Une approche de plus d'une sorte d'objet. */
+  familiar: ToyKind | null;
 }
 
 const SPONTANEOUS = ['sniffGround', 'scratch', 'yawn', 'shake', 'dig', 'bark', 'howl'] as const;
@@ -180,6 +212,15 @@ export interface PuppyMind {
   bath: { active: boolean; foam: number; soaped: boolean; rinsed: boolean; wet: number };
   brush: { gained: number; accumPx: number; lastAt: number };
   shineUntil: number;
+  /** F-JEU-2 : ce que le chiot a décidé de faire du dernier jouet lancé. */
+  toyPlan: { toyId: string; kind: ToyKind; plan: 'fetch' | 'chew' | 'ignore'; at: number } | null;
+  /** Jouet dans la gueule. */
+  holding: string | null;
+  tug: { toyId: string; pulled: number; lastPullAt: number; nextYankAt: number } | null;
+  chewUntil: number;
+  nextChewAt: number;
+  fear: { toyId: string; kind: ToyKind; until: number; approaching: boolean } | null;
+  lastFearAt: number;
   /** Début d'un besoin urgent pendant la session (D-03). */
   urgentSince: number | null;
 
@@ -240,6 +281,13 @@ export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
     brush: { gained: 0, accumPx: 0, lastAt: NEVER },
     shineUntil: NEVER,
     urgentSince: null,
+    toyPlan: null,
+    holding: null,
+    tug: null,
+    chewUntil: 0,
+    nextChewAt: 0,
+    fear: null,
+    lastFearAt: NEVER,
     reactionSeq: 0,
     events: [],
     nextSeq: 1,
@@ -258,6 +306,11 @@ const noEffects = (): Effects => ({
   cleanDelta: 0,
   cleanSet: null,
   bowlEaten: null,
+  toyGrab: null,
+  toyDrop: null,
+  toyTug: null,
+  toyRelease: null,
+  familiar: null,
 });
 
 function clampToFloor(p: Vec2): Vec2 {
@@ -283,6 +336,50 @@ function withRng<T>(m: PuppyMind, fn: (rng: Rng) => T): T {
 function randomFloorPoint(rng: Rng): Vec2 {
   const f = P.floor;
   return { x: rng.range(f.minX, f.maxX), z: rng.range(f.minZ + 0.1, f.maxZ - 0.05) };
+}
+
+// ---------------------------------------------------------------- jouets
+
+const toyOf = (ctx: PuppyContext, id: string | undefined): ToyView | undefined => ctx.toys.find((t) => t.id === id);
+const dist2 = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.z - b.z);
+
+/** F-JEU-2 : rapporter si l'humeur le permet, sinon mâchouiller ou ignorer. */
+function rollToyPlan(m: PuppyMind, ctx: PuppyContext): 'fetch' | 'chew' | 'ignore' {
+  if (m.activity === 'sulk' || m.sulkUntil > m.t) return 'ignore';
+  const p = TY.plan;
+  const pFetch = clamp(p.fetchBase + (p.fetchPerAffection * ctx.affection) / 100 + p.fetchPerDocility * ctx.traits.docility + p.fetchPerEnergyTrait * ctx.traits.energy, 0, 0.95);
+  return withRng(m, (rng) => {
+    if (rng.next() < pFetch) return 'fetch';
+    return rng.next() < 0.15 + p.chewPerEnergyTrait * ctx.traits.energy ? 'chew' : 'ignore';
+  });
+}
+
+/** Le jouet du plan est-il encore à prendre ? */
+function toyAvailable(m: PuppyMind, ctx: PuppyContext): boolean {
+  const plan = m.toyPlan;
+  if (!plan || plan.plan === 'ignore') return false;
+  if (m.holding === plan.toyId) return true;
+  const toy = toyOf(ctx, plan.toyId);
+  if (!toy || toy.state === 'carried') return false;
+  if (toy.kind === 'rope') return toy.state === 'held' || toy.state === 'tug';
+  return toy.state !== 'held' && m.t - plan.at < TY.thrownMemoryMs;
+}
+
+/** F-JEU-4 : un objet encore inconnu peut effrayer un chiot timide. */
+function fearAvailable(m: PuppyMind, ctx: PuppyContext): boolean {
+  if (m.fear) return true;
+  const plan = m.toyPlan;
+  if (!plan || ctx.traits.boldness >= TY.timidBelow) return false;
+  if ((ctx.familiar[plan.kind] ?? 0) >= TY.familiarAfter) return false;
+  if (m.t - m.lastFearAt < TY.fearCooldownMs || m.t - plan.at > TY.thrownMemoryMs) return false;
+  const toy = toyOf(ctx, plan.toyId);
+  return !!toy && toy.state !== 'carried' && m.holding !== toy.id;
+}
+
+/** Vers le jouet, en restant un peu en retrait pour l'attraper avec la gueule. */
+function approachPoint(m: PuppyMind, at: Vec2, gap: number): Vec2 {
+  const d = dist2(m.pos, at) || 1;
+  return clampToFloor({ x: at.x + ((m.pos.x - at.x) / d) * gap, z: at.z + ((m.pos.z - at.z) / d) * gap });
 }
 
 function setPosture(m: PuppyMind, posture: Posture): void {
@@ -330,6 +427,13 @@ export function baseScores(m: PuppyMind, ctx: PuppyContext): Partial<Record<Acti
   if (bowl) out.eat = bowl.score;
   if (canSleep(m, ctx)) out.sleep = 100 - ctx.energy + (ctx.night ? S.nightBonus : 0);
   if (m.bath.active) out.groom = 100;
+  if (toyAvailable(m, ctx) && m.toyPlan) {
+    const fetchScore = TY.scores.fetchBase + ctx.energy * TY.scores.fetchPerEnergy;
+    const a: Activity = m.toyPlan.kind === 'rope' && !m.holding ? 'tug' : m.toyPlan.plan === 'chew' ? 'chew' : 'fetch';
+    out[a] = fetchScore;
+  }
+  if (m.tug) out.tug = 100;
+  if (fearAvailable(m, ctx)) out.fear = TY.scores.fearBase - ctx.traits.boldness * TY.scores.fearPerBoldness;
   return out;
 }
 
@@ -358,7 +462,7 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
   const prev = m.activity;
   m.activity = a;
   m.activityStartedAt = m.t;
-  m.attentive = a !== 'sulk' && a !== 'spontaneous' && a !== 'sleep' && a !== 'eat';
+  m.attentive = !['sulk', 'spontaneous', 'sleep', 'eat', 'fetch', 'chew', 'fear'].includes(a);
   if (prev === 'sniffHand') m.handPhase = null;
   if (prev === 'spontaneous') m.spontaneous = null;
   if (prev === 'eat') m.eating = null;
@@ -446,6 +550,89 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       m.posture = 'sit';
       m.facing = 0;
       break;
+    case 'fetch':
+    case 'chew': {
+      const toy = toyOf(ctx, m.toyPlan?.toyId);
+      m.postureLockUntil = 0;
+      if (m.holding) {
+        if (a === 'chew') startChew(m);
+        else {
+          m.target = { ...P.floor.front };
+          m.gait = 'trot';
+        }
+      } else if (toy) {
+        m.target = approachPoint(m, toy.pos, 0.03);
+        m.gait = a === 'fetch' ? 'run' : 'trot';
+        m.look = { kind: 'point', ...toy.pos };
+      }
+      break;
+    }
+    case 'tug': {
+      const toy = toyOf(ctx, m.toyPlan?.toyId);
+      m.postureLockUntil = 0;
+      if (toy && !m.tug) {
+        m.target = approachPoint(m, toy.pos, 0.1);
+        m.gait = 'trot';
+        m.look = { kind: 'hand' };
+      }
+      break;
+    }
+    case 'fear': {
+      const toy = toyOf(ctx, m.toyPlan?.toyId);
+      m.postureLockUntil = 0;
+      if (!m.fear && toy && m.toyPlan) {
+        m.fear = { toyId: toy.id, kind: m.toyPlan.kind, until: m.t + TY.fearMs, approaching: false };
+        const d = dist2(m.pos, toy.pos) || 1;
+        m.target = clampToFloor({ x: m.pos.x + ((m.pos.x - toy.pos.x) / d) * 0.25, z: m.pos.z + ((m.pos.z - toy.pos.z) / d) * 0.25 });
+        m.gait = 'trot';
+        m.startledUntil = m.fear.until;
+        m.look = { kind: 'point', ...toy.pos };
+        emit(m, 'startle');
+        emit(m, 'whine');
+      }
+      break;
+    }
+  }
+}
+
+function startChew(m: PuppyMind): void {
+  m.target = null;
+  m.gait = 'still';
+  m.postureLockUntil = 0;
+  m.posture = 'lie';
+  m.chewUntil = m.t + TY.chewMs;
+  m.nextChewAt = m.t;
+  m.look = { kind: 'ground' };
+}
+
+/** Position de la gueule, au sol. */
+function mouthPos(m: PuppyMind): Vec2 {
+  const off = TY.dropOffsetZ;
+  return clampToFloor({ x: m.pos.x + Math.sin(m.facing) * off, z: m.pos.z + Math.cos(m.facing) * off });
+}
+
+/** Le chiot gagne la corde (F-JEU-3) : il l'emporte et la mâchouille. */
+function dogWinsTug(m: PuppyMind, fx: Effects, ctx: PuppyContext): void {
+  if (!m.tug) return;
+  const id = m.tug.toyId;
+  m.tug = null;
+  m.holding = id;
+  fx.toyGrab = id;
+  if (m.toyPlan) m.toyPlan = { ...m.toyPlan, plan: 'chew' };
+  m.happyUntil = m.t + 2000;
+  emit(m, 'wiggle');
+  enter(m, 'chew', ctx);
+}
+
+/** En changeant d'activité, il lâche ce qu'il tient. */
+function letGo(m: PuppyMind, fx: Effects): void {
+  if (m.holding && m.activity !== 'fetch' && m.activity !== 'chew') {
+    fx.toyDrop = { id: m.holding, pos: mouthPos(m) };
+    m.holding = null;
+  }
+  if (m.tug && m.activity !== 'tug') {
+    fx.toyRelease = m.tug.toyId;
+    m.tug = null;
   }
 }
 
@@ -462,6 +649,7 @@ function arrive(m: PuppyMind): void {
     m.happyUntil = m.t + 2000;
   }
   if (m.activity === 'greet' && m.greet) m.greet.nextFeatAt = m.t + 200;
+  if (m.activity === 'fetch' && m.holding) m.facing = 0;
   if (m.activity === 'eat' && m.eating) {
     m.facing = 0;
     m.look = { kind: 'ground' };
@@ -587,6 +775,99 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
       if (!ctx.night && ctx.energy >= 95) wake(m);
       else if (Math.floor(m.t / 3200) !== Math.floor((m.t - 100) / 3200)) emit(m, 'snore');
       break;
+    case 'fetch':
+    case 'chew': {
+      const plan = m.toyPlan;
+      if (!plan) break;
+      const toy = toyOf(ctx, plan.toyId);
+      if (!m.holding) {
+        if (!toy) break;
+        m.look = { kind: 'point', ...toy.pos };
+        const reachable = toy.h < 0.25 && toy.state !== 'held' && toy.state !== 'carried';
+        if (reachable && dist2(m.pos, toy.pos) <= TY.grabDistance + 0.05) {
+          m.holding = toy.id;
+          fx.toyGrab = toy.id;
+          fx.familiar = plan.kind;
+          if (m.activity === 'fetch') {
+            m.target = { ...P.floor.front };
+            m.gait = 'trot';
+            m.look = { kind: 'player' };
+          } else startChew(m);
+        } else {
+          m.target = approachPoint(m, toy.pos, 0.03);
+          if (m.gait === 'still') m.gait = m.activity === 'fetch' ? 'run' : 'trot';
+        }
+      } else if (m.activity === 'fetch' && !m.target) {
+        // Rendu devant le joueur : il pose le jouet.
+        fx.toyDrop = { id: m.holding, pos: mouthPos(m) };
+        m.holding = null;
+        m.toyPlan = null;
+        m.happyUntil = m.t + 2500;
+        m.look = { kind: 'player' };
+        emit(m, 'wiggle');
+      } else if (m.activity === 'chew') {
+        if (m.t >= m.chewUntil) {
+          fx.toyDrop = { id: m.holding, pos: mouthPos(m) };
+          m.holding = null;
+          m.toyPlan = null;
+        } else if (m.t >= m.nextChewAt) {
+          m.nextChewAt = m.t + 450;
+          emit(m, 'chew');
+        }
+      }
+      break;
+    }
+    case 'tug': {
+      const toy = toyOf(ctx, m.toyPlan?.toyId);
+      if (!toy) break;
+      if (!m.tug) {
+        if (toy.state !== 'held') break;
+        if (dist2(m.pos, toy.pos) < 0.16) {
+          m.tug = { toyId: toy.id, pulled: 0, lastPullAt: m.t, nextYankAt: m.t + TY.tug.yankEveryMs };
+          fx.toyTug = toy.id;
+          fx.familiar = 'rope';
+          m.target = null;
+          m.gait = 'still';
+          m.posture = 'stand';
+          m.facing = Math.atan2(toy.pos.x - m.pos.x, toy.pos.z - m.pos.z);
+          m.look = { kind: 'hand' };
+          emit(m, 'yip');
+        } else {
+          m.target = approachPoint(m, toy.pos, 0.1);
+          if (m.gait === 'still') m.gait = 'trot';
+        }
+      } else if (m.t - m.tug.lastPullAt >= TY.tug.idleMs) {
+        dogWinsTug(m, fx, ctx);
+      } else if (m.t >= m.tug.nextYankAt) {
+        m.tug.nextYankAt = m.t + TY.tug.yankEveryMs;
+        emit(m, 'shake');
+        if (withRng(m, (rng) => rng.next()) < TY.tug.yankChance * (0.6 + ctx.traits.boldness)) dogWinsTug(m, fx, ctx);
+      }
+      break;
+    }
+    case 'fear': {
+      const f = m.fear;
+      if (!f) break;
+      const toy = toyOf(ctx, f.toyId);
+      if (!f.approaching && m.t >= f.until) {
+        // Après la frayeur, il s'approche prudemment pour renifler.
+        f.approaching = true;
+        m.startledUntil = NEVER;
+        m.curiousUntil = m.t + 4000;
+        if (toy) {
+          m.target = approachPoint(m, toy.pos, 0.12);
+          m.gait = 'walk';
+          m.look = { kind: 'point', ...toy.pos };
+        }
+      } else if (f.approaching && !m.target) {
+        emit(m, 'sniff');
+        fx.familiar = f.kind;
+        m.fear = null;
+        m.lastFearAt = m.t;
+        if (m.toyPlan) m.toyPlan = { ...m.toyPlan, plan: 'ignore' };
+      }
+      break;
+    }
     case 'petted':
     case 'sulk':
     case 'groom':
@@ -613,6 +894,9 @@ function computeMood(m: PuppyMind): Mood {
   if (m.activity === 'petted' || m.activity === 'sniffHand' || m.activity === 'groom') return 'content';
   if (m.activity === 'attend' || m.t < m.curiousUntil) return 'curious';
   if (m.activity === 'come') return m.gait === 'still' ? 'curious' : 'happy';
+  if (m.activity === 'fetch' || m.activity === 'tug') return 'happy';
+  if (m.activity === 'chew') return 'content';
+  if (m.activity === 'fear') return 'curious';
   return 'calm';
 }
 
@@ -640,6 +924,7 @@ export function tickMind(mind: PuppyMind, dtMs: number, ctx: PuppyContext): { mi
     // Le sommeil ne s'interrompt que si le joueur touche le chiot ou l'appelle.
     if (m.activity !== 'sleep') decide(m, ctx);
   }
+  letGo(m, fx);
   settle(m, dtMs);
   return { mind: m, effects: fx };
 }
@@ -668,6 +953,8 @@ const DEFAULT_CTX: PuppyContext = {
   cleanliness: 90,
   night: false,
   bowls: [],
+  toys: [],
+  familiar: {},
 };
 
 export function startGreeting(mind: PuppyMind, absenceMs: number, ctx: PuppyContext = DEFAULT_CTX): PuppyMind {
@@ -812,6 +1099,7 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
         m.target = clampToFloor({ x: m.pos.x + away * P.pull.backOffDistance * 0.7, z: m.pos.z - P.pull.backOffDistance * 0.7 });
         m.gait = 'trot';
         m.posture = 'stand';
+        letGo(m, fx);
         settle(m, 0);
         return { mind: m, effects: fx };
       }
@@ -853,9 +1141,38 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
       break;
     case 'bowl':
       break;
+    case 'toyThrown':
+      m.toyPlan = { toyId: g.toyId, kind: g.toyKind, plan: rollToyPlan(m, ctx), at: m.t };
+      m.curiousUntil = m.t + 1500;
+      emit(m, 'perk');
+      break;
+    case 'ropeOffered':
+      m.toyPlan = { toyId: g.toyId, kind: 'rope', plan: rollToyPlan(m, ctx), at: m.t };
+      break;
+    case 'tug':
+      if (m.tug) {
+        m.tug.pulled += g.pullPx;
+        m.tug.lastPullAt = m.t;
+        if (m.tug.pulled >= TY.tug.winPx) {
+          // Le joueur gagne : le chiot lâche, ravi de la partie.
+          fx.toyRelease = m.tug.toyId;
+          m.tug = null;
+          m.toyPlan = null;
+          m.happyUntil = m.t + 2500;
+          emit(m, 'playBow');
+        }
+      }
+      break;
+    case 'ropeRelease':
+      if (m.tug) dogWinsTug(m, fx, ctx);
+      break;
+    case 'toyTaken':
+      if (m.toyPlan?.toyId === g.toyId) m.toyPlan = null;
+      break;
   }
 
   decide(m, ctx);
+  letGo(m, fx);
   settle(m, 0);
   return { mind: m, effects: fx };
 }

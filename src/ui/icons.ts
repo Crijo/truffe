@@ -21,6 +21,10 @@ export const ICONS = {
   thirst: svg('<path d="M24 6c6 9 11 15 11 21a11 11 0 0 1-22 0c0-6 5-12 11-21z"/>'),
   coat: svg('<path d="M24 8l3 9h9l-7 6 3 9-8-6-8 6 3-9-7-6h9z"/>'),
   moon: svg('<path d="M30 8a16 16 0 1 0 10 26A13 13 0 0 1 30 8z"/>'),
+  ball: svg('<circle cx="24" cy="24" r="15"/><path d="M11 20c8 5 18 5 26 0"/>'),
+  disc: svg('<ellipse cx="24" cy="26" rx="18" ry="8"/><ellipse cx="24" cy="24" rx="10" ry="4"/>'),
+  rope: svg('<path d="M8 32c6-12 12 4 18-8s10 4 14-6"/><circle cx="8" cy="32" r="3.5"/><circle cx="40" cy="18" r="3.5"/>'),
+  paw: svg('<ellipse cx="24" cy="31" rx="9" ry="7"/><circle cx="13" cy="20" r="3.5"/><circle cx="20" cy="13" r="3.5"/><circle cx="28" cy="13" r="3.5"/><circle cx="35" cy="20" r="3.5"/>'),
 } as const;
 
 export type IconName = keyof typeof ICONS;

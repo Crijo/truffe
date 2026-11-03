@@ -10,7 +10,10 @@ Toute ressource du dépôt est créée pour le projet ou placée sous licence CC
 | Décor du salon | `src/render/stage.ts` | Formes dessinées par le code (PixiJS `Graphics`) | Propre au projet |
 | Icônes de l'interface (sac, porte, micro, fiche, gamelles, brosse, bain, savon, douche, serviette, besoins, lune) | `src/ui/icons.ts` | SVG dessinés à la main pour Truffe | Propre au projet |
 | Gamelles, mousse, gouttes, saleté, éclat, « Z » de sommeil, teinte de nuit | `src/render/bowls.ts`, `src/render/puppy/PuppyView.ts`, `src/render/stage.ts` | Formes dessinées par le code | Propre au projet |
-| Chiot articulé (beagle) | `src/render/puppy/PuppyView.ts`, `src/data/breeds.ts` | Ellipsoïdes projetés et dessinés par le code, proportions et couleurs choisies pour Truffe | Propre au projet |
+| Chiots articulés des 6 races et leurs robes | `src/render/puppy/PuppyView.ts`, `src/data/breeds.ts` | Ellipsoïdes projetés et dessinés par le code ; proportions, formes d'oreilles et de queues et couleurs choisies pour Truffe d'après l'allure générale des races réelles | Propre au projet |
+| Portraits du chenil | générés au lancement | Rendu des chiots ci-dessus | Propre au projet |
+| Balle, disque, corde et leurs icônes | `src/render/toys.ts`, `src/ui/icons.ts` | Formes dessinées par le code et SVG à la main | Propre au projet |
+| Idées de noms du chenil | `src/data/strings.ts` | Mots français courants choisis pour Truffe | Propre au projet |
 
 ## Sons
 

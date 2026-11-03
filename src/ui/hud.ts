@@ -2,8 +2,10 @@
  * Interface du salon (DOM) : barre basse, Sac, Fiche, outils de soin.
  * Ne modifie jamais l'état : elle appelle les fonctions fournies par main.ts.
  */
-import { NEED_LABELS, UI, type NeedKind, type NeedLevel } from '../data/strings';
+import { NEED_LABELS, SEX_LABELS, TEMPERAMENT_LABELS, TOY_HINT, TOY_LABELS, UI, type NeedKind, type NeedLevel } from '../data/strings';
 import type { BowlKind, CareTool } from '../sim/behavior';
+import type { Sex, TemperamentId } from '../sim/state';
+import type { ToyKind } from '../sim/toys';
 import { ICONS, type IconName } from './icons';
 
 export interface CardRow {
@@ -17,7 +19,9 @@ export interface HudHandlers {
   dropBowl(kind: BowlKind, at: { x: number; y: number } | null): void;
   setTool(tool: CareTool | null): void;
   bath(start: boolean): void;
-  card(): { rows: CardRow[]; asleep: boolean };
+  card(): { rows: CardRow[]; asleep: boolean; name: string; breed: string; sex: Sex; temperament: TemperamentId };
+  /** Jouet choisi : le prochain appui sur la scène le prend en main. */
+  armToy(kind: ToyKind): void;
   onChange(fn: () => void): void;
 }
 
@@ -69,7 +73,17 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
   iBrush.dataset.testid = 'item-brush';
   iBath.dataset.testid = 'item-bath';
   for (const i of [iFood, iWater]) i.append(el('small', 'hint', UI.dragHint));
-  bagGrid.append(iFood, iWater, iBrush, iBath);
+  const toyItems = (['ball', 'disc', 'rope'] as const).map((k) => {
+    const b = button(k, TOY_LABELS[k], 'item');
+    b.dataset.testid = `item-${k}`;
+    b.addEventListener('click', () => {
+      show(null);
+      h.armToy(k);
+      toast(TOY_HINT);
+    });
+    return b;
+  });
+  bagGrid.append(iFood, iWater, iBrush, iBath, ...toyItems);
   const bagClose = button('close', UI.close, 'close');
   bag.append(bagClose, bagGrid);
 
@@ -80,8 +94,9 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
   card.hidden = true;
   const cardClose = button('close', UI.close, 'close');
   const cardTitle = el('h2', 'title', UI.puppy);
+  const cardSub = el('p', 'sub');
   const rows = el('ul', 'rows');
-  card.append(cardClose, cardTitle, rows);
+  card.append(cardClose, cardTitle, cardSub, rows);
 
   // Outils de soin.
   const tools = el('nav', 'bar tools');
@@ -93,12 +108,22 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
   const tDone = button('done', UI.done);
   tools.append(tSoap, tShower, tTowel, tBrush, tDone);
 
+  const toastEl = el('div', 'toast');
+  toastEl.setAttribute('role', 'status');
+  toastEl.hidden = true;
+  let toastTimer = 0;
+  const toast = (text: string): void => {
+    toastEl.textContent = text;
+    toastEl.hidden = false;
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => (toastEl.hidden = true), 2600);
+  };
   const ghost = el('div', 'ghost');
   ghost.hidden = true;
   const cursor = el('div', 'tool-cursor');
   cursor.hidden = true;
 
-  hud.append(bar, bag, card, tools, ghost, cursor);
+  hud.append(bar, bag, card, tools, toastEl, ghost, cursor);
 
   // ------------------------------------------------------------ états
   let mode: 'bar' | 'bath' | 'brush' = 'bar';
@@ -133,6 +158,8 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
 
   function renderCard(): void {
     const c = h.card();
+    cardTitle.textContent = c.name;
+    cardSub.textContent = `${c.breed} · ${SEX_LABELS[c.sex]} · ${TEMPERAMENT_LABELS[c.temperament]}`;
     rows.innerHTML = '';
     for (const r of c.rows) {
       const li = el('li', `row level-${r.level}`, `${ICONS[ROW_ICONS[r.kind]]}<span class="label">${NEED_LABELS[r.kind]}</span><strong>${r.word}</strong>`);
