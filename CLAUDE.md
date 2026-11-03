@@ -4,7 +4,9 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-**Jalon 0 : socle** — projet, outils, boucle de jeu, sauvegarde.
+**Jalon 1 : le chiot vivant** — F-MAIN, F-VIE-2, chiot articulé paramétrique (beagle seul), sons de base. Priorité : comportement et animations.
+
+Jalon 0 (socle) : validé.
 
 Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run check` au vert **et** vérification de ses critères d'acceptation dans un navigateur. À la fin de chaque jalon : bilan critère par critère, mode d'emploi sur téléphone, liste de ce que le joueur doit vérifier lui-même, puis arrêt jusqu'à son accord.
 

@@ -8,5 +8,14 @@ export default defineConfig({
     port: 4173,
     reuseExistingServer: true,
   },
-  projects: [{ name: 'mobile', use: { ...devices['Pixel 7'] } }],
+  projects: [
+    {
+      name: 'mobile',
+      use: {
+        ...devices['Pixel 7'],
+        // Rendu GPU : sans lui, Chromium sans écran dessine en logiciel à ~12 images/s.
+        launchOptions: { args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11'] },
+      },
+    },
+  ],
 });

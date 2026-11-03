@@ -1,4 +1,5 @@
 import { Application, Container, Graphics } from 'pixi.js';
+import { Room } from './room';
 
 /** Palette du salon : aplats doux de livre illustré. */
 const ROOM = {
@@ -8,14 +9,13 @@ const ROOM = {
   floor: 0xe2b98b,
   floorLine: 0xd6a978,
   rug: 0xc7d6c0,
+  rugEdge: 0xb5c8ad,
 } as const;
-
-/** Part de la hauteur occupée par le mur. */
-const HORIZON = 0.55;
 
 export interface Stage {
   app: Application;
-  /** Calque où vivra le chiot (jalon 1). */
+  room: Room;
+  /** Calque du chiot. */
   world: Container;
 }
 
@@ -31,27 +31,30 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
   app.canvas.setAttribute('aria-label', 'Salon');
   host.appendChild(app.canvas);
 
-  const room = new Graphics();
+  const room = new Room();
+  const decor = new Graphics();
   const world = new Container();
-  app.stage.addChild(room, world);
+  app.stage.addChild(decor, world);
 
   const drawRoom = (): void => {
     const w = app.screen.width;
     const h = app.screen.height;
-    const y = Math.round(h * HORIZON);
-    room.clear();
-    room.rect(0, 0, w, y).fill(ROOM.wall);
-    room.rect(0, y - h * 0.18, w, h * 0.18).fill(ROOM.wallShade);
-    room.rect(0, y, w, h - y).fill(ROOM.floor);
+    room.layout(w, h);
+    const y = room.horizon;
+    decor.clear();
+    decor.rect(0, 0, w, y).fill(ROOM.wall);
+    decor.rect(0, y - h * 0.18, w, h * 0.18).fill(ROOM.wallShade);
+    decor.rect(0, y, w, h - y).fill(ROOM.floor);
     for (let i = 1; i < 5; i++) {
       const ly = y + (h - y) * (i / 5) ** 1.4;
-      room.rect(0, ly, w, 2).fill(ROOM.floorLine);
+      decor.rect(0, ly, w, 2).fill(ROOM.floorLine);
     }
-    room.rect(0, y - 6, w, 12).fill(ROOM.baseboard);
-    room.ellipse(w / 2, y + (h - y) * 0.55, w * 0.42, (h - y) * 0.28).fill(ROOM.rug);
+    decor.rect(0, y - 6, w, 12).fill(ROOM.baseboard);
+    const rug = room.floorToScreen({ x: 0, z: 0.62 });
+    decor.ellipse(w / 2, rug.y, Math.min(w * 0.44, 420), (h - y) * 0.3).fill(ROOM.rug).stroke({ width: 4, color: ROOM.rugEdge });
   };
   drawRoom();
   app.renderer.on('resize', drawRoom);
 
-  return { app, world };
+  return { app, room, world };
 }

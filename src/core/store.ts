@@ -1,15 +1,14 @@
-import { reduce, type GameAction } from '../sim/game';
-import type { SaveGame } from '../sim/state';
+import { reduce, type GameAction, type GameState } from '../sim/game';
 
-type Listener = (state: SaveGame, action: GameAction) => void;
+type Listener = (state: GameState, action: GameAction) => void;
 
 /** Seul point d'écriture de l'état : render/ et ui/ passent par dispatch. */
 export class GameStore {
   private listeners = new Set<Listener>();
 
-  constructor(private state: SaveGame) {}
+  constructor(private state: GameState) {}
 
-  getState(): SaveGame {
+  getState(): GameState {
     return this.state;
   }
 

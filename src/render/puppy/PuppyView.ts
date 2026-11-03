@@ -1,0 +1,832 @@
+/**
+ * Chiot articulé en 2,5D : chaque partie est un ellipsoïde projeté, animé par des ressorts.
+ * Lit l'esprit du chiot (sim/) et ne le modifie jamais.
+ */
+import { Container, Graphics } from 'pixi.js';
+import type { BreedLook } from '../../data/breeds';
+import type { PuppyProbe } from '../../input/gestures';
+import type { BodyPart, PuppyEvent, PuppyEventType, PuppyMind } from '../../sim/behavior';
+import type { Room } from '../room';
+import {
+  Camera,
+  Spring,
+  add,
+  angleDiff,
+  apply,
+  clamp,
+  dot,
+  mul,
+  mulEach,
+  norm,
+  rotX,
+  rotY,
+  rotZ,
+  scale,
+  shade,
+  smooth,
+  sub,
+  type M3,
+  type V3,
+} from './math';
+import { ACT_MS, MOODS, POSTURES } from './poses';
+
+const TILT = 0.36;
+const SCLERA = 0xfffaf2;
+const IRIS = 0x2a1a12;
+const MOUTH = 0x5b2626;
+const TONGUE = 0xee8a93;
+
+type HitPart = BodyPart | 'body';
+type Hit =
+  | { part: HitPart; z: number; kind: 'ellipse'; cx: number; cy: number; a: number; b: number; rot: number }
+  | { part: HitPart; z: number; kind: 'capsule'; ax: number; ay: number; bx: number; by: number; r: number };
+
+interface Act {
+  kind: PuppyEventType;
+  t0: number;
+  dur: number;
+}
+
+/** Décalages additionnés par les animations ponctuelles. */
+interface Offsets {
+  rootY: number;
+  yaw: number;
+  roll: number;
+  pitch: number;
+  bodyY: number;
+  bodyZ: number;
+  headPitch: number;
+  headTilt: number;
+  mouth: number;
+  tongue: number;
+  tongueUp: number;
+  lids: number;
+  earLift: number;
+  earFlap: number;
+  tailUp: number;
+  wag: number;
+  crouch: number;
+  brow: number;
+  scratch: number;
+  paddle: number;
+  nose: number;
+}
+
+const zeroOffsets = (): Offsets => ({
+  rootY: 0,
+  yaw: 0,
+  roll: 0,
+  pitch: 0,
+  bodyY: 0,
+  bodyZ: 0,
+  headPitch: 0,
+  headTilt: 0,
+  mouth: 0,
+  tongue: 0,
+  tongueUp: 0,
+  lids: 0,
+  earLift: 0,
+  earFlap: 0,
+  tailUp: 0,
+  wag: 0,
+  crouch: 0,
+  brow: 0,
+  scratch: 0,
+  paddle: 0,
+  nose: 0,
+});
+
+const SPRING_OMEGA = {
+  bodyY: 9,
+  bodyZ: 9,
+  pitch: 8,
+  roll: 7,
+  headUp: 10,
+  headFwd: 10,
+  lookYaw: 13,
+  lookPitch: 13,
+  headTilt: 7,
+  earLift: 10,
+  tailUp: 8,
+  wagAmp: 6,
+  lids: 34,
+  lowLid: 18,
+  mouth: 22,
+  tongue: 14,
+  brow: 12,
+  irisX: 30,
+  irisY: 30,
+  moving: 8,
+} as const;
+type SpringName = keyof typeof SPRING_OMEGA;
+
+export class PuppyView {
+  readonly container = new Container();
+  /** Appelé à la première image qui montre la réaction à un geste. */
+  onReaction: ((seq: number) => void) | null = null;
+
+  private readonly shadow = new Graphics();
+  private readonly body = new Container();
+  private readonly cam = new Camera(TILT);
+  private readonly gfx = new Map<string, Graphics>();
+  private hits: Hit[] = [];
+  private acts: Act[] = [];
+  private lastSeq = -1;
+  private lastReaction = 0;
+
+  private t = 0;
+  private px: number;
+  private pz: number;
+  private yaw = 0;
+  private yawVel = 0;
+  private readonly sp: Record<SpringName, Spring>;
+  private readonly feet: Spring[];
+  private readonly ears = [
+    { spread: new Spring(0.25), swing: new Spring(0) },
+    { spread: new Spring(0.25), swing: new Spring(0) },
+  ];
+  private gaitPhase = 0;
+  private wagPhase = 0;
+  private breathPhase = 0;
+  private blinkAt = 1.5;
+  private blinkUntil = 0;
+  private saccadeAt = 0;
+  private saccade = { x: 0, y: 0 };
+
+  // Géométrie de la dernière image, pour le regard et les gestes.
+  private ox = 0;
+  private oy = 0;
+  private s = 1;
+  private headC: V3 = [0, 0.7, 0.1];
+  private headS = { x: 0, y: 0 };
+  private noseS = { x: 0, y: 0 };
+  private headTopS = { x: 0, y: 0 };
+  private bodyCS = { x: 0, y: 0 };
+  private bodyUpS = { x: 0, y: -1, len: 1 };
+
+  constructor(
+    private readonly breed: BreedLook,
+    private readonly room: Room,
+    start: { x: number; z: number },
+  ) {
+    this.px = start.x;
+    this.pz = start.z;
+    this.container.addChild(this.shadow, this.body);
+    this.body.sortableChildren = true;
+    const stand = POSTURES.stand;
+    this.sp = Object.fromEntries(Object.keys(SPRING_OMEGA).map((k) => [k, new Spring(0)])) as Record<SpringName, Spring>;
+    this.sp.bodyY.x = stand.bodyY;
+    this.sp.headUp.x = stand.headUp;
+    this.sp.headFwd.x = stand.headFwd;
+    this.feet = stand.feet.flatMap((f) => f.map((v) => new Spring(v)));
+  }
+
+  // ------------------------------------------------------------ sonde pour les gestes
+
+  readonly probe: PuppyProbe = {
+    hitTest: (x, y) => this.hitTest(x, y),
+    nose: () => this.noseS,
+    headTop: () => this.headTopS,
+    headRadius: () => this.breed.head[0] * this.s,
+    toFloor: (x, y) => this.room.screenToFloor(x, y),
+  };
+
+  private hitTest(x: number, y: number): BodyPart | null {
+    const margin = 6;
+    let best: Hit | null = null;
+    for (const h of this.hits) {
+      if (best && h.z <= best.z) continue;
+      if (h.kind === 'ellipse') {
+        const c = Math.cos(-h.rot);
+        const s = Math.sin(-h.rot);
+        const dx = x - h.cx;
+        const dy = y - h.cy;
+        const lx = dx * c - dy * s;
+        const ly = dx * s + dy * c;
+        if ((lx / (h.a + margin)) ** 2 + (ly / (h.b + margin)) ** 2 <= 1) best = h;
+      } else {
+        const vx = h.bx - h.ax;
+        const vy = h.by - h.ay;
+        const l2 = vx * vx + vy * vy || 1;
+        const k = clamp(((x - h.ax) * vx + (y - h.ay) * vy) / l2, 0, 1);
+        if (Math.hypot(x - (h.ax + vx * k), y - (h.ay + vy * k)) <= h.r + margin) best = h;
+      }
+    }
+    if (!best) return null;
+    if (best.part !== 'body') return best.part;
+    const u = ((x - this.bodyCS.x) * this.bodyUpS.x + (y - this.bodyCS.y) * this.bodyUpS.y) / this.bodyUpS.len;
+    return u > 0.35 ? 'back' : u < -0.3 ? 'belly' : 'flank';
+  }
+
+  // ------------------------------------------------------------ animation
+
+  update(dtMs: number, mind: PuppyMind, pointer: { x: number; y: number } | null): void {
+    const dt = Math.min(dtMs, 50) / 1000;
+    const now = (this.t += dt);
+    this.consume(mind.events, now);
+
+    // Position au sol et orientation.
+    const k = 1 - Math.exp(-dt * 10);
+    const prevX = this.px;
+    const prevZ = this.pz;
+    this.px += (mind.pos.x - this.px) * k;
+    this.pz += (mind.pos.z - this.pz) * k;
+    const fu = this.room.floorUnits(this.pz);
+    const speed = dt > 0 ? Math.hypot((this.px - prevX) * fu.x, (this.pz - prevZ) * fu.z) / dt : 0;
+    const dyaw = angleDiff(this.yaw, mind.facing);
+    const turn = clamp(dyaw * Math.min(1, dt * 7), -6 * dt, 6 * dt);
+    this.yaw += turn;
+    this.yawVel = dt > 0 ? turn / dt : 0;
+
+    const fs = this.room.floorToScreen({ x: this.px, z: this.pz });
+    this.ox = fs.x;
+    this.oy = fs.y;
+    this.s = fs.s;
+
+    const O = this.offsets(now);
+    const pose = POSTURES[mind.posture];
+    const E = MOODS[mind.mood];
+    const ex = mind.excitement;
+    const sp = this.sp;
+    const step = (n: SpringName, target: number, zeta = 1) => sp[n].step(target, dt, SPRING_OMEGA[n], zeta);
+
+    // Démarche.
+    const moving = step('moving', speed > 0.05 && mind.posture === 'stand' ? 1 : 0);
+    const running = mind.gait === 'run';
+    const stride = running ? 0.15 : 0.1;
+    this.gaitPhase += dt * Math.PI * 2 * clamp(speed / (2 * stride), 0, 4.5);
+    const gp = this.gaitPhase;
+
+    // Respiration, queue, rebond.
+    this.breathPhase += dt * Math.PI * 2 * (0.35 + ex * 0.5 + (E.tongue > 0.5 ? 0.9 : 0));
+    const breath = Math.sin(this.breathPhase) * 0.022;
+    this.wagPhase += dt * Math.PI * 2 * E.wagHz * (0.6 + ex * 0.8);
+    const petted = mind.activity === 'petted';
+    const bounce = E.bounce * (1 - moving) * Math.abs(Math.sin(now * 6.5)) * 0.022;
+
+    step('bodyY', pose.bodyY - (E.crouch + O.crouch) * 0.07 + O.bodyY + bounce + moving * Math.abs(Math.sin(gp * 2)) * 0.014);
+    step('bodyZ', pose.bodyZ + O.bodyZ);
+    step('pitch', pose.pitch + O.pitch + (running ? moving * Math.sin(gp) * 0.09 : 0));
+    step('roll', pose.roll + O.roll, 0.8);
+    step('headUp', pose.headUp);
+    step('headFwd', pose.headFwd);
+    step('headTilt', E.headTilt + O.headTilt + (petted ? Math.sin(now * 1.6) * 0.15 : 0), 0.7);
+    step('earLift', clamp(E.earLift + O.earLift, -1, 1.2));
+    step('tailUp', E.tailUp + O.tailUp);
+    step('wagAmp', E.wagAmp * (0.55 + 0.45 * ex) + O.wag);
+    step('mouth', clamp(E.mouth + O.mouth, 0, 1.3));
+    step('tongue', clamp(E.tongue + O.tongue, 0, 1.2));
+    step('brow', clamp(E.brow + O.brow, -1, 1));
+    step('lowLid', E.lowLid);
+
+    // Clignement.
+    if (now > this.blinkAt) {
+      this.blinkUntil = now + 0.13;
+      this.blinkAt = now + (Math.random() < 0.15 ? 0.3 : 2 + Math.random() * 3.5);
+    }
+    const lidTarget = now < this.blinkUntil ? 1 : clamp(E.lids + O.lids + (petted ? 0.1 : 0), -0.3, 1);
+    step('lids', lidTarget);
+
+    // Regard : le doigt s'il est attentif, sinon la cible donnée par la simulation.
+    const dir = this.lookDir(mind, pointer, fu);
+    const wantYaw = angleDiff(this.yaw, Math.atan2(dir[0], dir[2]));
+    const wantPitch = Math.atan2(dir[1], Math.hypot(dir[0], dir[2]));
+    step('lookYaw', clamp(wantYaw * 0.8, -1.05, 1.05));
+    step('lookPitch', clamp(wantPitch * 0.8, -0.8, 0.9));
+    if (now > this.saccadeAt) {
+      this.saccadeAt = now + 0.8 + Math.random() * 2;
+      this.saccade = pointer ? { x: 0, y: 0 } : { x: (Math.random() - 0.5) * 0.5, y: (Math.random() - 0.5) * 0.3 };
+    }
+    step('irisX', clamp((wantYaw - sp.lookYaw.x) * 1.7 + this.saccade.x, -1, 1));
+    step('irisY', clamp(-(wantPitch - sp.lookPitch.x) * 1.7 + this.saccade.y, -1, 1));
+
+    // Pattes.
+    const phases = running ? [0, 0.6, Math.PI, Math.PI + 0.6] : [0, Math.PI, Math.PI, 0];
+    pose.feet.forEach((f, i) => {
+      const ph = gp + (phases[i] ?? 0);
+      let fx = f[0];
+      let fy = f[1] + Math.max(0, Math.cos(ph)) * (running ? 0.085 : 0.055) * moving;
+      let fz = f[2] + Math.sin(ph) * stride * moving;
+      if (i < 2 && O.paddle > 0) {
+        const d = Math.sin(now * 17 + (i ? Math.PI : 0));
+        fz += O.paddle * 0.1 * d;
+        fy += O.paddle * 0.06 * Math.max(0, d);
+      }
+      if (i === 3 && O.scratch > 0) {
+        fx = fx + (-0.05 - fx) * O.scratch;
+        fy = fy + (0.36 + Math.sin(now * 32) * 0.035 - fy) * O.scratch;
+        fz = fz + (0.12 - fz) * O.scratch;
+      }
+      this.feet[i * 3]?.step(fx, dt, 14);
+      this.feet[i * 3 + 1]?.step(fy, dt, 14);
+      this.feet[i * 3 + 2]?.step(fz, dt, 14);
+    });
+
+    this.draw(mind, O, breath, dt, now);
+
+    if (mind.reactionSeq !== this.lastReaction) {
+      this.lastReaction = mind.reactionSeq;
+      this.onReaction?.(mind.reactionSeq);
+    }
+  }
+
+  private consume(events: readonly PuppyEvent[], now: number): void {
+    if (this.lastSeq < 0) {
+      this.lastSeq = events.at(-1)?.seq ?? 0;
+      return;
+    }
+    for (const e of events) {
+      if (e.seq <= this.lastSeq) continue;
+      this.lastSeq = e.seq;
+      const dur = ACT_MS[e.type];
+      if (dur) this.acts.push({ kind: e.type, t0: now, dur: dur / 1000 });
+    }
+    this.acts = this.acts.filter((a) => now - a.t0 < a.dur);
+  }
+
+  private offsets(now: number): Offsets {
+    const o = zeroOffsets();
+    for (const a of this.acts) {
+      const u = clamp((now - a.t0) / a.dur, 0, 1);
+      const env = Math.sin(Math.PI * u);
+      switch (a.kind) {
+        case 'jump':
+          o.rootY += 0.3 * Math.sin(Math.PI * u);
+          o.pitch += 0.22 * Math.sin(Math.PI * 2 * u);
+          o.earFlap += env;
+          break;
+        case 'spin':
+          o.yaw += Math.PI * 2 * smooth(u);
+          break;
+        case 'shake':
+          o.roll += 0.32 * Math.sin(u * Math.PI * 12) * (1 - u);
+          o.earFlap += env * 1.5;
+          o.lids += 0.6 * env;
+          break;
+        case 'startle':
+          o.rootY += 0.1 * Math.sin(Math.min(1, u * 2.5) * Math.PI);
+          o.bodyZ -= 0.08 * env;
+          o.crouch += 0.3 * env;
+          o.earLift -= env;
+          break;
+        case 'playBow':
+          o.pitch -= 0.5 * env;
+          o.bodyY -= 0.07 * env;
+          o.headPitch += 0.35 * env;
+          o.tailUp += 0.5 * env;
+          o.wag += 0.6 * env;
+          o.mouth += 0.4 * env;
+          break;
+        case 'backOff':
+          o.bodyZ -= 0.1 * env;
+          o.pitch += 0.12 * env;
+          break;
+        case 'wiggle':
+          o.roll += 0.1 * Math.sin(u * Math.PI * 8);
+          o.wag += 0.8 * env;
+          break;
+        case 'bark':
+          o.mouth += env;
+          o.headPitch += 0.25 * env;
+          o.earFlap += 0.4 * env;
+          break;
+        case 'yip':
+          o.mouth += 0.6 * env;
+          o.headPitch += 0.15 * env;
+          break;
+        case 'whine':
+          o.headTilt += 0.3 * env;
+          o.mouth += 0.15 * env;
+          o.brow -= env;
+          break;
+        case 'yelp':
+          o.mouth += env;
+          o.headPitch += 0.3 * env;
+          o.earLift -= env;
+          break;
+        case 'sniff':
+          o.nose += env;
+          o.headPitch -= 0.06 * Math.sin(u * Math.PI * 7);
+          break;
+        case 'sniffGround':
+          o.headPitch -= 0.8 * env;
+          o.nose += env;
+          break;
+        case 'lick':
+          o.tongue += env;
+          o.tongueUp += env;
+          o.mouth += 0.5 * env;
+          break;
+        case 'yawn':
+          o.mouth += 1.3 * env;
+          o.lids += env;
+          o.headPitch += 0.35 * env;
+          o.earLift -= 0.4 * env;
+          break;
+        case 'scratch':
+          o.scratch += smooth(Math.min(1, env * 2));
+          o.headTilt += 0.4 * env;
+          o.lids += 0.45 * env;
+          break;
+        case 'dig':
+          o.paddle += smooth(Math.min(1, env * 2));
+          o.headPitch -= 0.55 * env;
+          break;
+        case 'howl':
+          o.headPitch += 1.0 * env;
+          o.mouth += 0.55 * env;
+          o.lids += 0.35 * env;
+          break;
+        case 'perk':
+          o.earLift += env;
+          o.headTilt += 0.25 * env;
+          break;
+        case 'flop':
+          o.rootY += 0.05 * env;
+          break;
+        default:
+          break;
+      }
+    }
+    return o;
+  }
+
+  private lookDir(mind: PuppyMind, pointer: { x: number; y: number } | null, fu: { x: number; z: number }): V3 {
+    const forward = (v: V3): V3 => apply(rotY(this.yaw), v);
+    const towardPointer = (p: { x: number; y: number }): V3 => {
+      const zt = 1.6;
+      const dx = (p.x - this.headS.x) / this.s;
+      const dy = (p.y - this.headS.y) / this.s;
+      return [dx, (this.cam.sin * zt - dy) / this.cam.cos, zt];
+    };
+    if (pointer && mind.attentive) return towardPointer(pointer);
+    const L = mind.look;
+    switch (L.kind) {
+      case 'player':
+      case 'hand':
+        return [-this.headC[0] * 0.2, 0.3, 2.5];
+      case 'point':
+        return sub([(L.x - this.px) * fu.x, 0, (L.z - this.pz) * fu.z], this.headC);
+      case 'up':
+        return forward([0, 1.2, 0.35]);
+      case 'ground':
+        return forward([0, -1, 0.55]);
+      case 'away':
+        return forward([0, -0.35, 1]);
+    }
+  }
+
+  // ------------------------------------------------------------ dessin
+
+  private g(name: string): Graphics {
+    let g = this.gfx.get(name);
+    if (!g) {
+      g = new Graphics();
+      this.gfx.set(name, g);
+      this.body.addChild(g);
+    }
+    g.clear();
+    g.visible = true;
+    return g;
+  }
+
+  private toS(p: V3): { x: number; y: number } {
+    const q = this.cam.project(p);
+    return { x: this.ox + q.x * this.s, y: this.oy + q.y * this.s };
+  }
+
+  private ell(name: string, c: V3, R: M3, r: readonly number[], fill: number, opt: { z?: number; outline?: boolean; hit?: HitPart } = {}): number {
+    const e = this.cam.ellipse(R, r);
+    const p = this.toS(c);
+    const g = this.g(name);
+    const s = this.s;
+    g.ellipse(0, 0, e.a * s, e.b * s).fill(fill);
+    if (opt.outline !== false) g.stroke({ width: this.ol, color: shade(fill, 0.55, this.breed.colors.outline), alpha: 0.9 });
+    g.position.set(p.x, p.y);
+    g.rotation = e.rot;
+    const z = opt.z ?? this.cam.depth(c);
+    g.zIndex = z;
+    if (opt.hit) this.hits.push({ part: opt.hit, z, kind: 'ellipse', cx: p.x, cy: p.y, a: e.a * s, b: e.b * s, rot: e.rot });
+    return z;
+  }
+
+  /** Tache de pelage intérieure à une partie : visible seulement du côté où elle se trouve. */
+  private patch(name: string, parentC: V3, parentZ: number, c: V3, R: M3, r: readonly number[], fill: number): void {
+    const front = dot(sub(c, parentC), this.cam.view) > 0;
+    this.ell(name, c, R, r, fill, { z: parentZ + (front ? 0.0005 : -0.0005), outline: false });
+  }
+
+  private get ol(): number {
+    return Math.max(1.4, this.s * 0.011);
+  }
+
+  private draw(mind: PuppyMind, O: Offsets, breath: number, dt: number, now: number): void {
+    const B = this.breed;
+    const C = B.colors;
+    const sp = this.sp;
+    const s = this.s;
+    this.hits = [];
+
+    const yaw = this.yaw + O.yaw;
+    const Ry = rotY(yaw);
+    const Rb = mul(Ry, mul(rotX(sp.pitch.x), rotZ(sp.roll.x)));
+    const lift = O.rootY;
+    const bodyC = apply(Ry, [0, sp.bodyY.x + lift, sp.bodyZ.x]);
+    const bodyR = [B.body[0], B.body[1] * (1 + breath), B.body[2]];
+    const inBody = (v: readonly number[]): V3 => add(bodyC, apply(Rb, v));
+
+    // Tête.
+    const pose = POSTURES[mind.posture];
+    const neck = inBody([0, B.body[1] * 0.6, B.body[2] * 0.75]);
+    const headC = add(neck, apply(Rb, [0, sp.headUp.x, sp.headFwd.x]));
+    const headYaw = yaw + sp.lookYaw.x;
+    const headRoll = sp.roll.x * pose.headRollFollow + sp.headTilt.x;
+    const headPitch = sp.lookPitch.x - MOODS[mind.mood].headDrop - (mind.activity === 'petted' ? -0.12 : 0) + O.headPitch;
+    const Rh = mul(rotY(headYaw), mul(rotX(headPitch), rotZ(headRoll)));
+    const inHead = (v: readonly number[]): V3 => add(headC, apply(Rh, v));
+    this.headC = headC;
+
+    // Ombre.
+    const root = this.toS([0, 0, 0]);
+    const shrink = 1 - clamp(lift * 1.5, 0, 0.5);
+    this.shadow.clear();
+    this.shadow
+      .ellipse(root.x, root.y, s * (0.3 + 0.16 * Math.abs(Math.sin(yaw))) * shrink, s * 0.085 * shrink)
+      .fill({ color: 0x3a2618, alpha: 0.16 });
+
+    // Corps et taches.
+    const bodyZ = this.ell('body', bodyC, Rb, bodyR, C.fur, { hit: 'body' });
+    if (C.saddle !== null) this.patch('saddle', bodyC, bodyZ, inBody([0, B.body[1] * 0.26, -B.body[2] * 0.12]), Rb, [B.body[0] * 0.92, B.body[1] * 0.74, B.body[2] * 0.78], C.saddle);
+    this.patch('belly', bodyC, bodyZ, inBody([0, -B.body[1] * 0.3, B.body[2] * 0.05]), Rb, [B.body[0] * 0.8, B.body[1] * 0.7, B.body[2] * 0.8], C.white);
+    this.ell('chest', inBody([0, -0.01, B.body[2] * 0.62]), Rb, B.chest, C.white, { hit: 'body' });
+    const cs = this.toS(bodyC);
+    const up = this.toS(inBody([0, B.body[1], 0]));
+    const ux = up.x - cs.x;
+    const uy = up.y - cs.y;
+    const ul = Math.hypot(ux, uy) || 1;
+    this.bodyCS = cs;
+    this.bodyUpS = { x: ux / ul, y: uy / ul, len: ul };
+
+    // Pattes.
+    const hips: V3[] = [
+      [B.body[0] * 0.55, -B.body[1] * 0.5, B.body[2] * 0.58],
+      [-B.body[0] * 0.55, -B.body[1] * 0.5, B.body[2] * 0.58],
+      [B.body[0] * 0.58, -B.body[1] * 0.45, -B.body[2] * 0.58],
+      [-B.body[0] * 0.58, -B.body[1] * 0.45, -B.body[2] * 0.58],
+    ];
+    hips.forEach((h, i) => {
+      const hip = inBody(h);
+      const fl: V3 = [this.feet[i * 3]?.x ?? 0, (this.feet[i * 3 + 1]?.x ?? 0) + lift * 0.75, this.feet[i * 3 + 2]?.x ?? 0];
+      const foot = apply(Ry, fl);
+      this.leg(`leg${i}`, hip, foot, Ry, C.fur, C.white);
+    });
+
+    // Queue.
+    this.tail(inBody([0, B.body[1] * 0.45, -B.body[2] * 0.93]), Rb);
+
+    // Cou : relie les épaules à la tête sous tous les angles.
+    const neckC = add(scale(neck, 0.55), scale(headC, 0.45));
+    this.ell('neck', neckC, Rb, [B.head[0] * 0.62, B.head[1] * 0.75, B.head[2] * 0.62], C.fur, { hit: 'head', outline: false });
+
+    // Tête, museau, nez.
+    const headZ = this.ell('head', headC, Rh, B.head, C.fur, { hit: 'head' });
+    this.patch('blaze', headC, headZ, inHead([0, 0.045, 0.1]), Rh, [0.045, 0.12, 0.11], C.white);
+    const muzzleC = inHead(B.muzzleAt);
+    const muzzleZ = this.ell('muzzle', muzzleC, Rh, B.muzzle, C.white, { hit: 'muzzle' });
+    const twitch = O.nose > 0 ? 1 + Math.sin(now * 40) * 0.08 * O.nose : 1;
+    const noseC = inHead([0, B.muzzleAt[1] + 0.035, B.muzzleAt[2] + B.muzzle[2] * 0.9]);
+    this.ell('nose', noseC, Rh, [B.nose[0] * twitch, B.nose[1] * twitch, B.nose[2]], C.nose, { z: Math.max(muzzleZ, this.cam.depth(noseC)) + 0.002, hit: 'muzzle' });
+    this.noseHighlight(noseC, Rh);
+    this.noseS = this.toS(noseC);
+    this.headS = this.toS(headC);
+    this.headTopS = this.toS(add(headC, [0, B.head[1], 0]));
+
+    this.mouth(muzzleC, Rh, muzzleZ, O);
+    for (const side of [1, -1] as const) {
+      this.eye(side, headC, Rh, headZ);
+      this.ear(side, headC, Rh, headYaw, headRoll, headZ, O, dt, now);
+    }
+  }
+
+  private leg(name: string, hip: V3, foot: V3, Ry: M3, fur: number, paw: number): void {
+    const a = this.toS(hip);
+    const b = this.toS(foot);
+    const w = this.breed.leg.width * this.s;
+    const z = this.cam.depth(add(scale(hip, 0.5), scale(foot, 0.5)));
+    const g = this.g(name);
+    g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: w + this.ol * 2, color: shade(fur, 0.55, this.breed.colors.outline), cap: 'round' });
+    g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: w, color: fur, cap: 'round' });
+    g.position.set(0, 0);
+    g.rotation = 0;
+    g.zIndex = z;
+    this.hits.push({ part: 'paw', z, kind: 'capsule', ax: a.x, ay: a.y, bx: b.x, by: b.y, r: w / 2 });
+    this.ell(`${name}paw`, add(foot, apply(Ry, [0, 0.035, 0.03])), Ry, [0.066, 0.045, 0.08], paw, { z: z + 0.001, hit: 'paw' });
+  }
+
+  private tail(base: V3, Rb: M3): void {
+    const T = this.breed.tail;
+    const sp = this.sp;
+    const wag = sp.wagAmp.x * Math.sin(this.wagPhase);
+    let elev = -0.3 + sp.tailUp.x * 1.15;
+    const pts: V3[] = [base];
+    for (let i = 0; i < 3; i++) {
+      elev += 0.22 * Math.max(0, sp.tailUp.x);
+      const w = wag * (0.6 + 0.4 * i);
+      const d: V3 = [Math.sin(w) * Math.cos(elev), Math.sin(elev), -Math.cos(w) * Math.cos(elev)];
+      const prev = pts[i] ?? base;
+      pts.push(add(prev, scale(apply(Rb, d), T.length / 3)));
+    }
+    const sc = pts.map((p) => this.toS(p));
+    const z = this.cam.depth(pts[2] ?? base);
+    const g = this.g('tail');
+    const outline = shade(this.breed.colors.fur, 0.55, this.breed.colors.outline);
+    const widths = [1, 0.85, 0.7].map((k) => T.width * this.s * k);
+    for (let i = 0; i < 3; i++) {
+      const a = sc[i];
+      const b = sc[i + 1];
+      if (!a || !b) continue;
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: (widths[i] ?? 1) + this.ol * 2, color: outline, cap: 'round' });
+    }
+    for (let i = 0; i < 3; i++) {
+      const a = sc[i];
+      const b = sc[i + 1];
+      if (!a || !b) continue;
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: widths[i] ?? 1, color: i === 2 ? this.breed.colors.white : this.breed.colors.fur, cap: 'round' });
+      this.hits.push({ part: 'tail', z, kind: 'capsule', ax: a.x, ay: a.y, bx: b.x, by: b.y, r: (widths[i] ?? 1) / 2 + 4 });
+    }
+    g.position.set(0, 0);
+    g.rotation = 0;
+    g.zIndex = z;
+  }
+
+  private facing(normal: V3): number {
+    return dot(norm(normal), this.cam.view);
+  }
+
+  /** Angle à l'écran de l'axe latéral de la tête. */
+  private screenAngle(c: V3, R: M3): number {
+    const a = this.toS(c);
+    const b = this.toS(add(c, apply(R, [1, 0, 0])));
+    return Math.atan2(b.y - a.y, b.x - a.x);
+  }
+
+  private eye(side: 1 | -1, headC: V3, Rh: M3, headZ: number): void {
+    const B = this.breed;
+    const sp = this.sp;
+    const dirL = norm([side * 0.44, 0.2, 0.87]);
+    const pos = add(headC, apply(Rh, scale(mulEach(dirL, B.head), 0.97)));
+    const f = this.facing(apply(Rh, dirL));
+    const g = this.g(`eye${side}`);
+    if (f < 0.1) {
+      g.visible = false;
+      this.gfx.get(`brow${side}`)?.clear();
+      return;
+    }
+    const p = this.toS(pos);
+    const s = this.s;
+    const rx = B.eyeRadius * s * (0.3 + 0.7 * f);
+    const ry = B.eyeRadius * s * 1.08;
+    g.position.set(p.x, p.y);
+    g.rotation = this.screenAngle(headC, Rh);
+    g.zIndex = headZ + 0.01;
+    g.ellipse(0, 0, rx, ry).fill(SCLERA);
+    const ix = sp.irisX.x * rx * 0.22;
+    const iy = sp.irisY.x * ry * 0.16;
+    g.ellipse(ix, iy, rx * 0.84, ry * 0.86).fill(IRIS);
+    g.circle(ix - rx * 0.3, iy - ry * 0.35, ry * 0.22).fill(0xffffff);
+    g.circle(ix + rx * 0.28, iy + ry * 0.24, ry * 0.1).fill({ color: 0xffffff, alpha: 0.85 });
+
+    const lash = shade(B.colors.fur, 0.7, B.colors.outline);
+    const lw = Math.max(1.2, s * 0.012);
+    g.ellipse(0, 0, rx, ry).stroke({ width: lw * 0.7, color: lash, alpha: 0.5 });
+    const top = clamp(sp.lids.x, 0, 1);
+    const low = clamp(sp.lowLid.x, 0, 0.9) * (1 - top * 0.6);
+    if (top > 0.02) {
+      const yc = -ry + 2 * ry * Math.min(top, 0.98);
+      const a0 = Math.asin(clamp(yc / ry, -1, 1));
+      const xc = rx * Math.cos(a0);
+      g.moveTo(xc, yc);
+      for (let i = 1; i <= 14; i++) {
+        const a = a0 + ((-Math.PI - 2 * a0) * i) / 14;
+        g.lineTo(rx * Math.cos(a), ry * Math.sin(a));
+      }
+      g.quadraticCurveTo(0, yc + ry * 0.3 * top, xc, yc).fill(B.colors.fur);
+      g.moveTo(-xc - lw * 0.3, yc).quadraticCurveTo(0, yc + ry * 0.3 * top, xc + lw * 0.3, yc).stroke({ width: lw, color: lash, cap: 'round' });
+    }
+    if (low > 0.02) {
+      const yc = ry - 2 * ry * low;
+      const a0 = Math.asin(clamp(yc / ry, -1, 1));
+      const xc = rx * Math.cos(a0);
+      g.moveTo(xc, yc);
+      for (let i = 1; i <= 14; i++) {
+        const a = a0 + ((Math.PI - 2 * a0) * i) / 14;
+        g.lineTo(rx * Math.cos(a), ry * Math.sin(a));
+      }
+      g.quadraticCurveTo(0, yc - ry * 0.45 * low, xc, yc).fill(B.colors.fur);
+      g.moveTo(-xc, yc).quadraticCurveTo(0, yc - ry * 0.45 * low, xc, yc).stroke({ width: lw * 0.8, color: lash, alpha: 0.6, cap: 'round' });
+    }
+
+    // Sourcil : relevé (curieux) ou intérieur levé (triste).
+    const browDir = norm([side * 0.42, 0.5, 0.76]);
+    const bp = this.toS(add(headC, apply(Rh, mulEach(browDir, B.head))));
+    const bg = this.g(`brow${side}`);
+    if (f < 0.3) return;
+    const b = sp.brow.x;
+    const len = B.eyeRadius * s * 0.95 * (0.4 + 0.6 * f);
+    const raise = Math.max(0, b) * ry * 0.35;
+    const inner = -side * len;
+    const outer = side * len * 0.4;
+    const innerY = -raise - Math.max(0, -b) * ry * 0.45;
+    const outerY = -raise + Math.max(0, -b) * ry * 0.1;
+    bg.position.set(bp.x, bp.y);
+    bg.rotation = this.screenAngle(headC, Rh);
+    bg.zIndex = headZ + 0.011;
+    bg.moveTo(inner * 0.5, innerY).lineTo(outer, outerY).stroke({ width: B.eyeRadius * s * 0.36, color: B.colors.brow, cap: 'round' });
+  }
+
+  private noseHighlight(noseC: V3, Rh: M3): void {
+    const g = this.g('noseHi');
+    const f = this.facing(apply(Rh, [0, 0.3, 1]));
+    if (f < 0.2) {
+      g.visible = false;
+      return;
+    }
+    const p = this.toS(add(noseC, apply(Rh, [-0.018, 0.018, 0.03])));
+    g.ellipse(0, 0, this.s * 0.018, this.s * 0.011).fill({ color: 0xffffff, alpha: 0.7 });
+    g.position.set(p.x, p.y);
+    g.rotation = this.screenAngle(noseC, Rh);
+    g.zIndex = (this.gfx.get('nose')?.zIndex ?? 0) + 0.001;
+  }
+
+  private mouth(muzzleC: V3, Rh: M3, muzzleZ: number, O: Offsets): void {
+    const B = this.breed;
+    const sp = this.sp;
+    const s = this.s;
+    const g = this.g('mouth');
+    const pos = add(muzzleC, apply(Rh, [0, -B.muzzle[1] * 0.5, B.muzzle[2] * 0.8]));
+    const p = this.toS(pos);
+    const f = this.facing(apply(Rh, [0, -0.35, 1]));
+    g.position.set(p.x, p.y);
+    g.rotation = this.screenAngle(muzzleC, Rh);
+    g.zIndex = muzzleZ + 0.003;
+    const open = clamp(sp.mouth.x, 0, 1.3);
+    const tongue = clamp(sp.tongue.x, 0, 1.2);
+    const line = shade(B.colors.white, 0.75, B.colors.outline);
+    const lw = Math.max(1.2, s * 0.011);
+    const w = B.muzzle[0] * s * 0.55 * Math.max(0.35, f);
+    if (f > 0.12) {
+      const h = B.muzzle[1] * s * 0.28;
+      if (open > 0.06) {
+        const oh = B.muzzle[1] * s * 0.8 * open;
+        g.ellipse(0, oh * 0.45, w * 0.72, oh * 0.55 + 1).fill(MOUTH);
+        if (tongue > 0.05) {
+          const tl = B.muzzle[1] * s * (0.5 + 0.9 * tongue) * (1 - O.tongueUp * 0.3);
+          const ty = oh * 0.55 + tl * 0.35 - O.tongueUp * B.muzzle[1] * s * 0.9;
+          g.ellipse(0, ty, w * (0.48 + 0.15 * O.tongueUp), tl * 0.55).fill(TONGUE);
+          g.moveTo(0, ty - tl * 0.35).lineTo(0, ty + tl * 0.2).stroke({ width: lw * 0.7, color: shade(TONGUE, 0.35), alpha: 0.6 });
+        }
+      }
+      g.moveTo(-w, -h * 0.2)
+        .quadraticCurveTo(-w * 0.5, h, 0, 0)
+        .quadraticCurveTo(w * 0.5, h, w, -h * 0.2)
+        .stroke({ width: lw, color: line, cap: 'round' });
+      g.moveTo(0, -B.muzzle[1] * s * 0.45).lineTo(0, 0).stroke({ width: lw, color: line, cap: 'round' });
+    } else if (tongue > 0.3) {
+      g.ellipse(0, B.muzzle[1] * s * 0.5, B.muzzle[0] * s * 0.25, B.muzzle[1] * s * 0.5 * tongue).fill(TONGUE);
+    }
+  }
+
+  private ear(side: 1 | -1, headC: V3, Rh: M3, headYaw: number, headRoll: number, headZ: number, O: Offsets, dt: number, now: number): void {
+    const B = this.breed;
+    const st = this.ears[side === 1 ? 0 : 1];
+    if (!st) return;
+    const lift = this.sp.earLift.x;
+    const flap = O.earFlap * Math.sin(now * 28) * 0.35;
+    st.spread.v += this.yawVel * side * 0.25 * dt * 60;
+    st.spread.step(0.22 + 0.6 * Math.max(0, lift) + flap, dt, 9, 0.3);
+    st.swing.step(lift < 0 ? 0.9 * -lift : 0, dt, 9, 0.35);
+    const spread = st.spread.x;
+    const swing = st.swing.x;
+    const anchorL: V3 = [side * B.head[0] * 0.8, B.head[1] * 0.45, -B.head[2] * 0.12];
+    const anchor = add(headC, apply(Rh, anchorL));
+    const dirL: V3 = [side * Math.sin(spread), -Math.cos(spread) * Math.cos(swing), -Math.sin(swing) * Math.cos(spread)];
+    const dir = apply(mul(rotY(headYaw), rotZ(headRoll * 0.6)), dirL);
+    const len = B.ear.length;
+    const center = add(anchor, scale(dir, len * 0.5));
+    const a = this.toS(anchor);
+    const b = this.toS(add(anchor, dir));
+    const pl = Math.hypot(b.x - a.x, b.y - a.y) / this.s;
+    const c = this.toS(center);
+    const g = this.g(`ear${side}`);
+    const rx = Math.max(0.4, pl) * len * 0.5 * this.s;
+    const ry = B.ear.width * 0.5 * this.s;
+    g.ellipse(0, 0, rx, ry).fill(B.colors.ear);
+    g.stroke({ width: this.ol, color: shade(B.colors.ear, 0.5, B.colors.outline), alpha: 0.9 });
+    g.position.set(c.x, c.y);
+    g.rotation = Math.atan2(b.y - a.y, b.x - a.x);
+    const front = this.cam.depth(center) > this.cam.depth(headC);
+    const z = headZ + (front ? 0.004 : -0.004);
+    g.zIndex = z;
+    this.hits.push({ part: 'ear', z, kind: 'ellipse', cx: c.x, cy: c.y, a: rx, b: ry, rot: g.rotation });
+  }
+}

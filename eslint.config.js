@@ -8,6 +8,7 @@ export default tseslint.config(
   ...tseslint.configs.strict,
   {
     languageOptions: { globals: { ...globals.browser } },
+    rules: { '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }] },
   },
   {
     // sim/ est pur : seulement data/ et sim/, ni DOM, ni horloge, ni hasard.

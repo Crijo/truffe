@@ -6,7 +6,7 @@ import type { GameStore } from './store';
 export function startAutosave(store: GameStore, saves: SaveStore): { saveNow(): Promise<void> } {
   let pending: Promise<void> = Promise.resolve();
   const saveNow = (): Promise<void> => {
-    pending = pending.then(() => saves.save(store.getState())).catch((e: unknown) => {
+    pending = pending.then(() => saves.save(store.getState().save)).catch((e: unknown) => {
       console.error('Échec de la sauvegarde', e);
     });
     return pending;
