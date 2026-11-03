@@ -10,7 +10,7 @@
   --paper-2: #f3e5cf;
   --accent: #b5562a;
   --ok: #3f7a4a;
-  --watch: #9a5b00;
+  --watch: #855000;
   --urgent: #b3261e;
 }
 
@@ -1010,10 +1010,12 @@ body[data-mode='walk'] .hud {
   top: 34%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.8);
+  padding: 6px 16px;
+  border-radius: 16px;
+  background: rgb(61 43 31 / 0.8);
   font-size: 28px;
   font-weight: 800;
   color: #fff;
-  text-shadow: 0 2px 6px rgb(0 0 0 / 0.45);
   opacity: 0;
   transition:
     opacity 0.15s,

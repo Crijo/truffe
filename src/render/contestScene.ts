@@ -30,6 +30,8 @@ const PALETTE = {
   grass: 0x8cc27a,
   grassLine: 0x7db36b,
   chalk: 0xf7f4ea,
+  /** Texte sur l'herbe : contraste AA. */
+  label: 0x1f3d1a,
   disc: 0xe4572e,
   discRim: 0xffd166,
   post: 0xf2f2f2,
@@ -133,7 +135,7 @@ export class ContestScene {
         const a = this.screen({ x: -D.halfWidthM, y: d });
         const b = this.screen({ x: D.halfWidthM, y: d });
         m.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 3, color: PALETTE.chalk, alpha: 0.85 });
-        const t = new Text({ text: `${d} m`, style: { fontFamily: 'system-ui, sans-serif', fontSize: 14, fill: PALETTE.chalk, fontWeight: '700' } });
+        const t = new Text({ text: `${d} m`, style: { fontFamily: 'system-ui, sans-serif', fontSize: 15, fill: PALETTE.label, fontWeight: '700' } });
         t.position.set(b.x - 44, b.y - 20);
         this.labels.addChild(t);
       }
