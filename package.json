@@ -13,7 +13,8 @@
     "check": "npm run lint && npm run typecheck && npm run test",
     "e2e": "playwright test",
     "dev:https": "vite --host --mode https",
-    "balance": "vitest run tests/balance && node -e \"process.stdout.write(require('fs').readFileSync('test-results/equilibrage.txt','utf8'))\""
+    "balance": "vitest run tests/balance && node -e \"process.stdout.write(require('fs').readFileSync('test-results/equilibrage.txt','utf8'))\"",
+    "perf": "playwright test --project=perf --workers=1"
   },
   "dependencies": {
     "idb": "^8.0.4",

@@ -1215,3 +1215,22 @@ body.reduce-motion *::after {
   transition-duration: 0s !important;
   animation-duration: 0s !important;
 }
+
+.panel-body .btn:not(.primary) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+}
+
+.panel-body > .btn.mini {
+  margin-top: 10px;
+}

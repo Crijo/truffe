@@ -23,6 +23,7 @@ Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run ch
 | `npm run lint` / `npm run typecheck` / `npm test` | Étapes séparées de `check` |
 | `npm run e2e` | Parcours Playwright (Chromium) |
 | `npm run balance` | Équilibrage : 30 jours de joueurs types, rythme des déblocages |
+| `npm run perf` | Mesures de performance (PERF.md), à lancer seules |
 
 Dépôt public : https://github.com/Crijo/truffe. Chaque envoi sur `main` lance `npm run check`, construit et publie sur https://crijo.github.io/truffe/ (`.github/workflows/pages.yml`). Les enregistrements vocaux de test (`tests/fixtures/voice/`) ne sont jamais commités.
 

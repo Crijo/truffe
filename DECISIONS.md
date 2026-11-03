@@ -69,6 +69,11 @@ Choix pris là où `SPEC.md` est muette, ambiguë ou contradictoire. Chaque déc
 | D-62 | Vie à plusieurs | « Jouent, se mordillent et dorment ensemble. » | Activité « jouer » : deux chiots éveillés à moins de 0,7 m de jeu, assez d'énergie, hors nuit ; 6 s de poursuite en tournant l'un autour de l'autre, avec des mordillements ; 25 s d'attente avant de recommencer. Un chiot qui va dormir rejoint un chiot endormi. |
 | D-63 | Déblocages | Le tableau liste des objets sans les décrire. | 300 : la corde du salon et les cordes de la boutique (D-35), et un gros ballon offert ; 2 000 : husky et un petit canapé (sieste) ; 6 000 et 18 000 : décors à choisir dans la fiche ; 10 000 : caniche et une souris mécanique qui roule seule ; 30 000 : corgi ; 50 000 : dalmatien, la race secrète. Les objets offerts vont dans le sac ; ils ne s'achètent pas. Une sauvegarde plus ancienne reçoit au chargement les paliers déjà atteints. |
 | D-64 | Gains des soins | « Repas ou eau, si besoin réel » ; « Bain ou brossage, si besoin réel. » | Repas et eau : +5 si la jauge était sous « Excellent » (D-08). Bain terminé : +10 si le pelage n'était pas « Superbe ». Brossage : +10 quand il rend le pelage « Superbe ». Tour appris : +30 ; ordre suivi d'un tour connu : +2. Tout est soumis au plafond de 200 par chiot et par jour. |
+| D-65 | Réglages | La spec liste « réduire les animations », musique coupable à part, effacer les voix. | Un écran « Réglages » dans Sortir : réduire les animations (suit la préférence de l’appareil pour une nouvelle partie ; sauts, tours et rebonds du chiot réduits, transitions de l’interface supprimées), volume de la musique et des bruitages, effacement des empreintes vocales, export et import. |
+| D-66 | Export et import | « Sauvegarde automatique et export JSON. » | Fichier `truffe-sauvegarde-AAAA-MM-JJ.json` marqué `truffe-sauvegarde`, qui contient la partie entière, empreintes vocales comprises (jamais de son). À l’import, le fichier est migré et vérifié, le joueur confirme, la partie remplace l’actuelle et la page se recharge. |
+| D-67 | Hors ligne | « Fonctionne hors ligne une fois installé. » | `vite-plugin-pwa` met tout le jeu en cache dès la première visite (798 Kio) ; mise à jour automatique à la visite suivante en ligne. |
+| D-68 | Musique | « Légère, en boucle courte. » | Trois boucles de synthèse (salon, promenade, concours), très bas volume ; des oiseaux dehors. Elle démarre au premier geste, comme les bruitages. |
+| D-69 | Navigateurs | Safari, Firefox, Edge à couvrir. | Le jeu tourne sans Web Audio (sans son) et sans capture du pointeur. Parcours de compatibilité sur les trois moteurs dans GitHub Actions ; il ne bloque pas la publication. |
 | D-20 | Couche « core » | L'architecture de la spec n'a pas de place pour la boucle de jeu et le store. | Ajout de `src/core/` : boucle à pas fixe, store (état + actions), horloge et RNG concrets. `sim/` reste pur. |
 
 ## Dépendances
@@ -83,4 +88,4 @@ Choix pris là où `SPEC.md` est muette, ambiguë ou contradictoire. Chaque déc
 | `eslint`, `@eslint/js`, `typescript-eslint`, `globals` (dev) | Le « lint » demandé par le jalon 0, et contrôle des règles d'import de `sim/`. |
 | `@vitejs/plugin-basic-ssl` (dev) | Certificat local pour tester le micro sur téléphone (D-48). |
 | `@types/node` (dev) | Le test vocal lit des fichiers WAV. |
-| `vite-plugin-pwa` | Prévu au jalon 7, pas installé avant. |
+| `vite-plugin-pwa` (dev) | Application installable et hors ligne imposée par la spec (D-67). |

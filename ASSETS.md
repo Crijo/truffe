@@ -7,6 +7,7 @@ Toute ressource du dépôt est créée pour le projet ou placée sous licence CC
 | Ressource | Fichier | Origine | Licence |
 | --- | --- | --- | --- |
 | Icône (empreinte de patte) | `public/favicon.svg` | Dessinée à la main en SVG pour Truffe | Propre au projet |
+| Icônes de l’application installée | `public/icon-192.png`, `public/icon-512.png`, `public/icon-maskable-512.png`, `public/apple-touch-icon.png` | Rendues depuis `favicon.svg` par `scripts/make-icons.mjs` | Propre au projet |
 | Décor du salon | `src/render/stage.ts` | Formes dessinées par le code (PixiJS `Graphics`) | Propre au projet |
 | Icônes de l'interface (sac, porte, micro, fiche, gamelles, brosse, bain, savon, douche, serviette, besoins, lune) | `src/ui/icons.ts` | SVG dessinés à la main pour Truffe | Propre au projet |
 | Gamelles, mousse, gouttes, saleté, éclat, « Z » de sommeil, teinte de nuit | `src/render/bowls.ts`, `src/render/puppy/PuppyView.ts`, `src/render/stage.ts` | Formes dessinées par le code | Propre au projet |
@@ -35,6 +36,14 @@ Tous synthétisés en direct par Web Audio dans `src/audio/sfx.ts` : aucun fichi
 | Ébrouement, grattage, creusage | Bruit haché à cadence fixe |
 | Croquer, laper, se lécher les babines, ronfler, s'étirer | Rafales de bruit filtré, petit glissando |
 | Savon, douche, serviette, brosse | Bruits filtrés brefs pendant le geste |
+| Halètement | Souffles de bruit filtré rapides et alternés |
+
+Musique et ambiances, synthétisées en direct dans `src/audio/music.ts` : aucun fichier audio.
+
+| Son | Procédé |
+| --- | --- |
+| Musique du salon, de la promenade, des concours | Courtes mélodies composées pour Truffe sur la gamme pentatonique de do, notes pincées triangle et basse sinusoïdale, en boucle |
+| Oiseaux (dehors) | Deux glissandos sinusoïdaux aigus et brefs, au hasard |
 
 | Ampoule, tour appris, « ? » | Glissandos et petits accords sinusoïdaux |
 
