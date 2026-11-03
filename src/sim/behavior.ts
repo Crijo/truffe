@@ -499,6 +499,20 @@ function startPerform(m: PuppyMind, id: TrickId): void {
   emit(m, TRICK_EVENT[id]);
 }
 
+/** Marionnette des concours : le chiot exécute ce tour, sans décider de rien. */
+export function performTrick(mind: PuppyMind, id: TrickId): PuppyMind {
+  const m = structuredClone(mind);
+  startPerform(m, id);
+  return m;
+}
+
+/** Marionnette des concours : un événement (saut, aboiement…) pour l'animation et le son. */
+export function withEvent(mind: PuppyMind, type: PuppyEventType): PuppyMind {
+  const m = structuredClone(mind);
+  emit(m, type);
+  return m;
+}
+
 function setPosture(m: PuppyMind, posture: Posture): void {
   if (m.t < m.postureLockUntil && posture !== m.posture) return;
   m.posture = posture;

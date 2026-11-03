@@ -29,6 +29,7 @@ export const ICONS = {
   tag: svg('<path d="M8 24 24 8h14v14L22 38z"/><circle cx="31" cy="15" r="2.5"/>'),
   book: svg('<path d="M10 10h12a4 4 0 0 1 4 4v24a3 3 0 0 0-3-3H10zM38 10H28a4 4 0 0 0-4 4"/><path d="M38 10v25H27"/>'),
   home: svg('<path d="M8 24 24 10l16 14M12 21v17h24V21"/><path d="M21 38V28h6v10"/>'),
+  trophy: svg('<path d="M15 8h18v8a9 9 0 0 1-18 0z"/><path d="M15 11H9a6 6 0 0 0 6 8M33 11h6a6 6 0 0 1-6 8M24 25v8M17 40h14M19 33h10v7H19z"/>'),
   paw: svg('<ellipse cx="24" cy="31" rx="9" ry="7"/><circle cx="13" cy="20" r="3.5"/><circle cx="20" cy="13" r="3.5"/><circle cx="28" cy="13" r="3.5"/><circle cx="35" cy="20" r="3.5"/>'),
 } as const;
 

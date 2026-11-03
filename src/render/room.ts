@@ -9,7 +9,7 @@ export class Room {
   w = 1;
   h = 1;
   /** Part de la hauteur occupée par le mur. */
-  readonly horizonRatio = 0.55;
+  readonly horizonRatio: number = 0.55;
 
   layout(w: number, h: number): void {
     this.w = w;
