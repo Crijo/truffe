@@ -183,6 +183,46 @@ export const BALANCE = {
     tug: { winPx: 600, idleMs: 2000, yankEveryMs: 600, yankChance: 0.14 },
   },
 
+  /** F-DRE. */
+  training: {
+    /** F-DRE-1 : l'ampoule reste 3 s. */
+    bulbMs: 3000,
+    /** F-DRE-2 : 3 à 6 répétitions selon le tempérament et l'affection. */
+    repsMin: 3,
+    repsMax: 6,
+    /** F-DRE-5. */
+    maxTricks: 14,
+    newPerDay: 4,
+    /** Score de l'activité « exécuter un ordre » (SPEC, prioritaire). */
+    orderScore: 95,
+    /** Après « Debout », il retombe assis au bout de ce temps. */
+    begHoldMs: 4000,
+  },
+
+  /** SPEC, Reconnaissance vocale. */
+  voice: {
+    frameMs: 25,
+    hopMs: 10,
+    coeffs: 13,
+    melFilters: 26,
+    minHz: 100,
+    maxHz: 7000,
+    preEmphasis: 0.97,
+    /** Enregistrement : 3 s au plus, parole d'au moins 150 ms. */
+    maxMs: 3000,
+    minSpeechMs: 150,
+    /** Seuil de parole relatif au niveau le plus fort de l'enregistrement. */
+    speechRatio: 0.08,
+    /** Distance DTW normalisée en dessous de laquelle un ordre est reconnu. */
+    acceptBelow: 5,
+    /** Le meilleur doit être nettement meilleur que le deuxième (rapport maximal). */
+    marginRatio: 0.8,
+    /** À l'enregistrement, un ordre plus proche que cela d'un autre donne le « ? » bleu. */
+    similarBelow: 3.5,
+    /** Fenêtre de Sakoe-Chiba, en part de la longueur. */
+    band: 0.35,
+  },
+
   /** Seuils des gestes (D-05 à D-07), en pixels CSS et millisecondes. */
   gestures: {
     tapMaxMovePx: 12,
@@ -193,5 +233,12 @@ export const BALANCE = {
     presentStillPx: 14,
     presentHoldMs: 450,
     raiseHoldMs: 200,
+    /** « Lever vite la main » (Saut) : vitesse vers le haut en entrant au-dessus de la tête. */
+    raiseFastPxPerS: 700,
+    /** « Appuyer doucement sur le dos » (Couché). */
+    pressHoldMs: 450,
+    /** « Dessiner un cercle autour de lui » (Tourne) : part de tour et durée maximale. */
+    circleTurns: 0.85,
+    circleMaxMs: 2500,
   },
 } as const;

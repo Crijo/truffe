@@ -45,6 +45,14 @@ Choix pris là où `SPEC.md` est muette, ambiguë ou contradictoire. Chaque déc
 | D-38 | Peur d'un objet inconnu (F-JEU-4) | Score 90 − audace × 80, sans seuil. | La peur n'est possible que sous 0,4 d'audace et tant que l'objet a été approché moins de 3 fois. Il recule, puis s'approche prudemment et renifle : une approche. Prendre le jouet dans la gueule compte aussi comme une approche. |
 | D-39 | Sensibilité du lancer | « La vitesse et la direction du doigt » sans échelle. | 18 % de la vitesse du doigt est transmise au jouet, plafonnée à 2,4 unités de sol par seconde (la pièce en fait 1,5 de large). Sous 160 px/s, le jouet est posé plutôt que lancé. |
 | D-40 | Critère des 100 ordres | Au jalon 3, les ordres n'existent pas encore. | La formule d'obéissance (`sim/obedience.ts`) est écrite et testée dès maintenant : sur 100 ordres simulés, un sage obéit nettement plus qu'un têtu. Les ordres eux-mêmes arrivent au jalon 4. |
+| D-41 | Sens de « debout » | Le tableau des tours dit « Debout : lever la main d'un chiot assis », puis « Saut : … d'un chiot debout », « Poirier : debout sur un chiot couché », « Danser : tourne sur un chiot debout ». | « Debout » est la pose sur les pattes arrière (posture `beg`). Saut et Danser partent de cette pose. Après « Debout », il retombe assis au bout de 4 s. |
+| D-42 | Une répétition | F-DRE-2 compte des répétitions sans les définir. | Une répétition = le chiot fait le geste, l'ampoule s'allume, le joueur la touche. Besoin : 6 − 3 × (0,5 × docilité + 0,5 × affection/100), arrondi, entre 3 et 6. |
+| D-43 | Limites et tours en cours | « 14 tours », « 4 nouveaux tours par jour ». | Seuls les tours appris comptent. Quand la limite est atteinte, l'ampoule ne s'allume plus pour les tours non appris ; oublier un tour (fiche) libère une place. |
+| D-44 | Couché et Tourne au geste | « Appuyer doucement sur le dos », « dessiner un cercle autour de lui ». | Appui immobile de 450 ms sur le dos, le flanc ou le ventre. Cercle : 85 % d'un tour autour du centre du corps, en moins de 2,5 s, sans toucher le chiot. « Lever vite » : plus de 700 px/s vers le haut en arrivant au-dessus de la tête. |
+| D-45 | Ordres aux boutons | « Un bouton Micro à maintenir et une liste d'ordres. » | Appui bref sur Micro : la liste des ordres appris, plus « Viens ! ». Appui maintenu (plus de 280 ms) : écoute à la voix. Sans micro, l'appui bref suffit à tout. |
+| D-46 | Voix : quand enregistrer | La spec lie l'ordre à l'ampoule. | L'ampoule associe l'ordre par son nom (boutons). Une fois le tour appris, on enregistre l'ordre à la voix depuis la fiche (« Voix »), de 1 à 5 fois, et le nom depuis « Son nom à voix haute » (3 fois conseillées, F-ADO-3). Dire le nom appelle le chiot. |
+| D-47 | Seuils de reconnaissance | La spec ne fixe pas les seuils. | Empreinte : MFCC avec moyenne retirée ; DTW avec bande de 35 %. Reconnu si la distance est sous 5 et au plus 0,8 fois celle du deuxième ordre. « ? » bleu sous 3,5 d'un autre ordre. Calibré sur des enregistrements de synthèse vocale (`tests/fixtures/voice`) : même mot < 1, mots différents > 5,9. À vérifier sur une vraie voix. |
+| D-48 | Micro sur téléphone | Le navigateur n'ouvre le micro qu'en HTTPS. | `npm run dev:https` sert le jeu avec un certificat local (`@vitejs/plugin-basic-ssl`) ; le téléphone affiche un avertissement à accepter une fois. |
 | D-20 | Couche « core » | L'architecture de la spec n'a pas de place pour la boucle de jeu et le store. | Ajout de `src/core/` : boucle à pas fixe, store (état + actions), horloge et RNG concrets. `sim/` reste pur. |
 
 ## Dépendances
@@ -57,4 +65,6 @@ Choix pris là où `SPEC.md` est muette, ambiguë ou contradictoire. Chaque déc
 | `vitest`, `@playwright/test` | Tests imposés par la spec. |
 | `fake-indexeddb` (dev) | Tester `save/` sous Vitest sans navigateur. |
 | `eslint`, `@eslint/js`, `typescript-eslint`, `globals` (dev) | Le « lint » demandé par le jalon 0, et contrôle des règles d'import de `sim/`. |
+| `@vitejs/plugin-basic-ssl` (dev) | Certificat local pour tester le micro sur téléphone (D-48). |
+| `@types/node` (dev) | Le test vocal lit des fichiers WAV. |
 | `vite-plugin-pwa` | Prévu au jalon 7, pas installé avant. |

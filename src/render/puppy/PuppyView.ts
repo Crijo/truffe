@@ -71,6 +71,10 @@ interface Offsets {
   scratch: number;
   paddle: number;
   nose: number;
+  /** Patte avant levée (« Donne la patte »). */
+  paw: number;
+  /** Pattes arrière en l'air (poirier, faire le mort). */
+  hindUp: number;
 }
 
 const zeroOffsets = (): Offsets => ({
@@ -95,6 +99,8 @@ const zeroOffsets = (): Offsets => ({
   scratch: 0,
   paddle: 0,
   nose: 0,
+  paw: 0,
+  hindUp: 0,
 });
 
 const SPRING_OMEGA = {
@@ -163,6 +169,7 @@ export class PuppyView {
   private noseS = { x: 0, y: 0 };
   private headTopS = { x: 0, y: 0 };
   private mouthS = { x: 0, y: 0 };
+  private bulbS: { x: number; y: number; r: number } | null = null;
   private bodyCS = { x: 0, y: 0 };
   private bodyUpS = { x: 0, y: -1, len: 1 };
 
@@ -213,6 +220,7 @@ export class PuppyView {
     if (p === 'stand') return B.leg.standHeight;
     if (p === 'sit') return Math.max(B.body[1] * 1.05, B.leg.standHeight * 0.75);
     if (p === 'lie') return B.body[1] * 0.89;
+    if (p === 'beg') return B.body[2] * 1.1 + 0.04;
     return B.body[0] * 0.98;
   }
 
@@ -221,6 +229,17 @@ export class PuppyView {
     const kx = this.breed.body[0] / 0.24;
     const kz = this.breed.body[2] / 0.4;
     return POSTURES[p].feet.map((f) => [f[0] * kx, f[1], f[2] * kz] as V3) as [V3, V3, V3, V3];
+  }
+
+  /** Ampoule à l'écran (null si éteinte). */
+  bulbScreen(): { x: number; y: number; r: number } | null {
+    return this.bulbS;
+  }
+
+  /** Ampoule à l'écran, pour la toucher (F-DRE-1). */
+  bulbAt(x: number, y: number): boolean {
+    const b = this.bulbS;
+    return !!b && Math.hypot(x - b.x, y - b.y) <= b.r;
   }
 
   /** Position écran de la gueule (jouet porté). */
@@ -232,6 +251,7 @@ export class PuppyView {
 
   readonly probe: PuppyProbe = {
     hitTest: (x, y) => this.hitTest(x, y),
+    bodyCenter: () => this.bodyCS,
     nose: () => this.noseS,
     headTop: () => this.headTopS,
     headRadius: () => this.breed.head[0] * this.s,
@@ -363,6 +383,11 @@ export class PuppyView {
         fz += O.paddle * 0.1 * d;
         fy += O.paddle * 0.06 * Math.max(0, d);
       }
+      if (i === 0 && O.paw > 0) {
+        fy += O.paw * 0.22;
+        fz += O.paw * 0.14;
+      }
+      if (i >= 2 && O.hindUp > 0) fy += O.hindUp * 0.32;
       if (i === 3 && O.scratch > 0) {
         fx = fx + (-0.05 - fx) * O.scratch;
         fy = fy + (0.36 + Math.sin(now * 32) * 0.035 - fy) * O.scratch;
@@ -506,6 +531,46 @@ export class PuppyView {
           o.tongue += env;
           o.tongueUp += env;
           o.mouth += 0.35 * env;
+          break;
+        case 'givePaw':
+          o.paw += Math.min(1, env * 2.2);
+          o.headTilt += 0.2 * env;
+          break;
+        case 'roll':
+          o.roll += Math.PI * 2 * smooth(u);
+          break;
+        case 'flip':
+          o.rootY += 0.45 * Math.sin(Math.PI * u);
+          o.pitch += Math.PI * 2 * smooth(u);
+          o.earFlap += env;
+          break;
+        case 'handstand': {
+          const hold = Math.min(1, u * 4, (1 - u) * 4);
+          o.pitch -= 1.25 * hold;
+          o.bodyY += 0.12 * hold;
+          o.hindUp += hold;
+          o.headPitch += 0.6 * hold;
+          break;
+        }
+        case 'playdead': {
+          const hold = Math.min(1, u * 4, (1 - u) * 5);
+          o.roll += 1.5 * hold;
+          o.lids += hold;
+          o.tongue += 0.9 * hold;
+          o.mouth += 0.4 * hold;
+          o.hindUp += 0.5 * hold;
+          break;
+        }
+        case 'dance':
+          o.yaw += Math.PI * 2 * smooth(u);
+          o.rootY += 0.05 * Math.abs(Math.sin(u * Math.PI * 6));
+          break;
+        case 'learned':
+          o.rootY += 0.12 * Math.abs(Math.sin(u * Math.PI * 2));
+          o.wag += env;
+          break;
+        case 'lookAway':
+          o.headTilt -= 0.2 * env;
           break;
         case 'stretch':
           o.pitch -= 0.4 * env;
@@ -747,6 +812,28 @@ export class PuppyView {
         const r = s * 0.035 * tw;
         fx.moveTo(q.x - r, q.y).lineTo(q.x + r, q.y).moveTo(q.x, q.y - r * 1.4).lineTo(q.x, q.y + r * 1.4).stroke({ width: 2, color: 0xfff6c8, cap: 'round' });
       }
+    }
+
+    // F-DRE-1 : l'ampoule ; F-DRE-3 : point d'interrogation rouge ou bleu.
+    const top = this.toS(add(headC, [0, B.head[1] * 2.1, 0]));
+    this.bulbS = null;
+    if (mind.bulb && mind.bulb.until > mind.t) {
+      const r = Math.max(18, s * 0.09);
+      const pulse = 1 + Math.sin(now * 8) * 0.06;
+      fx.circle(top.x, top.y, r * 1.6 * pulse).fill({ color: 0xfff1a8, alpha: 0.35 });
+      fx.circle(top.x, top.y - r * 0.15, r * pulse).fill(0xffd84a).stroke({ width: 2.5, color: 0x8a6a1a });
+      fx.roundRect(top.x - r * 0.45, top.y + r * 0.7, r * 0.9, r * 0.55, r * 0.15).fill(0xb9a58a).stroke({ width: 2, color: 0x6b5444 });
+      fx.moveTo(top.x - r * 0.3, top.y - r * 0.1).quadraticCurveTo(top.x, top.y - r * 0.6, top.x + r * 0.3, top.y - r * 0.1).stroke({ width: 2, color: 0xfffbe6 });
+      this.bulbS = { x: top.x, y: top.y, r: r * 1.7 };
+    }
+    const q = this.acts.find((a) => a.kind === 'confused' || a.kind === 'similar');
+    if (q) {
+      const r = Math.max(16, s * 0.075);
+      const color = q.kind === 'confused' ? 0xc83a2a : 0x3a78c8;
+      fx.circle(top.x, top.y, r).fill(0xffffff).stroke({ width: 3, color });
+      fx.arc(top.x, top.y - r * 0.2, r * 0.32, Math.PI * 1.1, Math.PI * 2.15).stroke({ width: r * 0.2, color, cap: 'round' });
+      fx.moveTo(top.x + r * 0.28, top.y - r * 0.05).lineTo(top.x, top.y + r * 0.22).stroke({ width: r * 0.2, color, cap: 'round' });
+      fx.circle(top.x, top.y + r * 0.52, r * 0.12).fill(color);
     }
 
     // Sommeil : des « Z » qui montent.

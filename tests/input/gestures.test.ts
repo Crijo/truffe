@@ -17,6 +17,7 @@ const probe: PuppyProbe = {
   headTop: () => ({ x: 200, y: 150 }),
   headRadius: () => 50,
   toFloor: (_x, y) => (y > 300 ? { x: 0.1, z: 0.7 } : null),
+  bodyCenter: () => ({ x: 200, y: 300 }),
 };
 
 let out: Gesture[];
@@ -136,13 +137,13 @@ describe('F-MAIN-2 : main immobile près du museau', () => {
 describe('F-MAIN-5 : main au-dessus du museau', () => {
   it('lever la main au-dessus de la tête', () => {
     r.down(330, 200, 0, 'touch');
-    r.move(200, 120, 100);
-    r.update(150);
+    r.move(200, 120, 300);
+    r.update(350);
     expect(kinds()).not.toContain('raise');
-    r.update(320);
+    r.update(520);
     expect(kinds()).toContain('raise');
-    r.move(400, 120, 400);
-    r.update(420);
+    r.move(400, 120, 600);
+    r.update(620);
     expect(kinds()).toContain('raiseEnd');
   });
 });
@@ -168,5 +169,52 @@ describe('F-MAIN-2 : souris immobile', () => {
     expect(kinds()).toEqual(['present']);
     r.leave();
     expect(kinds()).toEqual(['present', 'presentEnd']);
+  });
+});
+
+describe('Dressage : nouveaux gestes', () => {
+  it('Couché : appui immobile sur le dos', () => {
+    r.down(200, 270, 0, 'touch');
+    r.update(300);
+    expect(kinds()).not.toContain('press');
+    r.update(500);
+    expect(out.find((g) => g.kind === 'press')).toEqual({ kind: 'press', part: 'back' });
+    r.update(900);
+    expect(out.filter((g) => g.kind === 'press')).toHaveLength(1);
+    r.up(200, 270, 1000);
+    expect(kinds()).not.toContain('touch');
+  });
+
+  it('Tourne : un cercle dessiné autour du chiot', () => {
+    const c = { x: 200, y: 300 };
+    const R = 170;
+    // Départ sous le chiot (pas sur la queue, qu'on tirerait).
+    r.down(c.x, c.y + R, 0, 'touch');
+    for (let i = 1; i <= 40; i++) {
+      const a = Math.PI / 2 + (i / 40) * Math.PI * 2;
+      r.move(c.x + R * Math.cos(a), c.y + R * Math.sin(a), i * 30);
+    }
+    expect(kinds()).toContain('circle');
+    expect(out.filter((g) => g.kind === 'circle')).toHaveLength(1);
+  });
+
+  it('un demi-cercle ne suffit pas', () => {
+    const c = { x: 200, y: 300 };
+    r.down(c.x + 170, c.y, 0, 'touch');
+    for (let i = 1; i <= 20; i++) r.move(c.x + 170 * Math.cos((i / 40) * Math.PI * 2), c.y + 170 * Math.sin((i / 40) * Math.PI * 2), i * 30);
+    expect(kinds()).not.toContain('circle');
+  });
+
+  it('Saut : main levée vite, signalée tout de suite', () => {
+    r.down(330, 300, 0, 'touch');
+    r.move(200, 120, 60);
+    expect(out.find((g) => g.kind === 'raise')).toEqual({ kind: 'raise', fast: true });
+  });
+
+  it('main levée lentement : pas de « vite »', () => {
+    r.down(330, 200, 0, 'touch');
+    r.move(200, 140, 600);
+    r.update(900);
+    expect(out.find((g) => g.kind === 'raise')).toEqual({ kind: 'raise', fast: false });
   });
 });

@@ -4,9 +4,9 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-**Jalon 3 : adoption et jeu** — F-ADO, F-JEU, 6 races, tempéraments et activités par score.
+**Jalon 4 : dressage** — F-DRE, obéissance, puis reconnaissance vocale (boutons d'abord, micro ensuite).
 
-Jalons 0 (socle), 1 (chiot vivant) et 2 (besoins et temps) : validés.
+Jalons 0 à 3 : validés.
 
 Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run check` au vert **et** vérification de ses critères d'acceptation dans un navigateur. À la fin de chaque jalon : bilan critère par critère, mode d'emploi sur téléphone, liste de ce que le joueur doit vérifier lui-même, puis arrêt jusqu'à son accord.
 
@@ -16,6 +16,7 @@ Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run ch
 | --- | --- |
 | `npm install` | Installer les dépendances |
 | `npm run dev` | Serveur de développement (accessible sur le réseau local) |
+| `npm run dev:https` | Idem en HTTPS (certificat local) : nécessaire pour le micro sur téléphone |
 | `npm run build` | Construction de production dans `dist/` |
 | `npm run preview` | Servir `dist/` sur le réseau local |
 | `npm run check` | Lint + types + tests unitaires (doit passer avant tout commit) |

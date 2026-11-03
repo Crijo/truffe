@@ -100,6 +100,27 @@ export class Sfx {
       case 'stretch':
         this.voice(t, [520, 760, 600], 0.6, 'sine', 0.16, 1500, 6);
         break;
+      case 'bulb':
+        this.voice(t, [1200, 1800], 0.18, 'sine', 0.12, 2400);
+        break;
+      case 'learned':
+        this.voice(t, [980, 760], 0.1, 'triangle', 0.4, 1800);
+        this.voice(t + 0.14, [1100, 820], 0.1, 'triangle', 0.4, 1800);
+        this.voice(t + 0.3, [1400, 2100], 0.25, 'sine', 0.14, 2600);
+        break;
+      case 'progress':
+      case 'givePaw':
+      case 'beg':
+        this.voice(t, [980 * v, 760 * v], 0.1, 'triangle', 0.35, 1800);
+        break;
+      case 'confused':
+      case 'similar':
+        this.voice(t, [700 * v, 900 * v, 640 * v], 0.45, 'sine', 0.2, 1500, 6);
+        break;
+      case 'roll':
+      case 'flip':
+      case 'dance':
+      case 'handstand':
       case 'wiggle':
       case 'playBow':
       case 'jump':

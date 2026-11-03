@@ -9,6 +9,7 @@ export interface DebugProbe {
   probe: PuppyProbe;
   fps: () => number;
   rewind: (ms: number) => void;
+  bulb: () => { x: number; y: number; r: number } | null;
 }
 
 declare global {

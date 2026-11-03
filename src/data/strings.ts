@@ -48,6 +48,44 @@ export const KENNEL = {
 export const TOY_LABELS = { ball: 'Balle', disc: 'Disque', rope: 'Corde' } as const;
 export const TOY_HINT = 'Prends-la et lance-la d’un geste';
 
+export const TRAINING = {
+  ordersTitle: 'Donne un ordre',
+  call: 'Viens !',
+  noTricks: 'Ton chiot ne connaît encore aucun tour. Quand une ampoule s’allume au-dessus de sa tête, touche-la !',
+  holdMic: 'Garde le bouton Micro appuyé et parle pour donner un ordre à la voix.',
+  noMic: 'Sans micro, touche simplement l’ordre voulu.',
+  tricksTitle: 'Tours',
+  rename: 'Renommer',
+  forget: 'Oublier',
+  forgetSure: 'Sûr ?',
+  record: 'Voix',
+  reRecord: 'Revoix',
+  recordName: 'Son nom à voix haute',
+  reName: 'Redire son nom',
+  clearVoices: 'Effacer les voix',
+  learnedToast: 'Il a appris un nouveau tour !',
+  bulbHint: 'Touche l’ampoule !',
+  limitToast: 'Il a assez appris pour aujourd’hui.',
+} as const;
+
+export const VOICE = {
+  askTitle: 'Parler à ton chiot',
+  askText: 'Truffe peut reconnaître ta voix. Le son reste sur ton appareil : seule une empreinte de ta voix est gardée, et tu peux l’effacer quand tu veux.',
+  allow: 'Utiliser le micro',
+  later: 'Plus tard',
+  denied: 'Micro refusé : tout reste possible avec les boutons.',
+  recordTitle: 'Dis l’ordre',
+  recordNameTitle: 'Dis son nom',
+  hold: 'Appuie, parle, relâche',
+  again: 'Encore une fois',
+  done: 'Fini',
+  tooClose: 'Ce mot ressemble trop à « {other} ». Essaie un autre mot.',
+  tooShort: 'Je n’ai rien entendu. Parle un peu plus fort.',
+  saved: 'Enregistré',
+  notUnderstood: 'Il n’a pas compris.',
+  listening: 'Je t’écoute…',
+} as const;
+
 export const UI = {
   bag: 'Sac',
   out: 'Sortir',

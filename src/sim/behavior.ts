@@ -4,6 +4,9 @@
  * Pur : le temps avance par `tickMind`, le hasard vient de `rngState`.
  */
 import { BALANCE } from '../data/balance';
+import { SPONTANEOUS_TRICK, TRICKS, type Posture as TrickPosture, type TrickId } from '../data/tricks';
+import { obedienceMalus, obeyProbability } from './obedience';
+import { comboFor } from './tricks';
 import { isUrgent } from './needs';
 import { createRng, type Rng } from './rng';
 import type { ToyKind, ToyState } from './toys';
@@ -13,8 +16,9 @@ const N = BALANCE.needs;
 const S = BALANCE.sleep;
 const C = BALANCE.care;
 const TY = BALANCE.toys;
+const TR = BALANCE.training;
 
-export type Posture = 'stand' | 'sit' | 'lie' | 'side';
+export type Posture = TrickPosture;
 export type Activity =
   | 'wander'
   | 'come'
@@ -30,7 +34,8 @@ export type Activity =
   | 'fetch'
   | 'chew'
   | 'tug'
-  | 'fear';
+  | 'fear'
+  | 'perform';
 export type Mood = 'calm' | 'happy' | 'content' | 'curious' | 'sulky' | 'startled' | 'asleep';
 export type BodyPart = 'head' | 'ear' | 'muzzle' | 'back' | 'flank' | 'belly' | 'tail' | 'paw';
 export type Gait = 'still' | 'walk' | 'trot' | 'run';
@@ -62,7 +67,20 @@ export type PuppyEventType =
   | 'lap'
   | 'lickLips'
   | 'stretch'
-  | 'snore';
+  | 'snore'
+  | 'bulb'
+  | 'progress'
+  | 'learned'
+  | 'confused'
+  | 'similar'
+  | 'lookAway'
+  | 'givePaw'
+  | 'beg'
+  | 'roll'
+  | 'flip'
+  | 'handstand'
+  | 'playdead'
+  | 'dance';
 
 export interface PuppyEvent {
   seq: number;
@@ -105,7 +123,7 @@ export type Gesture =
   | { kind: 'presentEnd' }
   | { kind: 'tap'; at: Vec2 | null }
   | { kind: 'pull'; part: 'tail' | 'ear' }
-  | { kind: 'raise' }
+  | { kind: 'raise'; fast?: boolean }
   | { kind: 'raiseEnd' }
   | { kind: 'push'; part: BodyPart }
   | { kind: 'touch'; part: BodyPart }
@@ -117,7 +135,15 @@ export type Gesture =
   | { kind: 'ropeOffered'; toyId: string }
   | { kind: 'tug'; pullPx: number }
   | { kind: 'ropeRelease' }
-  | { kind: 'toyTaken'; toyId: string };
+  | { kind: 'toyTaken'; toyId: string }
+  | { kind: 'press'; part: BodyPart }
+  | { kind: 'circle' }
+  | { kind: 'train' }
+  | { kind: 'order'; trickId: TrickId }
+  | { kind: 'orderSimilar' }
+  | { kind: 'voiceMiss' }
+  | { kind: 'call' }
+  | { kind: 'forceSpontaneous'; trick: TrickId };
 
 export interface PuppyContext {
   traits: { docility: number; energy: number; boldness: number };
@@ -131,6 +157,10 @@ export interface PuppyContext {
   toys: readonly ToyView[];
   /** F-JEU-4 : approches de chaque sorte d'objet. */
   familiar: Readonly<Record<string, number>>;
+  /** F-DRE : tours du chien et place pour en apprendre. */
+  tricks: readonly { trickId: TrickId; learned: boolean; repetitions: number; mastery: number }[];
+  canLearnNew: boolean;
+  repsNeeded: number;
 }
 
 export interface Effects {
@@ -151,13 +181,18 @@ export interface Effects {
   toyRelease: string | null;
   /** Une approche de plus d'une sorte d'objet. */
   familiar: ToyKind | null;
+  /** Une répétition de plus pour ce tour ; `trainLearned` s'il est désormais appris. */
+  trained: TrickId | null;
+  trainLearned: boolean;
+  /** Ordre réussi : la maîtrise du tour monte. */
+  masteryUp: TrickId | null;
 }
 
 const SPONTANEOUS = ['sniffGround', 'scratch', 'yawn', 'shake', 'dig', 'bark', 'howl'] as const;
 type SpontaneousKind = (typeof SPONTANEOUS)[number];
 
 /** Gestes qui réveillent : toucher ou appeler (F-VIE-1). */
-const WAKING: ReadonlySet<Gesture['kind']> = new Set(['stroke', 'touch', 'tap', 'pull', 'push', 'scrub', 'groomStart']);
+const WAKING: ReadonlySet<Gesture['kind']> = new Set(['stroke', 'touch', 'tap', 'pull', 'push', 'scrub', 'groomStart', 'order', 'circle', 'press', 'call']);
 
 export interface PuppyMind {
   /** Temps de simulation écoulé, en ms. */
@@ -221,6 +256,11 @@ export interface PuppyMind {
   nextChewAt: number;
   fear: { toyId: string; kind: ToyKind; until: number; approaching: boolean } | null;
   lastFearAt: number;
+  /** F-DRE-1 : ampoule au-dessus de la tête. */
+  bulb: { trickId: TrickId; until: number } | null;
+  perform: { trickId: TrickId; until: number } | null;
+  recentOrders: number[];
+  begUntil: number;
   /** Début d'un besoin urgent pendant la session (D-03). */
   urgentSince: number | null;
 
@@ -288,6 +328,10 @@ export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
     nextChewAt: 0,
     fear: null,
     lastFearAt: NEVER,
+    bulb: null,
+    perform: null,
+    recentOrders: [],
+    begUntil: 0,
     reactionSeq: 0,
     events: [],
     nextSeq: 1,
@@ -311,6 +355,9 @@ const noEffects = (): Effects => ({
   toyTug: null,
   toyRelease: null,
   familiar: null,
+  trained: null,
+  trainLearned: false,
+  masteryUp: null,
 });
 
 function clampToFloor(p: Vec2): Vec2 {
@@ -382,6 +429,52 @@ function approachPoint(m: PuppyMind, at: Vec2, gap: number): Vec2 {
   return clampToFloor({ x: at.x + ((m.pos.x - at.x) / d) * gap, z: at.z + ((m.pos.z - at.z) / d) * gap });
 }
 
+// ---------------------------------------------------------------- dressage (F-DRE)
+
+const knownTrick = (ctx: PuppyContext, id: TrickId) => ctx.tricks.find((t) => t.trickId === id);
+
+/** F-DRE-1 : le chiot vient de faire un geste qu'il peut apprendre. */
+function offerBulb(m: PuppyMind, ctx: PuppyContext, id: TrickId | undefined): void {
+  if (!id || knownTrick(ctx, id)?.learned || !ctx.canLearnNew) return;
+  m.bulb = { trickId: id, until: m.t + TR.bulbMs };
+  emit(m, 'bulb');
+}
+
+const TRICK_EVENT: Record<TrickId, PuppyEventType> = {
+  sit: 'sit',
+  down: 'flop',
+  roll: 'roll',
+  paw: 'givePaw',
+  beg: 'beg',
+  jump: 'jump',
+  spin: 'spin',
+  howl: 'howl',
+  dig: 'dig',
+  sniff: 'sniffGround',
+  bark: 'bark',
+  scratch: 'scratch',
+  flip: 'flip',
+  handstand: 'handstand',
+  playdead: 'playdead',
+  dance: 'dance',
+};
+
+/** Exécute un tour : posture, animation, puis retour au calme. */
+function startPerform(m: PuppyMind, id: TrickId): void {
+  const def = TRICKS[id];
+  m.perform = { trickId: id, until: m.t + def.durationMs };
+  m.activity = 'perform';
+  m.activityStartedAt = m.t;
+  m.target = null;
+  m.gait = 'still';
+  m.look = { kind: 'player' };
+  m.attentive = true;
+  m.posture = def.endPosture ?? 'stand';
+  if (def.endPosture === 'beg') m.begUntil = m.t + def.durationMs + TR.begHoldMs;
+  m.postureLockUntil = m.t + def.durationMs + 1500;
+  emit(m, TRICK_EVENT[id]);
+}
+
 function setPosture(m: PuppyMind, posture: Posture): void {
   if (m.t < m.postureLockUntil && posture !== m.posture) return;
   m.posture = posture;
@@ -434,6 +527,7 @@ export function baseScores(m: PuppyMind, ctx: PuppyContext): Partial<Record<Acti
   }
   if (m.tug) out.tug = 100;
   if (fearAvailable(m, ctx)) out.fear = TY.scores.fearBase - ctx.traits.boldness * TY.scores.fearPerBoldness;
+  if (m.perform && m.perform.until > m.t) out.perform = TR.orderScore;
   return out;
 }
 
@@ -514,6 +608,7 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       if (kind === 'shake' || kind === 'dig' || kind === 'sniffGround') setPosture(m, 'stand');
       m.look = kind === 'howl' ? { kind: 'up' } : kind === 'bark' ? withRng(m, (r) => ({ kind: 'point', ...randomFloorPoint(r) })) : { kind: 'ground' };
       emit(m, kind, true);
+      offerBulb(m, ctx, SPONTANEOUS_TRICK[kind]);
       break;
     }
     case 'greet': {
@@ -728,6 +823,7 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
         if (m.posture === 'stand' && withRng(m, (rng) => rng.next()) < p) {
           setPosture(m, 'sit');
           emit(m, 'sit');
+          offerBulb(m, ctx, 'sit');
         }
       }
       break;
@@ -897,6 +993,7 @@ function computeMood(m: PuppyMind): Mood {
   if (m.activity === 'fetch' || m.activity === 'tug') return 'happy';
   if (m.activity === 'chew') return 'content';
   if (m.activity === 'fear') return 'curious';
+  if (m.activity === 'perform') return 'happy';
   return 'calm';
 }
 
@@ -919,6 +1016,13 @@ export function tickMind(mind: PuppyMind, dtMs: number, ctx: PuppyContext): { mi
   else m.urgentSince = null;
   move(m, dtMs);
   updateActivity(m, ctx, fx);
+  if (m.bulb && m.t >= m.bulb.until) m.bulb = null;
+  if (m.perform && m.t >= m.perform.until) {
+    m.perform = null;
+    m.happyUntil = m.t + 1500;
+  }
+  // Debout sur ses pattes arrière, il retombe assis au bout d'un moment.
+  if (m.posture === 'beg' && m.activity !== 'perform' && m.t >= m.begUntil) m.posture = 'sit';
   if (m.t >= m.nextDecisionAt) {
     m.nextDecisionAt += P.decisionIntervalMs;
     // Le sommeil ne s'interrompt que si le joueur touche le chiot ou l'appelle.
@@ -955,6 +1059,9 @@ const DEFAULT_CTX: PuppyContext = {
   bowls: [],
   toys: [],
   familiar: {},
+  tricks: [],
+  canLearnNew: true,
+  repsNeeded: 4,
 };
 
 export function startGreeting(mind: PuppyMind, absenceMs: number, ctx: PuppyContext = DEFAULT_CTX): PuppyMind {
@@ -1052,8 +1159,9 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
     case 'touch':
       m.handOnDogUntil = m.t + P.pettingHoldMs;
       if (g.part === 'paw') {
-        m.curiousUntil = m.t + 1500;
-        emit(m, 'perk');
+        // « Donne la patte » : toucher une patte avant.
+        startPerform(m, 'paw');
+        offerBulb(m, ctx, 'paw');
       }
       break;
     case 'present':
@@ -1067,6 +1175,15 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
       m.raiseAt = m.t;
       m.raiseSitDone = false;
       m.look = { kind: 'up' };
+      if (m.posture === 'beg' && g.fast) {
+        // « Saut » : lever vite la main d'un chiot debout.
+        startPerform(m, 'jump');
+        offerBulb(m, ctx, 'jump');
+      } else if (m.posture === 'sit') {
+        // « Debout » : lever la main d'un chiot assis.
+        startPerform(m, 'beg');
+        offerBulb(m, ctx, 'beg');
+      }
       break;
     case 'raiseEnd':
       m.raised = false;
@@ -1118,16 +1235,97 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
     case 'push':
       m.postureLockUntil = 0;
       if (m.posture === 'lie' || m.posture === 'side') {
-        if (m.posture === 'lie') emit(m, 'flop');
+        if (m.posture === 'lie') {
+          emit(m, 'flop');
+          // « Roulade » : pousser le flanc d'un chiot couché.
+          offerBulb(m, ctx, 'roll');
+        }
         m.posture = 'side';
         m.happyUntil = m.t + 2500;
       } else {
         m.posture = 'lie';
+        offerBulb(m, ctx, 'down');
       }
       m.postureLockUntil = m.t + 4000;
       m.target = null;
       m.gait = 'still';
       m.handOnDogUntil = m.t + P.pettingHoldMs;
+      break;
+    case 'press':
+      // « Couché » : appuyer doucement sur le dos.
+      m.handOnDogUntil = m.t + P.pettingHoldMs;
+      if (m.posture !== 'lie' && m.posture !== 'side') {
+        startPerform(m, 'down');
+        offerBulb(m, ctx, 'down');
+      }
+      break;
+    case 'circle':
+      // « Tourne » : dessiner un cercle autour de lui.
+      startPerform(m, 'spin');
+      offerBulb(m, ctx, 'spin');
+      break;
+    case 'forceSpontaneous':
+      startPerform(m, g.trick);
+      offerBulb(m, ctx, g.trick);
+      break;
+    case 'train': {
+      // F-DRE-1 : toucher l'ampoule associe l'ordre ; F-DRE-2 : appris après assez de répétitions.
+      const b = m.bulb;
+      if (!b || m.t >= b.until) break;
+      const reps = (knownTrick(ctx, b.trickId)?.repetitions ?? 0) + 1;
+      fx.trained = b.trickId;
+      if (reps >= ctx.repsNeeded) {
+        fx.trainLearned = true;
+        m.happyUntil = m.t + 3000;
+        emit(m, 'learned');
+      } else emit(m, 'progress');
+      m.bulb = null;
+      break;
+    }
+    case 'order': {
+      m.recentOrders = [...m.recentOrders.filter((t) => m.t - t < BALANCE.obedience.spamWindowMs), m.t];
+      const base = knownTrick(ctx, g.trickId);
+      if (!base?.learned) {
+        // F-DRE-3 : ordre mal compris, point d'interrogation rouge.
+        m.curiousUntil = m.t + 1500;
+        emit(m, 'confused');
+        break;
+      }
+      const combo = comboFor(g.trickId, m.posture);
+      const comboKnown = combo ? knownTrick(ctx, combo) : undefined;
+      const doing = combo ?? g.trickId;
+      const mastery = (combo ? comboKnown?.mastery : base.mastery) ?? 0;
+      const malus = obedienceMalus({ hunger: ctx.hunger, thirst: ctx.thirst, energy: ctx.energy, recentOrders: m.recentOrders.length - 1 });
+      const p = obeyProbability({ docility: ctx.traits.docility, affection: ctx.affection, mastery, malus });
+      if (withRng(m, (rng) => rng.next()) < p) {
+        startPerform(m, doing);
+        if (combo && !comboKnown?.learned) offerBulb(m, ctx, combo);
+        else fx.masteryUp = doing;
+      } else {
+        // L'ordre est compris mais pas suivi : il regarde ailleurs, bâille ou part renifler.
+        const r = withRng(m, (rng) => rng.pick(['lookAway', 'yawn', 'sniffGround'] as const));
+        m.look = r === 'sniffGround' ? { kind: 'ground' } : { kind: 'away' };
+        emit(m, r);
+      }
+      break;
+    }
+    case 'orderSimilar':
+      // F-DRE-3 : ordre trop proche d'un autre, point d'interrogation bleu.
+      emit(m, 'similar');
+      break;
+    case 'voiceMiss':
+      // F-DRE-3 : ordre mal compris à la voix, point d'interrogation rouge.
+      m.curiousUntil = m.t + 1500;
+      emit(m, 'confused');
+      break;
+    case 'call':
+      // Le joueur l'appelle par son nom : il vient.
+      m.callPoint = null;
+      m.callUntil = m.t + P.taps.callMs;
+      m.callAt = m.t + P.taps.lookBeforeComeMs;
+      m.postureLockUntil = 0;
+      m.curiousUntil = m.t + 2000;
+      emit(m, 'perk');
       break;
     case 'groomStart':
       m.bath = { active: true, foam: 0, soaped: false, rinsed: false, wet: 0 };

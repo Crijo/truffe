@@ -6,7 +6,7 @@ import { FixedStepper } from './core/loop';
 import { GameStore } from './core/store';
 import { BALANCE } from './data/balance';
 import { BREEDS, STARTER_BREEDS, coatOf, type BreedLook } from './data/breeds';
-import { KENNEL, NAME_ERRORS, NEED_WORDS } from './data/strings';
+import { KENNEL, NAME_ERRORS, NEED_WORDS, TRAINING } from './data/strings';
 import { GestureRecognizer } from './input/gestures';
 import { bindPointer, type PointerIntercept } from './input/pointer';
 import { ToyHand } from './input/toyHand';
@@ -24,6 +24,9 @@ import type { CoatParams, DogId, TemperamentId } from './sim/state';
 import { mountDebug, rewind, type DebugProbe } from './ui/debug';
 import { mountHud } from './ui/hud';
 import { mountKennel, nameDialog } from './ui/kennel';
+import type { TrainingHandlers } from './ui/training';
+import { VoiceController } from './ui/voice';
+import { repsNeeded } from './sim/tricks';
 
 const tz = (now: number): number => new Date(now).getTimezoneOffset();
 const params = new URLSearchParams(location.search);
@@ -158,7 +161,47 @@ async function boot(): Promise<void> {
       if (latencies.length > 50) latencies.shift();
     };
 
-    mountHud(document.body, {
+    let toast: (text: string) => void = () => undefined;
+    const voice = new VoiceController(store, dogId, (t) => toast(t), () => void autosave.saveNow());
+    const training: TrainingHandlers = {
+      tricks() {
+        const d = dogOf();
+        const needed = d ? repsNeeded(d.traits, d.affection) : BALANCE.training.repsMax;
+        const rows = (d?.tricks ?? []).map((t) => ({
+          trickId: t.trickId,
+          label: t.command.label,
+          learned: t.learned,
+          reps: t.repetitions,
+          needed,
+          voices: t.command.voice?.length ?? 0,
+        }));
+        return { rows, learned: rows.filter((r) => r.learned).length, max: BALANCE.training.maxTricks };
+      },
+      order: (trickId) => store.dispatch({ type: 'order', trickId }),
+      call: () => store.dispatch({ type: 'call' }),
+      forget(trickId) {
+        store.dispatch({ type: 'trick/forget', trickId });
+        void autosave.saveNow();
+      },
+      relabel(trickId, label) {
+        store.dispatch({ type: 'trick/relabel', trickId, label });
+        void autosave.saveNow();
+      },
+      voice: {
+        supported: () => voice.supported(),
+        record: (target) => void voice.record(target, () => undefined),
+        clearAll: () => voice.clearAll(),
+        nameVoices: () => voice.nameVoices(),
+      },
+    };
+
+    const hudApi = mountHud(document.body, {
+      training,
+      micHold(start) {
+        sfx.unlock();
+        if (start) void voice.holdStart();
+        else voice.holdEnd();
+      },
       dropBowl(kind, at) {
         sfx.unlock();
         const floor = at ? stage.room.screenToFloor(at.x, at.y) : null;
@@ -203,8 +246,11 @@ async function boot(): Promise<void> {
       },
     });
 
+    toast = hudApi.toast;
+
     // Sons : chaque nouvel événement du chiot.
     let heardSeq = firstMind.events.at(-1)?.seq ?? 0;
+    let bulbHinted = false;
     store.subscribe((s) => {
       const m = s.minds[dogId];
       if (!m) return;
@@ -212,13 +258,26 @@ async function boot(): Promise<void> {
         if (e.seq > heardSeq) {
           heardSeq = e.seq;
           sfx.play(e.type);
+          if (e.type === 'learned') toast(TRAINING.learnedToast);
+          if (e.type === 'bulb' && !bulbHinted) {
+            bulbHinted = true;
+            toast(TRAINING.bulbHint);
+          }
         }
       }
     });
 
     mode = {
       intercept: {
-        down: (x, y, t) => hand.down(x, y, t),
+        down: (x, y, t) => {
+          // F-DRE-1 : toucher l'ampoule associe un ordre.
+          if (view.bulbAt(x, y)) {
+            store.dispatch({ type: 'train' });
+            void autosave.saveNow();
+            return true;
+          }
+          return hand.down(x, y, t);
+        },
         move: (x, y, t) => hand.move(x, y, t),
         up: (x, y, t) => hand.up(x, y, t),
         cancel: () => hand.cancel(),
@@ -237,7 +296,7 @@ async function boot(): Promise<void> {
     };
 
     if (DEBUG) {
-      const probe: DebugProbe = { store, dogId, latencies, probe: view.probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms) };
+      const probe: DebugProbe = { store, dogId, latencies, probe: view.probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => view.bulbScreen() };
       mountDebug(probe);
     }
 

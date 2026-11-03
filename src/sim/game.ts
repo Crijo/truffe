@@ -19,6 +19,9 @@ import { applyOffline } from './offline';
 import { createRng } from './rng';
 import { SAVE_VERSION, type BreedId, type Dog, type DogDailyCounters, type DogId, type SaveGame } from './state';
 import { createToy, stepToy, throwToy, type Toy, type ToyKind } from './toys';
+import { canLearnNew, newTrick, repsNeeded } from './tricks';
+import type { TrickId } from '../data/tricks';
+import type { VoiceTemplate } from './state';
 
 /** État complet : la partie sauvegardée, et ce qui ne vit que pendant la session. */
 export interface GameState {
@@ -50,7 +53,21 @@ export type GameAction =
   | { type: 'toy/move'; toyId: string; at: Vec2 }
   | { type: 'toy/throw'; toyId: string; vx: number; vz: number }
   | { type: 'toy/tug'; pullPx: number }
-  | { type: 'toy/release'; toyId: string };
+  | { type: 'toy/release'; toyId: string }
+  | { type: 'train'; dogId?: DogId }
+  | { type: 'order'; trickId: TrickId; dogId?: DogId }
+  | { type: 'trick/forget'; trickId: TrickId; dogId?: DogId }
+  | { type: 'trick/relabel'; trickId: TrickId; label: string; dogId?: DogId }
+  | { type: 'trick/voice'; trickId: TrickId; template: VoiceTemplate; dogId?: DogId }
+  | { type: 'trick/voiceClear'; trickId: TrickId; dogId?: DogId }
+  | { type: 'name/voice'; template: VoiceTemplate; dogId?: DogId }
+  | { type: 'voice/clearAll' }
+  | { type: 'voice/miss'; dogId?: DogId }
+  | { type: 'voice/similar'; dogId?: DogId }
+  | { type: 'call'; dogId?: DogId }
+  | { type: 'settings/mic'; allowed: boolean }
+  /** Débogage et tests : le chiot fait ce geste spontané. */
+  | { type: 'debug/spontaneous'; trick: TrickId };
 
 export function createNewGame(now: number, seed: number): SaveGame {
   return {
@@ -95,6 +112,9 @@ function contextOf(dog: Dog, state: GameState): PuppyContext {
     bowls: state.bowls,
     toys: state.toys,
     familiar: dog.familiar,
+    tricks: dog.tricks,
+    canLearnNew: canLearnNew(dog, state.save.day.perDog[dog.id]?.newTricks ?? 0),
+    repsNeeded: repsNeeded(dog.traits, dog.affection),
   };
 }
 
@@ -148,6 +168,7 @@ function applyEffects(state: GameState, dogId: DogId, fx: Effects): GameState {
       ),
     };
   }
+  if (fx.trained || fx.masteryUp) save = applyTraining(save, dogId, fx);
   let s: GameState = save === state.save ? state : { ...state, save };
   if (fx.bowlEaten) s = { ...s, bowls: s.bowls.filter((b) => b.id !== fx.bowlEaten) };
   if (fx.toyGrab) s = setToy(s, fx.toyGrab, (t) => ({ ...t, state: 'carried', carrier: dogId, v: { x: 0, z: 0, h: 0 } }));
@@ -159,6 +180,39 @@ function applyEffects(state: GameState, dogId: DogId, fx: Effects): GameState {
   }
   return s;
 }
+
+/** Répétitions, tours appris et maîtrise (F-DRE-2, F-DRE-4). */
+function applyTraining(save: SaveGame, dogId: DogId, fx: Effects): SaveGame {
+  const counters = save.day.perDog[dogId] ?? emptyCounters();
+  const step = BALANCE.obedience.masteryStep;
+  let learnedNow = false;
+  const dogs = save.dogs.map((d) => {
+    if (d.id !== dogId) return d;
+    let tricks = d.tricks;
+    if (fx.trained) {
+      const id = fx.trained;
+      const cur = tricks.find((t) => t.trickId === id) ?? newTrick(id);
+      const next = { ...cur, repetitions: cur.repetitions + 1, learned: cur.learned || fx.trainLearned };
+      learnedNow = !cur.learned && next.learned;
+      tricks = tricks.some((t) => t.trickId === id) ? tricks.map((t) => (t.trickId === id ? next : t)) : [...tricks, next];
+    }
+    if (fx.masteryUp) {
+      const id = fx.masteryUp;
+      tricks = tricks.map((t) => (t.trickId === id ? { ...t, mastery: Math.min(1, t.mastery + step) } : t));
+    }
+    return { ...d, tricks };
+  });
+  const perDog = learnedNow ? { ...save.day.perDog, [dogId]: { ...counters, newTricks: counters.newTricks + 1 } } : save.day.perDog;
+  return { ...save, dogs, day: { ...save.day, perDog } };
+}
+
+function editTricks(state: GameState, dogId: DogId | undefined, f: (d: Dog) => Dog): GameState {
+  const id = dogId ?? state.save.homeDogIds[0];
+  return { ...state, save: { ...state.save, dogs: state.save.dogs.map((d) => (d.id === id ? f(d) : d)) } };
+}
+
+/** F-DRE : au plus 5 empreintes vocales par ordre (SPEC, Reconnaissance vocale). */
+const MAX_TEMPLATES = 5;
 
 /** Temps écoulé hors du jeu, appliqué à chaque chien. */
 function offline(save: SaveGame, from: number, to: number, tzOffsetMin: number): SaveGame {
@@ -325,6 +379,52 @@ export function reduce(state: GameState, action: GameAction): GameState {
     }
     case 'toy/tug':
       return gestureAll(state, { kind: 'tug', pullPx: action.pullPx });
+
+    // ------------------------------------------------------------ dressage (F-DRE)
+    case 'train':
+      return gestureAll(state, { kind: 'train' }, action.dogId ?? state.save.homeDogIds[0]);
+    case 'order':
+      return gestureAll(state, { kind: 'order', trickId: action.trickId }, action.dogId ?? state.save.homeDogIds[0]);
+    case 'voice/miss':
+      return gestureAll(state, { kind: 'voiceMiss' }, action.dogId ?? state.save.homeDogIds[0]);
+    case 'voice/similar':
+      return gestureAll(state, { kind: 'orderSimilar' }, action.dogId ?? state.save.homeDogIds[0]);
+    case 'call':
+      return gestureAll(state, { kind: 'call' }, action.dogId ?? state.save.homeDogIds[0]);
+    case 'settings/mic':
+      return { ...state, save: { ...state.save, settings: { ...state.save.settings, micAllowed: action.allowed } } };
+    case 'debug/spontaneous':
+      return gestureAll(state, { kind: 'forceSpontaneous', trick: action.trick }, state.save.homeDogIds[0]);
+    case 'trick/forget':
+      return editTricks(state, action.dogId, (d) => ({ ...d, tricks: d.tricks.filter((t) => t.trickId !== action.trickId) }));
+    case 'trick/relabel': {
+      const label = action.label.trim().slice(0, 20);
+      if (!label) return state;
+      return editTricks(state, action.dogId, (d) => ({ ...d, tricks: d.tricks.map((t) => (t.trickId === action.trickId ? { ...t, command: { ...t.command, label } } : t)) }));
+    }
+    case 'trick/voice':
+      return editTricks(state, action.dogId, (d) => ({
+        ...d,
+        tricks: d.tricks.map((t) =>
+          t.trickId === action.trickId ? { ...t, command: { ...t.command, voice: [...(t.command.voice ?? []), action.template].slice(-MAX_TEMPLATES) } } : t,
+        ),
+      }));
+    case 'trick/voiceClear':
+      return editTricks(state, action.dogId, (d) => ({
+        ...d,
+        tricks: d.tricks.map((t) => (t.trickId === action.trickId ? { ...t, command: { label: t.command.label } } : t)),
+      }));
+    case 'name/voice':
+      return editTricks(state, action.dogId, (d) => ({ ...d, voiceName: [...(d.voiceName ?? []), action.template].slice(-MAX_TEMPLATES) }));
+    case 'voice/clearAll':
+      // SPEC : les empreintes vocales peuvent être effacées.
+      return {
+        ...state,
+        save: {
+          ...state.save,
+          dogs: state.save.dogs.map(({ voiceName: _v, ...d }) => ({ ...d, tricks: d.tricks.map((t) => ({ ...t, command: { label: t.command.label } })) })),
+        },
+      };
     case 'toy/release': {
       const toy = state.toys.find((t) => t.id === action.toyId);
       if (!toy) return state;

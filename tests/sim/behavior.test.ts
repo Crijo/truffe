@@ -24,6 +24,9 @@ const ctx: PuppyContext = {
   bowls: [],
   toys: [],
   familiar: {},
+  tricks: [],
+  canLearnNew: true,
+  repsNeeded: 4,
 };
 
 function run(m: PuppyMind, ms: number, c: PuppyContext = ctx): PuppyMind {

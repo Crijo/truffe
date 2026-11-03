@@ -25,7 +25,8 @@ test.describe('Jalon 2 : besoins et temps', () => {
     await expect(card).toContainText('Faim');
     await expect(card).toContainText('Soif');
     await expect(card).toContainText('Pelage');
-    expect(await card.innerText()).not.toMatch(/\d|%/);
+    // L'état (faim, soif, pelage) est en mots ; le compte des tours, plus bas, n'est pas un état.
+    expect(await card.locator('.rows').innerText()).not.toMatch(/\d|%/);
     await page.screenshot({ path: 'test-results/soins-2-fiche.png' });
   });
 

@@ -29,6 +29,14 @@ Tous synthétisés en direct par Web Audio dans `src/audio/sfx.ts` : aucun fichi
 | Croquer, laper, se lécher les babines, ronfler, s'étirer | Rafales de bruit filtré, petit glissando |
 | Savon, douche, serviette, brosse | Bruits filtrés brefs pendant le geste |
 
+| Ampoule, tour appris, « ? » | Glissandos et petits accords sinusoïdaux |
+
+## Données de test (non livrées dans le jeu)
+
+| Ressource | Fichier | Origine |
+| --- | --- | --- |
+| Enregistrements vocaux de test | `tests/fixtures/voice/*.wav` | Synthèse vocale de Windows (voix française installée avec le système), générés par `scripts/make-voice-fixtures.ps1`. Servent uniquement aux tests de reconnaissance ; à remplacer par des enregistrements CC0 avant toute diffusion du dépôt si la licence de la voix l'exige. |
+
 ## Polices
 
 Aucune police embarquée : police système de l'appareil.

@@ -4,7 +4,8 @@ export const SAVE_VERSION = 2;
 
 export type DogId = string;
 export type ItemId = string;
-export type TrickId = string;
+export type { TrickId } from '../data/tricks';
+import type { TrickId } from '../data/tricks';
 export type BreedId = string;
 export type ContestId = 'disc' | 'agility' | 'obedience';
 export type Sex = 'f' | 'm';

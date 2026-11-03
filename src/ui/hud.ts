@@ -7,6 +7,7 @@ import type { BowlKind, CareTool } from '../sim/behavior';
 import type { Sex, TemperamentId } from '../sim/state';
 import type { ToyKind } from '../sim/toys';
 import { ICONS, type IconName } from './icons';
+import { renderOrders, renderTricks, type TrainingHandlers } from './training';
 
 export interface CardRow {
   kind: NeedKind;
@@ -23,7 +24,13 @@ export interface HudHandlers {
   /** Jouet choisi : le prochain appui sur la scène le prend en main. */
   armToy(kind: ToyKind): void;
   onChange(fn: () => void): void;
+  training: TrainingHandlers;
+  /** Micro maintenu : commencer ou finir d'écouter un ordre à la voix. */
+  micHold(start: boolean): void;
 }
+
+/** Durée d'appui au-delà de laquelle le bouton Micro écoute au lieu d'ouvrir la liste. */
+const MIC_HOLD_MS = 280;
 
 const ROW_ICONS: Record<NeedKind, IconName> = { hunger: 'hunger', thirst: 'thirst', cleanliness: 'coat' };
 
@@ -41,7 +48,7 @@ function button(icon: IconName, label: string, cls = 'btn'): HTMLButtonElement {
   return b;
 }
 
-export function mountHud(root: HTMLElement, h: HudHandlers): void {
+export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: string): void } {
   const hud = el('div', 'hud');
   root.appendChild(hud);
 
@@ -52,7 +59,8 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
   const bOut = button('out', UI.out);
   const bMic = button('mic', UI.mic);
   const bCard = button('card', UI.card);
-  for (const b of [bOut, bMic]) {
+  bMic.dataset.testid = 'mic';
+  for (const b of [bOut]) {
     b.disabled = true;
     b.title = UI.soon;
     b.dataset.soon = UI.soon;
@@ -96,7 +104,17 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
   const cardTitle = el('h2', 'title', UI.puppy);
   const cardSub = el('p', 'sub');
   const rows = el('ul', 'rows');
-  card.append(cardClose, cardTitle, cardSub, rows);
+  const tricksBox = el('section', 'tricks-box');
+  card.append(cardClose, cardTitle, cardSub, rows, tricksBox);
+
+  // Liste d'ordres (bouton Micro touché brièvement).
+  const orders = el('section', 'sheet');
+  orders.setAttribute('aria-label', 'Ordres');
+  orders.dataset.testid = 'orders';
+  orders.hidden = true;
+  const ordersClose = button('close', UI.close, 'close');
+  const ordersBox = el('div', 'orders-box');
+  orders.append(ordersClose, ordersBox);
 
   // Outils de soin.
   const tools = el('nav', 'bar tools');
@@ -123,7 +141,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
   const cursor = el('div', 'tool-cursor');
   cursor.hidden = true;
 
-  hud.append(bar, bag, card, tools, toastEl, ghost, cursor);
+  hud.append(bar, bag, card, orders, tools, toastEl, ghost, cursor);
 
   // ------------------------------------------------------------ états
   let mode: 'bar' | 'bath' | 'brush' = 'bar';
@@ -131,7 +149,9 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
   const show = (sheet: HTMLElement | null): void => {
     bag.hidden = sheet !== bag;
     card.hidden = sheet !== card;
+    orders.hidden = sheet !== orders;
     if (sheet === card) renderCard();
+    if (sheet === orders) renderOrders(ordersBox, h.training, () => show(null));
   };
   const setTool = (t: CareTool | null): void => {
     tool = t;
@@ -168,6 +188,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
       rows.append(li);
     }
     if (c.asleep) rows.append(el('li', 'row asleep', `${ICONS.moon}<span class="label">${UI.asleep}</span>`));
+    renderTricks(tricksBox, h.training, renderCard);
   }
   h.onChange(() => {
     if (!card.hidden) renderCard();
@@ -175,6 +196,36 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
 
   bBag.addEventListener('click', () => show(bag.hidden ? bag : null));
   bCard.addEventListener('click', () => show(card.hidden ? card : null));
+  ordersClose.addEventListener('click', () => show(null));
+  // Micro : appui bref → liste d'ordres ; appui maintenu → écoute à la voix.
+  let micTimer = 0;
+  let micHeld = false;
+  bMic.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    bMic.setPointerCapture(e.pointerId);
+    micHeld = false;
+    if (!h.training.voice.supported()) return;
+    micTimer = window.setTimeout(() => {
+      micHeld = true;
+      bMic.setAttribute('aria-pressed', 'true');
+      h.micHold(true);
+    }, MIC_HOLD_MS);
+  });
+  const micUp = (): void => {
+    window.clearTimeout(micTimer);
+    if (micHeld) {
+      micHeld = false;
+      bMic.setAttribute('aria-pressed', 'false');
+      h.micHold(false);
+    } else show(orders.hidden ? orders : null);
+  };
+  bMic.addEventListener('pointerup', micUp);
+  bMic.addEventListener('pointercancel', () => {
+    window.clearTimeout(micTimer);
+    if (micHeld) h.micHold(false);
+    micHeld = false;
+  });
+  bMic.addEventListener('click', (e) => e.preventDefault());
   bagClose.addEventListener('click', () => show(null));
   cardClose.addEventListener('click', () => show(null));
   iBrush.addEventListener('click', () => {
@@ -234,4 +285,5 @@ export function mountHud(root: HTMLElement, h: HudHandlers): void {
   window.addEventListener('pointermove', (e) => {
     if (tool) cursor.style.transform = `translate(${e.clientX - 20}px, ${e.clientY - 64}px)`;
   });
+  return { toast };
 }
