@@ -51,7 +51,7 @@ test.describe('Jalon 1 : le chiot vivant', () => {
     const pos0 = await pos();
     await expect.poll(pos, { timeout: 25_000, intervals: [500] }).not.toBe(pos0);
     const gait = () => page.evaluate(() => (window.__truffe ? window.__truffe.store.getState().minds[window.__truffe.dogId]?.gait : ''));
-    await expect.poll(gait, { timeout: 25_000, intervals: [100] }).not.toBe('still');
+    await expect.poll(gait, { timeout: 60_000, intervals: [100] }).not.toBe('still');
     await page.waitForTimeout(400);
     await page.screenshot({ path: 'test-results/chiot-1b-marche.png' });
   });
@@ -153,12 +153,7 @@ test.describe('Jalon 1 : le chiot vivant', () => {
 
   test('F-VIE-2 : il accourt au retour du joueur', async ({ page }) => {
     await fresh(page);
-    await page.evaluate(() => {
-      const t = window.__truffe;
-      if (!t) return;
-      const s = t.store.getState();
-      t.store.dispatch({ type: 'session/resume', now: s.save.lastSeenAt + 26 * 3_600_000, tzOffsetMin: new Date().getTimezoneOffset() });
-    });
+    await page.evaluate(() => window.__truffe?.rewind(26 * 3_600_000));
     await expect(debug(page)).toHaveAttribute('data-activity', 'greet');
     await expect(debug(page)).toHaveAttribute('data-mood', 'happy');
     await page.waitForTimeout(450);

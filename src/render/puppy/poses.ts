@@ -109,6 +109,7 @@ export const MOODS: Record<Mood, Expression> = {
   curious: { earLift: 1, tailUp: 0.8, wagAmp: 0.12, wagHz: 1.2, lids: -0.15, lowLid: 0, mouth: 0, tongue: 0, brow: 0.9, crouch: 0, bounce: 0, headTilt: 0.3, headDrop: -0.05 },
   sulky: { earLift: -0.9, tailUp: -0.75, wagAmp: 0.03, wagHz: 0.6, lids: 0.38, lowLid: 0, mouth: 0, tongue: 0, brow: -1, crouch: 0.1, bounce: 0, headTilt: 0, headDrop: 0.4 },
   startled: { earLift: -1, tailUp: -0.45, wagAmp: 0, wagHz: 1, lids: -0.25, lowLid: 0, mouth: 0.25, tongue: 0, brow: 1, crouch: 0.35, bounce: 0, headTilt: 0, headDrop: 0.1 },
+  asleep: { earLift: -0.35, tailUp: -0.3, wagAmp: 0, wagHz: 0.3, lids: 1, lowLid: 0, mouth: 0, tongue: 0, brow: 0, crouch: 0.05, bounce: 0, headTilt: 0.15, headDrop: 0.6 },
 };
 
 /** Durées des animations ponctuelles déclenchées par les événements du chiot (ms). */
@@ -133,4 +134,8 @@ export const ACT_MS: Partial<Record<PuppyEventType, number>> = {
   howl: 2300,
   perk: 900,
   flop: 550,
+  chew: 400,
+  lap: 300,
+  lickLips: 700,
+  stretch: 1300,
 };

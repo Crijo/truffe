@@ -164,6 +164,13 @@ export class PuppyView {
   private bodyCS = { x: 0, y: 0 };
   private bodyUpS = { x: 0, y: -1, len: 1 };
 
+  /** Couleur du pelage de l'image en cours (assombrie quand il est mouillé). */
+  private fur: number;
+  private cleanliness = 100;
+  private readonly fx = new Graphics();
+  /** Directions fixes à la surface du corps et de la tête : bulles, taches, gouttes. */
+  private readonly spots: { onHead: boolean; dir: V3; r: number }[] = [];
+
   constructor(
     private readonly breed: BreedLook,
     private readonly room: Room,
@@ -179,6 +186,15 @@ export class PuppyView {
     this.sp.headUp.x = stand.headUp;
     this.sp.headFwd.x = stand.headFwd;
     this.feet = stand.feet.flatMap((f) => f.map((v) => new Spring(v)));
+    this.fur = breed.colors.fur;
+    this.fx.zIndex = 100;
+    this.body.addChild(this.fx);
+    for (let i = 0; i < 30; i++) {
+      const onHead = i >= 22;
+      const a = Math.random() * Math.PI * 2;
+      const y = onHead ? 0.2 + Math.random() * 0.7 : -0.2 + Math.random() * 1.1;
+      this.spots.push({ onHead, dir: norm([Math.cos(a), y, Math.sin(a)]), r: 0.6 + Math.random() * 0.6 });
+    }
   }
 
   // ------------------------------------------------------------ sonde pour les gestes
@@ -220,10 +236,12 @@ export class PuppyView {
 
   // ------------------------------------------------------------ animation
 
-  update(dtMs: number, mind: PuppyMind, pointer: { x: number; y: number } | null): void {
+  update(dtMs: number, mind: PuppyMind, pointer: { x: number; y: number } | null, cleanliness = 100): void {
     const dt = Math.min(dtMs, 50) / 1000;
     const now = (this.t += dt);
     this.consume(mind.events, now);
+    this.cleanliness = cleanliness;
+    this.fur = shade(this.breed.colors.fur, 0.28 * mind.bath.wet, 0x4a3020);
 
     // Position au sol et orientation.
     const k = 1 - Math.exp(-dt * 10);
@@ -239,6 +257,7 @@ export class PuppyView {
     this.yawVel = dt > 0 ? turn / dt : 0;
 
     const fs = this.room.floorToScreen({ x: this.px, z: this.pz });
+    this.container.zIndex = this.pz;
     this.ox = fs.x;
     this.oy = fs.y;
     this.s = fs.s;
@@ -271,7 +290,7 @@ export class PuppyView {
     step('headUp', pose.headUp);
     step('headFwd', pose.headFwd);
     step('headTilt', E.headTilt + O.headTilt + (petted ? Math.sin(now * 1.6) * 0.15 : 0), 0.7);
-    step('earLift', clamp(E.earLift + O.earLift, -1, 1.2));
+    step('earLift', clamp(E.earLift + O.earLift - 0.7 * mind.bath.wet, -1, 1.2));
     step('tailUp', E.tailUp + O.tailUp);
     step('wagAmp', E.wagAmp * (0.55 + 0.45 * ex) + O.wag);
     step('mouth', clamp(E.mouth + O.mouth, 0, 1.3));
@@ -444,6 +463,25 @@ export class PuppyView {
         case 'flop':
           o.rootY += 0.05 * env;
           break;
+        case 'chew':
+          o.mouth += 0.55 * Math.abs(Math.sin(u * Math.PI * 2));
+          break;
+        case 'lap':
+          o.tongue += env;
+          o.mouth += 0.3 * env;
+          break;
+        case 'lickLips':
+          o.tongue += env;
+          o.tongueUp += env;
+          o.mouth += 0.35 * env;
+          break;
+        case 'stretch':
+          o.pitch -= 0.4 * env;
+          o.bodyY -= 0.05 * env;
+          o.headPitch += 0.3 * env;
+          o.lids += 0.7 * env;
+          o.mouth += 0.6 * env;
+          break;
         default:
           break;
       }
@@ -541,7 +579,8 @@ export class PuppyView {
     const headC = add(neck, apply(Rb, [0, sp.headUp.x, sp.headFwd.x]));
     const headYaw = yaw + sp.lookYaw.x;
     const headRoll = sp.roll.x * pose.headRollFollow + sp.headTilt.x;
-    const headPitch = sp.lookPitch.x - MOODS[mind.mood].headDrop - (mind.activity === 'petted' ? -0.12 : 0) + O.headPitch;
+    const eatingNow = mind.activity === 'eat' && mind.eating?.until != null;
+    const headPitch = sp.lookPitch.x - MOODS[mind.mood].headDrop + (mind.activity === 'petted' ? 0.12 : 0) - (eatingNow ? 0.9 : 0) + O.headPitch;
     const Rh = mul(rotY(headYaw), mul(rotX(headPitch), rotZ(headRoll)));
     const inHead = (v: readonly number[]): V3 => add(headC, apply(Rh, v));
     this.headC = headC;
@@ -555,7 +594,7 @@ export class PuppyView {
       .fill({ color: 0x3a2618, alpha: 0.16 });
 
     // Corps et taches.
-    const bodyZ = this.ell('body', bodyC, Rb, bodyR, C.fur, { hit: 'body' });
+    const bodyZ = this.ell('body', bodyC, Rb, bodyR, this.fur, { hit: 'body' });
     if (C.saddle !== null) this.patch('saddle', bodyC, bodyZ, inBody([0, B.body[1] * 0.26, -B.body[2] * 0.12]), Rb, [B.body[0] * 0.92, B.body[1] * 0.74, B.body[2] * 0.78], C.saddle);
     this.patch('belly', bodyC, bodyZ, inBody([0, -B.body[1] * 0.3, B.body[2] * 0.05]), Rb, [B.body[0] * 0.8, B.body[1] * 0.7, B.body[2] * 0.8], C.white);
     this.ell('chest', inBody([0, -0.01, B.body[2] * 0.62]), Rb, B.chest, C.white, { hit: 'body' });
@@ -578,7 +617,7 @@ export class PuppyView {
       const hip = inBody(h);
       const fl: V3 = [this.feet[i * 3]?.x ?? 0, (this.feet[i * 3 + 1]?.x ?? 0) + lift * 0.75, this.feet[i * 3 + 2]?.x ?? 0];
       const foot = apply(Ry, fl);
-      this.leg(`leg${i}`, hip, foot, Ry, C.fur, C.white);
+      this.leg(`leg${i}`, hip, foot, Ry, this.fur, C.white);
     });
 
     // Queue.
@@ -586,10 +625,10 @@ export class PuppyView {
 
     // Cou : relie les épaules à la tête sous tous les angles.
     const neckC = add(scale(neck, 0.55), scale(headC, 0.45));
-    this.ell('neck', neckC, Rb, [B.head[0] * 0.62, B.head[1] * 0.75, B.head[2] * 0.62], C.fur, { hit: 'head', outline: false });
+    this.ell('neck', neckC, Rb, [B.head[0] * 0.62, B.head[1] * 0.75, B.head[2] * 0.62], this.fur, { hit: 'head', outline: false });
 
     // Tête, museau, nez.
-    const headZ = this.ell('head', headC, Rh, B.head, C.fur, { hit: 'head' });
+    const headZ = this.ell('head', headC, Rh, B.head, this.fur, { hit: 'head' });
     this.patch('blaze', headC, headZ, inHead([0, 0.045, 0.1]), Rh, [0.045, 0.12, 0.11], C.white);
     const muzzleC = inHead(B.muzzleAt);
     const muzzleZ = this.ell('muzzle', muzzleC, Rh, B.muzzle, C.white, { hit: 'muzzle' });
@@ -605,6 +644,93 @@ export class PuppyView {
     for (const side of [1, -1] as const) {
       this.eye(side, headC, Rh, headZ);
       this.ear(side, headC, Rh, headYaw, headRoll, headZ, O, dt, now);
+    }
+    this.extras(mind, bodyC, Rb, bodyR, headC, Rh, bodyZ, now);
+  }
+
+  /** Point de la surface d'un ellipsoïde dans la direction `d` (repère local) et sa normale. */
+  private surface(c: V3, R: M3, r: readonly number[], d: V3): { p: V3; n: V3 } {
+    const r0 = r[0] ?? 1;
+    const r1 = r[1] ?? 1;
+    const r2 = r[2] ?? 1;
+    const k = 1 / Math.hypot(d[0] / r0, d[1] / r1, d[2] / r2);
+    const local: V3 = [d[0] * k, d[1] * k, d[2] * k];
+    return { p: add(c, apply(R, local)), n: apply(R, norm([local[0] / r0 ** 2, local[1] / r1 ** 2, local[2] / r2 ** 2])) };
+  }
+
+  /** Bulles, gouttes, saleté, éclat, sommeil. */
+  private extras(mind: PuppyMind, bodyC: V3, Rb: M3, bodyR: readonly number[], headC: V3, Rh: M3, bodyZ: number, now: number): void {
+    const s = this.s;
+    const fx = this.fx;
+    fx.clear();
+    const B = this.breed;
+    const visible = this.spots
+      .map((sp, i) => ({ i, sp, ...this.surface(sp.onHead ? headC : bodyC, sp.onHead ? Rh : Rb, sp.onHead ? B.head : bodyR, sp.dir) }))
+      .filter((v) => this.facing(v.n) > 0.15);
+
+    // Saleté : taches brunes en dessous de « Propre » (F-SOIN-4).
+    const dirt = clamp((60 - this.cleanliness) / 50, 0, 1);
+    const dg = this.g('dirt');
+    dg.zIndex = bodyZ + 0.0008;
+    if (dirt > 0) {
+      for (const v of visible) {
+        if (v.sp.onHead || v.i % 3 !== 0 || v.i / 22 > dirt) continue;
+        const q = this.toS(v.p);
+        dg.ellipse(q.x, q.y, s * 0.04 * v.sp.r, s * 0.028 * v.sp.r).fill({ color: 0x6b4a2a, alpha: 0.45 });
+      }
+    }
+
+    // Mousse du bain.
+    const foam = mind.bath.foam;
+    const n = Math.round(foam * visible.length);
+    for (let k = 0; k < n; k++) {
+      const v = visible[k];
+      if (!v) break;
+      const q = this.toS(v.p);
+      const wob = 1 + Math.sin(now * 3 + v.i) * 0.08;
+      fx.circle(q.x, q.y, s * 0.045 * v.sp.r * wob).fill({ color: 0xffffff, alpha: 0.95 }).stroke({ width: 1.2, color: 0xb9d4e6 });
+      fx.circle(q.x - s * 0.012, q.y - s * 0.014, s * 0.01).fill({ color: 0xe8f4ff });
+    }
+
+    // Gouttes : pelage mouillé.
+    if (mind.bath.wet > 0) {
+      for (let k = 0; k < 6; k++) {
+        const v = visible[(k * 5) % Math.max(1, visible.length)];
+        if (!v) break;
+        const q = this.toS(v.p);
+        const fall = ((now * 0.9 + k * 0.17) % 1) * s * 0.35;
+        fx.ellipse(q.x, q.y + fall, s * 0.012, s * 0.02).fill({ color: 0x7fb6dd, alpha: 0.85 * mind.bath.wet * (1 - fall / (s * 0.35)) });
+      }
+    }
+
+    // Éclat : après la brosse, ou pelage superbe.
+    const shine = mind.shineUntil > mind.t ? 1 : this.cleanliness >= 90 ? 0.4 : 0;
+    if (shine > 0) {
+      for (let k = 0; k < 5; k++) {
+        const v = visible[(k * 7 + 3) % Math.max(1, visible.length)];
+        if (!v) break;
+        const tw = Math.max(0, Math.sin(now * 2.2 + k * 1.7));
+        if (tw * shine < 0.35) continue;
+        const q = this.toS(v.p);
+        const r = s * 0.035 * tw;
+        fx.moveTo(q.x - r, q.y).lineTo(q.x + r, q.y).moveTo(q.x, q.y - r * 1.4).lineTo(q.x, q.y + r * 1.4).stroke({ width: 2, color: 0xfff6c8, cap: 'round' });
+      }
+    }
+
+    // Sommeil : des « Z » qui montent.
+    if (mind.activity === 'sleep') {
+      const top = this.toS(add(headC, [0.15, 0.25, 0]));
+      for (let k = 0; k < 3; k++) {
+        const u = (now * 0.35 + k / 3) % 1;
+        const size = s * (0.04 + 0.04 * u);
+        const x = top.x + u * s * 0.25;
+        const y = top.y - u * s * 0.45;
+        fx.moveTo(x - size, y - size)
+          .lineTo(x + size, y - size)
+          .lineTo(x - size, y + size)
+          .lineTo(x + size, y + size)
+          .stroke({ width: 2.5, color: 0x5d6a9a, alpha: 1 - u, cap: 'round', join: 'round' });
+      }
     }
   }
 
@@ -639,7 +765,7 @@ export class PuppyView {
     const sc = pts.map((p) => this.toS(p));
     const z = this.cam.depth(pts[2] ?? base);
     const g = this.g('tail');
-    const outline = shade(this.breed.colors.fur, 0.55, this.breed.colors.outline);
+    const outline = shade(this.fur, 0.55, this.breed.colors.outline);
     const widths = [1, 0.85, 0.7].map((k) => T.width * this.s * k);
     for (let i = 0; i < 3; i++) {
       const a = sc[i];
@@ -651,7 +777,7 @@ export class PuppyView {
       const a = sc[i];
       const b = sc[i + 1];
       if (!a || !b) continue;
-      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: widths[i] ?? 1, color: i === 2 ? this.breed.colors.white : this.breed.colors.fur, cap: 'round' });
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: widths[i] ?? 1, color: i === 2 ? this.breed.colors.white : this.fur, cap: 'round' });
       this.hits.push({ part: 'tail', z, kind: 'capsule', ax: a.x, ay: a.y, bx: b.x, by: b.y, r: (widths[i] ?? 1) / 2 + 4 });
     }
     g.position.set(0, 0);
@@ -696,7 +822,7 @@ export class PuppyView {
     g.circle(ix - rx * 0.3, iy - ry * 0.35, ry * 0.22).fill(0xffffff);
     g.circle(ix + rx * 0.28, iy + ry * 0.24, ry * 0.1).fill({ color: 0xffffff, alpha: 0.85 });
 
-    const lash = shade(B.colors.fur, 0.7, B.colors.outline);
+    const lash = shade(this.fur, 0.7, B.colors.outline);
     const lw = Math.max(1.2, s * 0.012);
     g.ellipse(0, 0, rx, ry).stroke({ width: lw * 0.7, color: lash, alpha: 0.5 });
     const top = clamp(sp.lids.x, 0, 1);
@@ -710,7 +836,7 @@ export class PuppyView {
         const a = a0 + ((-Math.PI - 2 * a0) * i) / 14;
         g.lineTo(rx * Math.cos(a), ry * Math.sin(a));
       }
-      g.quadraticCurveTo(0, yc + ry * 0.3 * top, xc, yc).fill(B.colors.fur);
+      g.quadraticCurveTo(0, yc + ry * 0.3 * top, xc, yc).fill(this.fur);
       g.moveTo(-xc - lw * 0.3, yc).quadraticCurveTo(0, yc + ry * 0.3 * top, xc + lw * 0.3, yc).stroke({ width: lw, color: lash, cap: 'round' });
     }
     if (low > 0.02) {
@@ -722,7 +848,7 @@ export class PuppyView {
         const a = a0 + ((Math.PI - 2 * a0) * i) / 14;
         g.lineTo(rx * Math.cos(a), ry * Math.sin(a));
       }
-      g.quadraticCurveTo(0, yc - ry * 0.45 * low, xc, yc).fill(B.colors.fur);
+      g.quadraticCurveTo(0, yc - ry * 0.45 * low, xc, yc).fill(this.fur);
       g.moveTo(-xc, yc).quadraticCurveTo(0, yc - ry * 0.45 * low, xc, yc).stroke({ width: lw * 0.8, color: lash, alpha: 0.6, cap: 'round' });
     }
 

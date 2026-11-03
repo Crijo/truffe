@@ -122,8 +122,11 @@ describe('F-MAIN-1 : affection par les caresses', () => {
     let s = stroke(started(), 20);
     const next4am = Date.UTC(2026, 10, 4, 3, 0, 0); // 4 h à Paris
     s = reduce(s, { type: 'tick', now: next4am + 1000, dtMs: 100, tzOffsetMin: TZ });
+    // La nuit sans jeu compte comme un jour d'absence (−1, D-12).
+    const after = dog(s).affection;
+    expect(after).toBe(BALANCE.start.affection + BALANCE.puppy.caress.dailyCap - 1);
     s = stroke(s, 2);
-    expect(dog(s).affection).toBe(BALANCE.start.affection + BALANCE.puppy.caress.dailyCap + 2);
+    expect(dog(s).affection).toBe(after + 2);
   });
 
   it('l’affection reste entre 0 et 100', () => {

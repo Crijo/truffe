@@ -15,8 +15,18 @@ const ROOM = {
 export interface Stage {
   app: Application;
   room: Room;
-  /** Calque du chiot. */
+  /** Calque du chiot et des objets au sol, trié par profondeur. */
   world: Container;
+  /** Teinte selon l'heure locale (décor qui change discrètement). */
+  setHour(hour: number): void;
+}
+
+/** Part de nuit : 1 de 22 h à 6 h, transitions le soir et au matin. */
+export function nightFactor(h: number): number {
+  if (h >= 22 || h < 6) return 1;
+  if (h >= 19) return (h - 19) / 3;
+  if (h < 8) return 1 - (h - 6) / 2;
+  return 0;
 }
 
 export async function createStage(host: HTMLElement): Promise<Stage> {
@@ -34,7 +44,10 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
   const room = new Room();
   const decor = new Graphics();
   const world = new Container();
-  app.stage.addChild(decor, world);
+  world.sortableChildren = true;
+  const night = new Graphics();
+  night.eventMode = 'none';
+  app.stage.addChild(decor, world, night);
 
   const drawRoom = (): void => {
     const w = app.screen.width;
@@ -53,8 +66,26 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
     const rug = room.floorToScreen({ x: 0, z: 0.62 });
     decor.ellipse(w / 2, rug.y, Math.min(w * 0.44, 420), (h - y) * 0.3).fill(ROOM.rug).stroke({ width: 4, color: ROOM.rugEdge });
   };
+  let tint = 0;
+  const drawNight = (): void => {
+    night.clear();
+    if (tint > 0) night.rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0x1f2546, alpha: 0.38 * tint });
+  };
   drawRoom();
-  app.renderer.on('resize', drawRoom);
+  app.renderer.on('resize', () => {
+    drawRoom();
+    drawNight();
+  });
 
-  return { app, room, world };
+  return {
+    app,
+    room,
+    world,
+    setHour(hour) {
+      const t = Math.round(nightFactor(hour) * 50) / 50;
+      if (t === tint) return;
+      tint = t;
+      drawNight();
+    },
+  };
 }

@@ -8,6 +8,7 @@ export interface DebugProbe {
   latencies: number[];
   probe: PuppyProbe;
   fps: () => number;
+  rewind: (ms: number) => void;
 }
 
 declare global {
@@ -17,6 +18,14 @@ declare global {
 }
 
 /** Panneau de développement (?debug) : état du chiot et latence des réactions. */
+/** Simule une absence : recule la dernière visite, puis le joueur revient maintenant. */
+export function rewind(store: GameStore, ms: number): void {
+  const s = store.getState();
+  store.replaceForDebug({ ...s, save: { ...s.save, lastSeenAt: s.save.lastSeenAt - ms } });
+  const now = Math.max(Date.now(), s.save.lastSeenAt);
+  store.dispatch({ type: 'session/resume', now, tzOffsetMin: new Date(now).getTimezoneOffset() });
+}
+
 export function mountDebug(d: DebugProbe): void {
   window.__truffe = d;
   const el = document.createElement('div');

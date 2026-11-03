@@ -30,6 +30,12 @@ Choix pris là où `SPEC.md` est muette, ambiguë ou contradictoire. Chaque déc
 | D-23 | Chiot du jalon 1 | Pas d'adoption avant le jalon 3. | Un beagle « joueur » est créé à la première session. Il sera remplacé par le chenil au jalon 3 ; la sauvegarde garde le même format. |
 | D-24 | Souris et main présentée | F-MAIN-2 au doigt ou à la souris. | La souris compte comme une main tant qu'elle reste sur la scène, même immobile ; elle cesse de compter quand elle sort. |
 | D-25 | Mesure de la latence | Critère « moins de 100 ms ». | Mesurée de l'événement pointeur (ou de la reconnaissance d'un maintien) à la première image rendue qui montre la réaction. Playwright lance Chromium avec le GPU, sinon le rendu logiciel tombe à ~12 images/s et fausse la mesure. |
+| D-26 | Mot du niveau « Normal » | Le tableau des mots ne donne pas de mot pour Normal. | « Ça va » pour la faim et la soif, « Propre » pour le pelage. Textes dans `src/data/strings.ts`. |
+| D-27 | Nourriture avant la boutique | La boutique n'arrive qu'au jalon 5. | Croquettes et eau sont gratuites et illimitées dans le Sac. La boutique vendra des aliments spéciaux. |
+| D-28 | Bain complet | F-SOIN-2 décrit trois étapes sans dire si l'ordre compte. | La propreté passe à 100 seulement après savon (mousse pleine), puis rinçage (plus de mousse), puis séchage. Sécher sans rincer, ou rincer sans savon, ne lave pas. « Fini » en cours de route : le chiot s'ébroue, rien n'est gagné. |
+| D-29 | Plusieurs gamelles | Deux besoins à la fois. | Une gamelle de chaque sorte au plus ; la nouvelle remplace l'ancienne. Le chiot va d'abord vers le besoin le plus fort, puis vers l'autre. Les gamelles ne sont pas sauvegardées. |
+| D-30 | Endormissement | « Énergie basse, ou nuit », sans délai. | Il faut 20 s sans geste du joueur pour qu'il s'endorme, et 60 s après un réveil. La nuit, pas de geste spontané. Au matin, reposé (énergie ≥ 95), il se réveille seul. Une main présentée ou levée ne le réveille pas. |
+| D-31 | Horloge qui recule en jeu | « Aucun gain, aucun besoin modifié. » | Les besoins ne bougent plus tant que l'horloge est en arrière, mais ce que le chiot mange ou le bain comptent. Un saut d'horloge en avant de plus de 5 s en jeu (appareil en veille) est traité comme une absence. |
 | D-20 | Couche « core » | L'architecture de la spec n'a pas de place pour la boucle de jeu et le store. | Ajout de `src/core/` : boucle à pas fixe, store (état + actions), horloge et RNG concrets. `sim/` reste pur. |
 
 ## Dépendances

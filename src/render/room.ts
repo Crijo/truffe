@@ -22,8 +22,9 @@ export class Room {
   private get yBack(): number {
     return this.horizon + (this.h - this.horizon) * 0.2;
   }
+  /** Bord avant du sol, au-dessus de la barre basse pour ne pas cacher les pattes. */
   private get yFront(): number {
-    return this.h - (this.h - this.horizon) * 0.07;
+    return this.h - Math.max((this.h - this.horizon) * 0.07, 104);
   }
   /** Pixels par unité du chiot, au premier plan. */
   get sNear(): number {

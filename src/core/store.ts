@@ -17,6 +17,11 @@ export class GameStore {
     for (const l of this.listeners) l(this.state, action);
   }
 
+  /** Outil de débogage (?debug) : remplace l'état, par exemple pour simuler une absence. */
+  replaceForDebug(state: GameState): void {
+    this.state = state;
+  }
+
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

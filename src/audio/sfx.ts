@@ -82,6 +82,24 @@ export class Sfx {
       case 'scratch':
         this.flutter(t, 1.6, type === 'dig' ? 9 : 14, 800, 0.22);
         break;
+      case 'chew':
+        this.burst(t, 0.05, 700, 1.5, 0.35);
+        this.burst(t + 0.09, 0.04, 900, 1.5, 0.25);
+        break;
+      case 'lap':
+        this.burst(t, 0.035, 2400, 1.4, 0.3);
+        this.voice(t + 0.02, [500, 260], 0.035, 'sine', 0.18, 2500);
+        break;
+      case 'lickLips':
+        this.burst(t, 0.04, 3000, 1.2, 0.3);
+        this.burst(t + 0.15, 0.04, 3000, 1.2, 0.25);
+        break;
+      case 'snore':
+        this.burst(t, 0.9, 380, 0.7, 0.12);
+        break;
+      case 'stretch':
+        this.voice(t, [520, 760, 600], 0.6, 'sine', 0.16, 1500, 6);
+        break;
       case 'wiggle':
       case 'playBow':
       case 'jump':
@@ -90,6 +108,22 @@ export class Sfx {
       default:
         break;
     }
+  }
+
+  /** Bruit d'outil de soin pendant le geste (limité à un toutes les 120 ms). */
+  tool(kind: 'soap' | 'shower' | 'towel' | 'brush'): void {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state !== 'running') return;
+    const prev = this.lastAt.get(kind) ?? 0;
+    if (ctx.currentTime - prev < 0.12) return;
+    this.lastAt.set(kind, ctx.currentTime);
+    const t = ctx.currentTime + 0.005;
+    if (kind === 'soap') {
+      this.burst(t, 0.06, 1800, 2, 0.18);
+      if (Math.random() < 0.4) this.voice(t + 0.03, [900, 1500], 0.03, 'sine', 0.12, 2000);
+    } else if (kind === 'shower') this.burst(t, 0.16, 4200, 0.6, 0.2);
+    else if (kind === 'towel') this.burst(t, 0.12, 900, 0.7, 0.2);
+    else this.burst(t, 0.08, 3800, 1.5, 0.14);
   }
 
   /** Voix tonale : glissando de fréquences, enveloppe, filtre « formant ». */

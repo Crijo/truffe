@@ -88,6 +88,51 @@ export const BALANCE = {
     arriveEpsilon: 0.02,
   },
 
+  /** SPEC, Jauges : évolution des besoins. */
+  needs: {
+    perHour: { hunger: 4, thirst: 6, cleanliness: 1.5, energyAwake: 15, energyAsleep: 20 },
+    meal: 40,
+    water: 50,
+    bath: 100,
+    /** Seuils des mots (SPEC) : Excellent ≥ [0], Normal ≥ [1], À surveiller ≥ [2], sinon Urgent. */
+    words: { hunger: [75, 40, 15], thirst: [75, 40, 15], cleanliness: [90, 40, 15] },
+    /** D-08 : « besoin réel » = sous le niveau Excellent. */
+    realNeed: { hunger: 75, thirst: 75, cleanliness: 90 },
+    offline: { floor: 5, maxHours: 72, affectionPerDay: 1, affectionFloor: 20, energyRestPerHour: 20 },
+    /** D-03 : la bouderie due à un besoin urgent attend 2 min de session. */
+    sulkAfterUrgentMs: 120_000,
+    /** Écart d'horloge au-delà duquel un pas de jeu est traité comme une absence. */
+    gapAsOfflineMs: 5000,
+  },
+
+  /** F-VIE-1 et D-10. */
+  sleep: {
+    nightStartHour: 22,
+    nightEndHour: 7,
+    nightBonus: 40,
+    /** Le sommeil est possible si l'énergie est basse, ou la nuit. */
+    lowEnergy: 50,
+    /** Laissé tranquille depuis tant de temps avant de s'endormir. */
+    aloneMs: 20_000,
+    /** Après un réveil, reste éveillé au moins ce temps sans interaction. */
+    afterWakeMs: 60_000,
+  },
+
+  /** F-SOIN-1 à F-SOIN-3. */
+  care: {
+    eatMs: 3500,
+    /** Le chiot se place derrière la gamelle, tête au-dessus. */
+    bowlOffsetZ: 0.13,
+    soapPx: 700,
+    rinsePx: 500,
+    dryPx: 600,
+    brushPxPerStep: 150,
+    brushStep: 5,
+    brushMaxPerSession: 15,
+    brushSessionGapMs: 60_000,
+    shineMs: 10 * 60_000,
+  },
+
   /** Seuils des gestes (D-05 à D-07), en pixels CSS et millisecondes. */
   gestures: {
     tapMaxMovePx: 12,

@@ -1,18 +1,35 @@
 /**
  * Esprit du chiot : activité choisie par score toutes les 500 ms, réactions
- * immédiates aux gestes (F-MAIN) et accueil au retour (F-VIE-2).
+ * immédiates aux gestes (F-MAIN), soins (F-SOIN), sommeil (F-VIE-1) et accueil (F-VIE-2).
  * Pur : le temps avance par `tickMind`, le hasard vient de `rngState`.
  */
 import { BALANCE } from '../data/balance';
+import { isUrgent } from './needs';
 import { createRng, type Rng } from './rng';
 
 const P = BALANCE.puppy;
+const N = BALANCE.needs;
+const S = BALANCE.sleep;
+const C = BALANCE.care;
 
 export type Posture = 'stand' | 'sit' | 'lie' | 'side';
-export type Activity = 'wander' | 'come' | 'petted' | 'sniffHand' | 'attend' | 'sulk' | 'spontaneous' | 'greet';
-export type Mood = 'calm' | 'happy' | 'content' | 'curious' | 'sulky' | 'startled';
+export type Activity =
+  | 'wander'
+  | 'come'
+  | 'petted'
+  | 'sniffHand'
+  | 'attend'
+  | 'sulk'
+  | 'spontaneous'
+  | 'greet'
+  | 'eat'
+  | 'sleep'
+  | 'groom';
+export type Mood = 'calm' | 'happy' | 'content' | 'curious' | 'sulky' | 'startled' | 'asleep';
 export type BodyPart = 'head' | 'ear' | 'muzzle' | 'back' | 'flank' | 'belly' | 'tail' | 'paw';
 export type Gait = 'still' | 'walk' | 'trot' | 'run';
+export type CareTool = 'soap' | 'shower' | 'towel' | 'brush';
+export type BowlKind = 'food' | 'water';
 export type PuppyEventType =
   | 'bark'
   | 'yip'
@@ -34,7 +51,12 @@ export type PuppyEventType =
   | 'backOff'
   | 'flop'
   | 'wiggle'
-  | 'sit';
+  | 'sit'
+  | 'chew'
+  | 'lap'
+  | 'lickLips'
+  | 'stretch'
+  | 'snore';
 
 export interface PuppyEvent {
   seq: number;
@@ -46,6 +68,12 @@ export interface PuppyEvent {
 export interface Vec2 {
   x: number;
   z: number;
+}
+
+export interface BowlView {
+  id: string;
+  kind: BowlKind;
+  pos: Vec2;
 }
 
 export type LookTarget =
@@ -65,21 +93,39 @@ export type Gesture =
   | { kind: 'raise' }
   | { kind: 'raiseEnd' }
   | { kind: 'push'; part: BodyPart }
-  | { kind: 'touch'; part: BodyPart };
+  | { kind: 'touch'; part: BodyPart }
+  | { kind: 'groomStart' }
+  | { kind: 'groomEnd' }
+  | { kind: 'scrub'; tool: CareTool; distancePx: number }
+  | { kind: 'bowl' };
 
 export interface PuppyContext {
   traits: { docility: number; energy: number; boldness: number };
   affection: number;
   energy: number;
+  hunger: number;
+  thirst: number;
+  cleanliness: number;
+  night: boolean;
+  bowls: readonly BowlView[];
 }
 
 export interface Effects {
   affectionDelta: number;
   caresses: number;
+  hungerDelta: number;
+  thirstDelta: number;
+  cleanDelta: number;
+  /** Propreté imposée (bain terminé). */
+  cleanSet: number | null;
+  bowlEaten: string | null;
 }
 
 const SPONTANEOUS = ['sniffGround', 'scratch', 'yawn', 'shake', 'dig', 'bark', 'howl'] as const;
 type SpontaneousKind = (typeof SPONTANEOUS)[number];
+
+/** Gestes qui réveillent : toucher ou appeler (F-VIE-1). */
+const WAKING: ReadonlySet<Gesture['kind']> = new Set(['stroke', 'touch', 'tap', 'pull', 'push', 'scrub', 'groomStart']);
 
 export interface PuppyMind {
   /** Temps de simulation écoulé, en ms. */
@@ -87,6 +133,8 @@ export interface PuppyMind {
   activity: Activity;
   activityStartedAt: number;
   nextDecisionAt: number;
+  /** Scores de départ de la dernière décision (sans bonus ni hasard). */
+  lastScores: Partial<Record<Activity, number>>;
   posture: Posture;
   postureLockUntil: number;
   pos: Vec2;
@@ -118,12 +166,22 @@ export interface PuppyMind {
   raiseSitDone: boolean;
   /** Repère pour « laissé seul » : dernière interaction ou dernier geste spontané. */
   lastAloneRefAt: number;
+  /** Dernier geste du joueur (le sommeil attend qu'on le laisse tranquille). */
+  lastInteractionAt: number;
+  wokeAt: number;
   spontaneous: { kind: SpontaneousKind; until: number } | null;
   greet: { intensity: 1 | 2 | 3; until: number; nextFeatAt: number; feats: PuppyEventType[] } | null;
   plan: { mode: 'idle' | 'walk'; until: number };
   startledUntil: number;
   happyUntil: number;
   curiousUntil: number;
+
+  eating: { bowlId: string; kind: BowlKind; until: number | null; nextBiteAt: number } | null;
+  bath: { active: boolean; foam: number; soaped: boolean; rinsed: boolean; wet: number };
+  brush: { gained: number; accumPx: number; lastAt: number };
+  shineUntil: number;
+  /** Début d'un besoin urgent pendant la session (D-03). */
+  urgentSince: number | null;
 
   /** Incrémenté à chaque geste : le rendu mesure la latence de réaction. */
   reactionSeq: number;
@@ -134,6 +192,7 @@ export interface PuppyMind {
 
 const NEVER = -1e12;
 const MAX_EVENTS = 32;
+const EPS = 1e-6;
 
 export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
   return {
@@ -141,6 +200,7 @@ export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
     activity: 'wander',
     activityStartedAt: 0,
     nextDecisionAt: P.decisionIntervalMs,
+    lastScores: {},
     posture: 'stand',
     postureLockUntil: 0,
     pos: { ...pos },
@@ -167,12 +227,19 @@ export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
     raiseAt: 0,
     raiseSitDone: true,
     lastAloneRefAt: 0,
+    lastInteractionAt: 0,
+    wokeAt: NEVER,
     spontaneous: null,
     greet: null,
     plan: { mode: 'idle', until: P.wander.idleMinMs },
     startledUntil: NEVER,
     happyUntil: NEVER,
     curiousUntil: NEVER,
+    eating: null,
+    bath: { active: false, foam: 0, soaped: false, rinsed: false, wet: 0 },
+    brush: { gained: 0, accumPx: 0, lastAt: NEVER },
+    shineUntil: NEVER,
+    urgentSince: null,
     reactionSeq: 0,
     events: [],
     nextSeq: 1,
@@ -183,7 +250,15 @@ export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
 // ---------------------------------------------------------------- outils
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
-const noEffects = (): Effects => ({ affectionDelta: 0, caresses: 0 });
+const noEffects = (): Effects => ({
+  affectionDelta: 0,
+  caresses: 0,
+  hungerDelta: 0,
+  thirstDelta: 0,
+  cleanDelta: 0,
+  cleanSet: null,
+  bowlEaten: null,
+});
 
 function clampToFloor(p: Vec2): Vec2 {
   const f = P.floor;
@@ -215,6 +290,26 @@ function setPosture(m: PuppyMind, posture: Posture): void {
   m.posture = posture;
 }
 
+/** Gamelle la plus utile pour un besoin réel (D-08), et son score (100 − jauge). */
+function bestBowl(ctx: PuppyContext): { bowl: BowlView; score: number } | null {
+  let best: { bowl: BowlView; score: number } | null = null;
+  for (const bowl of ctx.bowls) {
+    const v = bowl.kind === 'food' ? ctx.hunger : ctx.thirst;
+    const threshold = bowl.kind === 'food' ? N.realNeed.hunger : N.realNeed.thirst;
+    if (v >= threshold) continue;
+    const score = 100 - v;
+    if (!best || score > best.score) best = { bowl, score };
+  }
+  return best;
+}
+
+function canSleep(m: PuppyMind, ctx: PuppyContext): boolean {
+  if (m.activity === 'sleep') return true;
+  if (m.bath.active || !(ctx.night || ctx.energy < S.lowEnergy)) return false;
+  const quiet = m.t - m.wokeAt < 10 * 60_000 ? S.afterWakeMs : S.aloneMs;
+  return m.t - m.lastInteractionAt >= quiet;
+}
+
 // ---------------------------------------------------------------- scores
 
 /** Scores de départ des activités possibles (SPEC, Choix de l'activité). */
@@ -225,17 +320,23 @@ export function baseScores(m: PuppyMind, ctx: PuppyContext): Partial<Record<Acti
   if (m.handOnDogUntil > m.t) out.petted = s.petted;
   if (m.handPresent) out.sniffHand = s.petted;
   if (m.raised) out.attend = s.petted;
-  if (m.sulkUntil > m.t) out.sulk = s.sulk;
-  if (m.spontaneous || m.t - m.lastAloneRefAt > P.aloneForSpontaneousMs) {
+  const needSulk = m.urgentSince !== null && m.t - m.urgentSince >= N.sulkAfterUrgentMs;
+  if (m.sulkUntil > m.t || needSulk) out.sulk = s.sulk;
+  if (!ctx.night && (m.spontaneous || m.t - m.lastAloneRefAt > P.aloneForSpontaneousMs)) {
     out.spontaneous = s.spontaneousBase + ctx.energy * s.spontaneousPerEnergy;
   }
   if (m.greet && m.greet.until > m.t) out.greet = s.greet;
+  const bowl = bestBowl(ctx);
+  if (bowl) out.eat = bowl.score;
+  if (canSleep(m, ctx)) out.sleep = 100 - ctx.energy + (ctx.night ? S.nightBonus : 0);
+  if (m.bath.active) out.groom = 100;
   return out;
 }
 
 function decide(m: PuppyMind, ctx: PuppyContext): void {
   const scores = baseScores(m, ctx);
-  let best: Activity = 'wander';
+  m.lastScores = scores;
+  let best = 'wander' as Activity;
   let bestScore = -Infinity;
   withRng(m, (rng) => {
     for (const [a, base] of Object.entries(scores) as [Activity, number][]) {
@@ -246,7 +347,9 @@ function decide(m: PuppyMind, ctx: PuppyContext): void {
       }
     }
   });
-  if (best !== m.activity || !scores[m.activity]) enter(m, best, ctx);
+  // Une gamelle finie : « manger » reste possible, mais vers la gamelle suivante.
+  const finishedMeal = best === 'eat' && m.activity === 'eat' && !m.eating;
+  if (best !== m.activity || !scores[m.activity] || finishedMeal) enter(m, best, ctx);
 }
 
 // ---------------------------------------------------------------- activités
@@ -255,9 +358,10 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
   const prev = m.activity;
   m.activity = a;
   m.activityStartedAt = m.t;
-  m.attentive = a !== 'sulk' && a !== 'spontaneous';
+  m.attentive = a !== 'sulk' && a !== 'spontaneous' && a !== 'sleep' && a !== 'eat';
   if (prev === 'sniffHand') m.handPhase = null;
   if (prev === 'spontaneous') m.spontaneous = null;
+  if (prev === 'eat') m.eating = null;
 
   switch (a) {
     case 'wander': {
@@ -267,6 +371,7 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       m.gait = 'still';
       m.plan = { mode: 'idle', until: m.t + (calm ? P.wander.idleMaxMs : P.wander.idleMinMs) };
       if (calm && prev !== 'sulk') m.look = { kind: 'player' };
+      if (prev === 'sleep' || prev === 'groom') m.posture = 'sit';
       break;
     }
     case 'come':
@@ -290,6 +395,8 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       m.look = { kind: 'up' };
       break;
     case 'sulk':
+      m.target = null;
+      m.gait = 'still';
       m.look = { kind: 'away' };
       if (m.posture === 'side') m.posture = 'sit';
       m.facing = withRng(m, (rng) => (rng.next() < 0.5 ? -1 : 1) * rng.range(2.2, 2.8));
@@ -313,8 +420,33 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       setPosture(m, 'stand');
       break;
     }
+    case 'eat': {
+      const b = bestBowl(ctx);
+      if (!b) break;
+      m.eating = { bowlId: b.bowl.id, kind: b.bowl.kind, until: null, nextBiteAt: 0 };
+      m.target = clampToFloor({ x: b.bowl.pos.x, z: b.bowl.pos.z - C.bowlOffsetZ });
+      m.gait = 'trot';
+      m.look = { kind: 'point', ...b.bowl.pos };
+      m.postureLockUntil = 0;
+      break;
+    }
+    case 'sleep':
+      m.target = null;
+      m.gait = 'still';
+      m.look = { kind: 'ground' };
+      m.postureLockUntil = 0;
+      m.posture = 'lie';
+      emit(m, 'yawn');
+      break;
+    case 'groom':
+      m.target = null;
+      m.gait = 'still';
+      m.look = { kind: 'player' };
+      m.postureLockUntil = 0;
+      m.posture = 'sit';
+      m.facing = 0;
+      break;
   }
-  void ctx;
 }
 
 function arrive(m: PuppyMind): void {
@@ -330,6 +462,12 @@ function arrive(m: PuppyMind): void {
     m.happyUntil = m.t + 2000;
   }
   if (m.activity === 'greet' && m.greet) m.greet.nextFeatAt = m.t + 200;
+  if (m.activity === 'eat' && m.eating) {
+    m.facing = 0;
+    m.look = { kind: 'ground' };
+    m.eating.until = m.t + C.eatMs;
+    m.eating.nextBiteAt = m.t;
+  }
 }
 
 function move(m: PuppyMind, dtMs: number): void {
@@ -351,7 +489,7 @@ function move(m: PuppyMind, dtMs: number): void {
   m.facing = Math.atan2(dx, dz);
 }
 
-function updateActivity(m: PuppyMind, ctx: PuppyContext): void {
+function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
   switch (m.activity) {
     case 'wander':
       if (m.t < m.plan.until || m.target) break;
@@ -427,23 +565,58 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext): void {
       }
       break;
     }
+    case 'eat': {
+      const e = m.eating;
+      if (!e || e.until === null) break;
+      if (m.t >= e.until) {
+        if (e.kind === 'food') fx.hungerDelta += N.meal;
+        else fx.thirstDelta += N.water;
+        fx.bowlEaten = e.bowlId;
+        m.eating = null;
+        m.happyUntil = m.t + 2500;
+        m.look = { kind: 'player' };
+        emit(m, 'lickLips');
+      } else if (m.t >= e.nextBiteAt) {
+        e.nextBiteAt = m.t + (e.kind === 'food' ? 420 : 300);
+        emit(m, e.kind === 'food' ? 'chew' : 'lap');
+      }
+      break;
+    }
+    case 'sleep':
+      // Au matin, reposé, il se réveille de lui-même.
+      if (!ctx.night && ctx.energy >= 95) wake(m);
+      else if (Math.floor(m.t / 3200) !== Math.floor((m.t - 100) / 3200)) emit(m, 'snore');
+      break;
     case 'petted':
     case 'sulk':
+    case 'groom':
       break;
   }
 }
 
+function wake(m: PuppyMind): void {
+  m.wokeAt = m.t;
+  m.activity = 'wander';
+  m.plan = { mode: 'idle', until: m.t + P.wander.idleMaxMs };
+  m.posture = 'sit';
+  m.attentive = true;
+  m.look = { kind: 'player' };
+  emit(m, 'yawn');
+  emit(m, 'stretch');
+}
+
 function computeMood(m: PuppyMind): Mood {
+  if (m.activity === 'sleep') return 'asleep';
   if (m.activity === 'sulk') return 'sulky';
   if (m.t < m.startledUntil) return 'startled';
   if (m.activity === 'greet' || m.t < m.happyUntil) return 'happy';
-  if (m.activity === 'petted' || m.activity === 'sniffHand') return 'content';
+  if (m.activity === 'petted' || m.activity === 'sniffHand' || m.activity === 'groom') return 'content';
   if (m.activity === 'attend' || m.t < m.curiousUntil) return 'curious';
   if (m.activity === 'come') return m.gait === 'still' ? 'curious' : 'happy';
   return 'calm';
 }
 
-const EXCITEMENT: Record<Mood, number> = { happy: 0.95, content: 0.7, curious: 0.45, calm: 0.3, sulky: 0.05, startled: 0.1 };
+const EXCITEMENT: Record<Mood, number> = { happy: 0.95, content: 0.7, curious: 0.45, calm: 0.3, sulky: 0.05, startled: 0.1, asleep: 0 };
 
 function settle(m: PuppyMind, dtMs: number): void {
   m.mood = computeMood(m);
@@ -456,15 +629,19 @@ function settle(m: PuppyMind, dtMs: number): void {
 
 export function tickMind(mind: PuppyMind, dtMs: number, ctx: PuppyContext): { mind: PuppyMind; effects: Effects } {
   const m = structuredClone(mind);
+  const fx = noEffects();
   m.t += dtMs;
+  if (isUrgent(ctx)) m.urgentSince ??= m.t;
+  else m.urgentSince = null;
   move(m, dtMs);
-  updateActivity(m, ctx);
+  updateActivity(m, ctx, fx);
   if (m.t >= m.nextDecisionAt) {
     m.nextDecisionAt += P.decisionIntervalMs;
-    decide(m, ctx);
+    // Le sommeil ne s'interrompt que si le joueur touche le chiot ou l'appelle.
+    if (m.activity !== 'sleep') decide(m, ctx);
   }
   settle(m, dtMs);
-  return { mind: m, effects: noEffects() };
+  return { mind: m, effects: fx };
 }
 
 /** Intensité de l'accueil (F-VIE-2) selon la durée d'absence. */
@@ -482,32 +659,102 @@ const FEATS: Record<1 | 2 | 3, PuppyEventType[]> = {
   3: ['bark', 'jump', 'spin', 'whine', 'jump', 'bark', 'wiggle', 'yip'],
 };
 
-export function startGreeting(mind: PuppyMind, absenceMs: number, ctx?: PuppyContext): PuppyMind {
+const DEFAULT_CTX: PuppyContext = {
+  traits: { docility: 0.5, energy: 0.5, boldness: 0.5 },
+  affection: 30,
+  energy: 100,
+  hunger: 80,
+  thirst: 80,
+  cleanliness: 90,
+  night: false,
+  bowls: [],
+};
+
+export function startGreeting(mind: PuppyMind, absenceMs: number, ctx: PuppyContext = DEFAULT_CTX): PuppyMind {
   const intensity = greetIntensity(absenceMs);
   if (intensity === 0) return mind;
   const m = structuredClone(mind);
   m.greet = { intensity, until: m.t + 1500 + P.greet.durationMs[intensity], nextFeatAt: Infinity, feats: [...FEATS[intensity]] };
   m.lastAloneRefAt = m.t;
+  m.lastInteractionAt = m.t;
   m.sulkUntil = NEVER;
+  m.urgentSince = null;
   m.postureLockUntil = 0;
-  enter(m, 'greet', ctx ?? { traits: { docility: 0.5, energy: 0.5, boldness: 0.5 }, affection: 30, energy: 100 });
+  enter(m, 'greet', ctx);
   emit(m, intensity === 1 ? 'perk' : 'bark');
   settle(m, 0);
   return m;
+}
+
+function scrub(m: PuppyMind, tool: CareTool, px: number, fx: Effects): void {
+  const b = m.bath;
+  m.handOnDogUntil = m.t + P.pettingHoldMs;
+  if (tool === 'brush') {
+    const br = m.brush;
+    if (m.t - br.lastAt > C.brushSessionGapMs) {
+      br.gained = 0;
+      br.accumPx = 0;
+    }
+    br.lastAt = m.t;
+    br.accumPx += px;
+    while (br.accumPx >= C.brushPxPerStep && br.gained < C.brushMaxPerSession) {
+      br.accumPx -= C.brushPxPerStep;
+      br.gained += C.brushStep;
+      fx.cleanDelta += C.brushStep;
+      m.shineUntil = m.t + C.shineMs;
+    }
+    return;
+  }
+  if (!b.active) return;
+  if (tool === 'soap') {
+    b.foam = Math.min(1, b.foam + px / C.soapPx);
+    if (b.foam >= 0.95) b.soaped = true;
+    b.rinsed = false;
+  } else if (tool === 'shower') {
+    b.wet = 1;
+    if (b.foam > 0) {
+      b.foam = Math.max(0, b.foam - px / C.rinsePx);
+      if (b.foam < EPS) b.foam = 0;
+      if (b.foam === 0 && b.soaped) b.rinsed = true;
+    }
+  } else if (b.wet > 0) {
+    b.wet = Math.max(0, b.wet - px / C.dryPx);
+    if (b.wet < EPS) b.wet = 0;
+    if (b.wet === 0 && b.rinsed) {
+      fx.cleanSet = N.bath;
+      m.bath = { active: true, foam: 0, soaped: false, rinsed: false, wet: 0 };
+      m.happyUntil = m.t + 3000;
+      emit(m, 'shake');
+    }
+  }
 }
 
 export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): { mind: PuppyMind; effects: Effects } {
   const m = structuredClone(mind);
   const fx = noEffects();
   m.reactionSeq++;
+  const C2 = P.caress;
+
+  if (m.activity === 'sleep') {
+    if (!WAKING.has(g.kind)) {
+      if (g.kind === 'present') m.handPresent = true;
+      if (g.kind === 'presentEnd') m.handPresent = false;
+      if (g.kind === 'raise') m.raised = true;
+      if (g.kind === 'raiseEnd') m.raised = false;
+      return { mind: m, effects: fx };
+    }
+    wake(m);
+  }
+  if (g.kind !== 'bowl' && g.kind !== 'present' && g.kind !== 'presentEnd' && g.kind !== 'raiseEnd') {
+    m.lastInteractionAt = m.t;
+  }
   m.lastAloneRefAt = m.t;
-  const C = P.caress;
 
   switch (g.kind) {
     case 'stroke':
       m.handOnDogUntil = m.t + P.pettingHoldMs;
-      m.strokeAccumPx = Math.min(C.minStrokePx, m.strokeAccumPx + g.distancePx);
-      if (m.strokeAccumPx >= C.minStrokePx && m.t - m.lastCaressAt >= C.minIntervalMs) {
+      m.strokeAccumPx = Math.min(C2.minStrokePx, m.strokeAccumPx + g.distancePx);
+      if (m.strokeAccumPx >= C2.minStrokePx && m.t - m.lastCaressAt >= C2.minIntervalMs) {
         fx.caresses = 1;
         m.lastCaressAt = m.t;
         m.strokeAccumPx = 0;
@@ -593,6 +840,18 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
       m.target = null;
       m.gait = 'still';
       m.handOnDogUntil = m.t + P.pettingHoldMs;
+      break;
+    case 'groomStart':
+      m.bath = { active: true, foam: 0, soaped: false, rinsed: false, wet: 0 };
+      break;
+    case 'groomEnd':
+      if (m.bath.wet > 0 || m.bath.foam > 0) emit(m, 'shake');
+      m.bath = { active: false, foam: 0, soaped: false, rinsed: false, wet: 0 };
+      break;
+    case 'scrub':
+      scrub(m, g.tool, g.distancePx, fx);
+      break;
+    case 'bowl':
       break;
   }
 

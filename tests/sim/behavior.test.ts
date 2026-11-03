@@ -13,7 +13,16 @@ import {
 } from '../../src/sim/behavior';
 
 const P = BALANCE.puppy;
-const ctx: PuppyContext = { traits: { docility: 0.5, energy: 0.9, boldness: 0.7 }, affection: 30, energy: 100 };
+const ctx: PuppyContext = {
+  traits: { docility: 0.5, energy: 0.9, boldness: 0.7 },
+  affection: 30,
+  energy: 100,
+  hunger: 80,
+  thirst: 80,
+  cleanliness: 90,
+  night: false,
+  bowls: [],
+};
 
 function run(m: PuppyMind, ms: number, c: PuppyContext = ctx): PuppyMind {
   let mind = m;
