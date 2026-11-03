@@ -198,8 +198,9 @@ body {
 }
 
 .row {
+  position: relative;
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  grid-template-columns: 36px 5.2em 1fr;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -1233,4 +1234,79 @@ body.reduce-motion *::after {
 
 .panel-body > .btn.mini {
   margin-top: 10px;
+}
+
+/* ---------------------------------------------------------------- barres d'état (D-70) */
+.status {
+  position: absolute;
+  top: calc(max(8px, env(safe-area-inset-top)) + 30px);
+  right: 10px;
+  display: grid;
+  gap: 6px;
+  width: 132px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgb(253 246 234 / 0.88);
+  cursor: pointer;
+}
+
+.status-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gauge {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  gap: 6px;
+}
+
+.gauge svg {
+  width: 18px;
+  height: 18px;
+}
+
+.gauge-bar {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: rgb(61 43 31 / 0.14);
+  overflow: hidden;
+}
+
+.row .gauge-bar {
+  height: 14px;
+  border-radius: 7px;
+}
+
+.gauge-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ok);
+  transition: width 0.4s;
+}
+
+.level-normal .gauge-bar > span {
+  background: #6f9a3e;
+}
+
+.level-watch .gauge-bar > span {
+  background: #d18a1c;
+}
+
+.level-urgent .gauge-bar > span {
+  background: var(--urgent);
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

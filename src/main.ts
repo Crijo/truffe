@@ -232,6 +232,12 @@ async function boot(): Promise<void> {
         return t ? { id: t.id, kind: t.kind } : null;
       },
       mouth: () => av()?.mouthScreen() ?? { x: 0, y: 0 },
+      // D-71 : un jouet lâché sur la barre du bas est rangé.
+      putAwayAt: (x, y) => {
+        const r = document.querySelector('.hud .bar:not(.tools)')?.getBoundingClientRect();
+        const c = stage.app.canvas.getBoundingClientRect();
+        return !!r && r.width > 0 && x + c.left >= r.left - 12 && x + c.left <= r.right + 12 && y + c.top >= r.top - 12;
+      },
     });
 
     let toast: (text: string) => void = () => undefined;
@@ -611,6 +617,8 @@ async function boot(): Promise<void> {
         else voice.holdEnd();
       },
       ropeUnlocked: () => ropeUnlocked(store.getState().save.masterPoints),
+      toysOut: () => store.getState().toys.filter((t) => t.state === 'ground' || t.state === 'held').length,
+      putAwayToys: () => store.dispatch({ type: 'toy/putAwayAll' }),
       dropBowl(kind, at) {
         sfx.unlock();
         const floor = at ? stage.room.screenToFloor(at.x, at.y) : null;
@@ -633,7 +641,7 @@ async function boot(): Promise<void> {
         return {
           rows: NEED_KINDS.map((kind) => {
             const level = needLevel(kind, d?.needs[kind] ?? 0);
-            return { kind, level, word: NEED_WORDS[kind][level] };
+            return { kind, level, word: NEED_WORDS[kind][level], value: d?.needs[kind] ?? 0 };
           }),
           asleep: m?.activity === 'sleep',
           name: d?.name || KENNEL.renameTitle,
@@ -641,6 +649,21 @@ async function boot(): Promise<void> {
           sex: d?.sex ?? 'm',
           temperament: d?.temperament ?? 'joueur',
         };
+      },
+      status() {
+        const s = store.getState();
+        const d = dogOf();
+        return {
+          name: s.save.homeDogIds.length > 1 ? (d?.name ?? null) : null,
+          rows: NEED_KINDS.map((kind) => {
+            const v = d?.needs[kind] ?? 0;
+            const level = needLevel(kind, v);
+            return { kind, level, word: NEED_WORDS[kind][level], value: v };
+          }),
+        };
+      },
+      onStatus(fn) {
+        store.subscribe(() => fn());
       },
       onChange(fn) {
         let last = '';

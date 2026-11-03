@@ -120,6 +120,9 @@ export const BALANCE = {
 
   /** F-SOIN-1 à F-SOIN-3. */
   care: {
+    /** Gamelles posées d’un toucher : croquettes à gauche, eau à droite ; écart minimal entre les deux. */
+    bowlSpots: { food: { x: -0.32, z: 0.76 }, water: { x: 0.32, z: 0.76 } },
+    bowlGap: 0.3,
     eatMs: 3500,
     /** Le chiot se place derrière la gamelle, tête au-dessus. */
     bowlOffsetZ: 0.13,

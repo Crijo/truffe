@@ -84,7 +84,7 @@ export function renderTricks(box: HTMLElement, h: TrainingHandlers, refresh: () 
   }
   const list = el('ul', 'tricks');
   for (const r of rows) {
-    const li = el('li', `trick ${r.learned ? 'learned' : 'progress'}`);
+    const li = el('li', `trick ${r.learned ? 'learned' : 'learning'}`);
     li.dataset.trick = r.trickId;
     const dots = r.learned ? `<span class="ok">${ICONS.done}</span>` : `<span class="dots">${'●'.repeat(r.reps)}${'○'.repeat(Math.max(0, r.needed - r.reps))}</span>`;
     li.innerHTML = `<span class="name">${r.label}</span>${dots}`;

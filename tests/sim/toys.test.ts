@@ -282,3 +282,36 @@ describe('D-63 : souris mécanique', () => {
     expect(t.pos).toEqual(b);
   });
 });
+
+describe('Ranger les jouets (D-71)', () => {
+  const land = (s: GameState, kind: 'ball' | 'disc'): GameState => {
+    s = reduce(s, { type: 'toy/hold', kind, at: { x: 0, z: 0.8 } });
+    const id = s.toys.find((t) => t.kind === kind)?.id ?? '';
+    s = reduce(s, { type: 'toy/throw', toyId: id, vx: 0.2, vz: -0.6 });
+    for (let i = 0; i < 40; i++) s = { ...s, toys: s.toys.map((t) => stepToy(t, 100)) };
+    return s;
+  };
+  const base = (): GameState => {
+    const g = createGameState(createNewGame(Date.UTC(2026, 10, 3, 13), 1));
+    return reduce(g, { type: 'session/start', now: Date.UTC(2026, 10, 3, 13), tzOffsetMin: -60 });
+  };
+
+  it('un jouet tenu ou au sol se range ; il disparaît du salon', () => {
+    let s = land(base(), 'ball');
+    const id = s.toys[0]?.id ?? '';
+    expect(s.toys[0]?.state).toBe('ground');
+    s = reduce(s, { type: 'toy/putAway', toyId: id });
+    expect(s.toys).toHaveLength(0);
+    s = reduce(s, { type: 'toy/hold', kind: 'disc', at: { x: 0, z: 0.8 } });
+    s = reduce(s, { type: 'toy/putAway', toyId: s.toys[0]?.id ?? '' });
+    expect(s.toys).toHaveLength(0);
+  });
+
+  it('tout ranger d’un coup, sauf ce qu’un chiot a dans la gueule', () => {
+    let s = land(land(base(), 'ball'), 'disc');
+    expect(s.toys).toHaveLength(2);
+    s = { ...s, toys: s.toys.map((t, i) => (i === 0 ? { ...t, state: 'carried' as const, carrier: 'x' } : t)) };
+    s = reduce(s, { type: 'toy/putAwayAll' });
+    expect(s.toys.map((t) => t.state)).toEqual(['carried']);
+  });
+});

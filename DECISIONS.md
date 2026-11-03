@@ -74,6 +74,8 @@ Choix pris là où `SPEC.md` est muette, ambiguë ou contradictoire. Chaque déc
 | D-67 | Hors ligne | « Fonctionne hors ligne une fois installé. » | `vite-plugin-pwa` met tout le jeu en cache dès la première visite (798 Kio) ; mise à jour automatique à la visite suivante en ligne. |
 | D-68 | Musique | « Légère, en boucle courte. » | Trois boucles de synthèse (salon, promenade, concours), très bas volume ; des oiseaux dehors. Elle démarre au premier geste, comme les bruitages. |
 | D-69 | Navigateurs | Safari, Firefox, Edge à couvrir. | Le jeu tourne sans Web Audio (sans son) et sans capture du pointeur. Parcours de compatibilité sur les trois moteurs dans GitHub Actions ; il ne bloque pas la publication. |
+| D-70 | Barres de jauge | La spec dit qu’aucune barre de jauge n’est affichée. | Demande du joueur après le jalon 7 : faim, soif et pelage s’affichent en barres, dans la fiche et en permanence en haut à droite du salon (chiot actif, son nom s’il y en a plusieurs). La couleur suit les niveaux du tableau des jauges ; le mot reste lu par les lecteurs d’écran. Énergie et affection restent cachées. |
+| D-71 | Ranger les jouets | Rien ne retirait un jouet du salon. | « Ranger les jouets » dans le Sac range ceux qui traînent ; un jouet tenu et lâché sur la barre du bas est rangé aussi. Un jouet dans la gueule d’un chiot reste où il est. Les gamelles posées d’un toucher ont chacune leur place (croquettes à gauche, eau à droite) et ne se recouvrent jamais. |
 | D-20 | Couche « core » | L'architecture de la spec n'a pas de place pour la boucle de jeu et le store. | Ajout de `src/core/` : boucle à pas fixe, store (état + actions), horloge et RNG concrets. `sim/` reste pur. |
 
 ## Dépendances

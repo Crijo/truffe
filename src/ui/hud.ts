@@ -17,6 +17,14 @@ export interface CardRow {
   kind: NeedKind;
   word: string;
   level: NeedLevel;
+  /** Jauge de 0 à 100 (D-70 : affichée en barre). */
+  value: number;
+}
+
+/** Barre d'état : le mot reste lu par les lecteurs d'écran. */
+function gauge(r: CardRow): string {
+  const v = Math.round(Math.min(100, Math.max(0, r.value)));
+  return `<span class="gauge-bar" role="meter" aria-label="${NEED_LABELS[r.kind]}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}" aria-valuetext="${r.word}"><span style="width:${v}%"></span></span><span class="sr">${r.word}</span>`;
 }
 
 export interface HudHandlers {
@@ -38,10 +46,16 @@ export interface HudHandlers {
   };
   openOutings(): void;
   openBook(): void;
+  /** Barres toujours visibles du chiot actif ; `fn` est rappelée à chaque changement d'état. */
+  status(): { name: string | null; rows: CardRow[] };
+  onStatus(fn: () => void): void;
   /** Micro maintenu : commencer ou finir d'écouter un ordre à la voix. */
   micHold(start: boolean): void;
   /** D-35 : la corde du salon arrive avec le premier déblocage. */
   ropeUnlocked(): boolean;
+  /** D-71 : jouets qui traînent au salon, et les ranger. */
+  toysOut(): number;
+  putAwayToys(): void;
 }
 
 /** Durée d'appui au-delà de laquelle le bouton Micro écoute au lieu d'ouvrir la liste. */
@@ -108,9 +122,16 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   });
   bagGrid.append(iFood, iWater, iBrush, iBath, ...toyItems);
   const bagClose = button('close', UI.close, 'close');
+  const putAway = button('done', UI.putAway, 'mini');
+  putAway.dataset.testid = 'put-away';
+  putAway.addEventListener('click', () => {
+    h.putAwayToys();
+    show(null);
+    toast(UI.putAwayDone);
+  });
   const ownedTitle = el('h3', 'subtitle', OUT.myItems);
   const ownedGrid = el('div', 'grid owned');
-  bag.append(bagClose, bagGrid, ownedTitle, ownedGrid);
+  bag.append(bagClose, bagGrid, putAway, ownedTitle, ownedGrid);
   const renderOwned = (): void => {
     ownedGrid.innerHTML = '';
     const owned = h.items.owned();
@@ -192,7 +213,23 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   const cursor = el('div', 'tool-cursor');
   cursor.hidden = true;
 
-  hud.append(bar, bag, card, orders, tools, toastEl, ghost, cursor);
+  // Barres d'état, toujours visibles (D-70).
+  const status = el('section', 'status');
+  status.setAttribute('aria-label', UI.card);
+  status.dataset.testid = 'status';
+  let statusKey = '';
+  const renderStatus = (): void => {
+    const st = h.status();
+    const key = (st.name ?? '') + st.rows.map((r) => `${r.kind}${Math.round(r.value)}${r.level}`).join();
+    if (key === statusKey) return;
+    statusKey = key;
+    status.innerHTML = (st.name ? `<strong class="status-name">${st.name}</strong>` : '') + st.rows.map((r) => `<div class="gauge level-${r.level}" data-kind="${r.kind}">${ICONS[ROW_ICONS[r.kind]]}${gauge(r)}</div>`).join('');
+  };
+  renderStatus();
+  h.onStatus(renderStatus);
+  status.addEventListener('click', () => show(card.hidden ? card : null));
+
+  hud.append(status, bar, bag, card, orders, tools, toastEl, ghost, cursor);
 
   // ------------------------------------------------------------ états
   let mode: 'bar' | 'bath' | 'brush' = 'bar';
@@ -205,6 +242,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
       renderOwned();
       const rope = toyItems[2];
       if (rope) rope.hidden = !h.ropeUnlocked();
+      putAway.hidden = h.toysOut() === 0;
     }
     if (sheet === card) renderCard();
     if (sheet === orders) renderOrders(ordersBox, h.training, () => show(null));
@@ -238,7 +276,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     cardSub.textContent = `${c.breed} · ${SEX_LABELS[c.sex]} · ${TEMPERAMENT_LABELS[c.temperament]}`;
     rows.innerHTML = '';
     for (const r of c.rows) {
-      const li = el('li', `row level-${r.level}`, `${ICONS[ROW_ICONS[r.kind]]}<span class="label">${NEED_LABELS[r.kind]}</span><strong>${r.word}</strong>`);
+      const li = el('li', `row level-${r.level}`, `${ICONS[ROW_ICONS[r.kind]]}<span class="label">${NEED_LABELS[r.kind]}</span>${gauge(r)}`);
       li.dataset.kind = r.kind;
       li.dataset.level = r.level;
       rows.append(li);

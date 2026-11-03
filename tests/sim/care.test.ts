@@ -43,6 +43,24 @@ function scrub(s: GameState, tool: 'soap' | 'shower' | 'towel' | 'brush', px: nu
 }
 
 describe('F-SOIN-1 : gamelles', () => {
+  it('croquettes et eau peuvent être servies ensemble, côte à côte', () => {
+    let s = start();
+    s = act(s, { type: 'care/bowl', kind: 'food', at: null });
+    s = act(s, { type: 'care/bowl', kind: 'water', at: null });
+    expect(s.bowls.map((b) => b.kind).sort()).toEqual(['food', 'water']);
+    const [a, b] = s.bowls;
+    expect(Math.hypot((a?.pos.x ?? 0) - (b?.pos.x ?? 0), (a?.pos.z ?? 0) - (b?.pos.z ?? 0))).toBeGreaterThan(C.bowlGap - 1e-9);
+  });
+
+  it('une gamelle posée sur l’autre est décalée à côté', () => {
+    let s = start();
+    s = act(s, { type: 'care/bowl', kind: 'food', at: { x: 0.1, z: 0.7 } });
+    s = act(s, { type: 'care/bowl', kind: 'water', at: { x: 0.12, z: 0.7 } });
+    const [a, b] = s.bowls;
+    expect(s.bowls).toHaveLength(2);
+    expect(Math.hypot((a?.pos.x ?? 0) - (b?.pos.x ?? 0), (a?.pos.z ?? 0) - (b?.pos.z ?? 0))).toBeGreaterThan(C.bowlGap - 1e-9);
+  });
+
   it('le chiot affamé vient manger : faim +40', () => {
     let s = withNeeds(start(), { hunger: 30 });
     s = act(s, { type: 'care/bowl', kind: 'food', at: { x: 0.4, z: 0.7 } });

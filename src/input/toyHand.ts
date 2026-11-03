@@ -16,6 +16,8 @@ export interface ToyHandDeps {
   heldToy(): { id: string; kind: ToyKind } | null;
   /** Gueule du chien qui tire la corde, à l'écran. */
   mouth(): { x: number; y: number } | null;
+  /** D-71 : lâché ici (sur la barre du bas), le jouet est rangé. */
+  putAwayAt?: ((x: number, y: number) => boolean) | undefined;
 }
 
 /** En dessous de cette vitesse, le jouet est posé plutôt que lancé. */
@@ -85,6 +87,10 @@ export class ToyHand {
     const held = this.d.heldToy();
     this.hand = null;
     if (!held) return;
+    if (this.d.putAwayAt?.(x, y)) {
+      this.d.dispatch({ type: 'toy/putAway', toyId: held.id });
+      return;
+    }
     if (held.kind === 'rope') {
       this.d.dispatch({ type: 'toy/release', toyId: held.id });
       return;

@@ -46,7 +46,7 @@ export const KENNEL = {
 } as const;
 
 export const TOY_LABELS = { ball: 'Balle', disc: 'Disque', rope: 'Corde' } as const;
-export const TOY_HINT = 'Prends-la et lance-la d’un geste';
+export const TOY_HINT = 'Lance-le d’un geste ; pose-le sur la barre du bas pour le ranger';
 
 export const TRAINING = {
   ordersTitle: 'Donne un ordre',
@@ -143,6 +143,8 @@ export const WALK = {
 } as const;
 
 export const UI = {
+  putAway: 'Ranger les jouets',
+  putAwayDone: 'Jouets rangés.',
   bag: 'Sac',
   out: 'Sortir',
   mic: 'Micro',

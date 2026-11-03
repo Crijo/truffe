@@ -81,6 +81,9 @@ export type GameAction =
   | { type: 'toy/throw'; toyId: string; vx: number; vz: number }
   | { type: 'toy/tug'; pullPx: number }
   | { type: 'toy/release'; toyId: string }
+  /** D-71 : ranger un jouet (tenu ou au sol), ou tous ceux qui traînent. */
+  | { type: 'toy/putAway'; toyId: string }
+  | { type: 'toy/putAwayAll' }
   | { type: 'train'; dogId?: DogId }
   | { type: 'order'; trickId: TrickId; dogId?: DogId }
   | { type: 'trick/forget'; trickId: TrickId; dogId?: DogId }
@@ -472,9 +475,16 @@ function reduceAction(state: GameState, action: GameAction): GameState {
     case 'gesture':
       return gestureAll(state, action.gesture, action.dogId ?? homeId(state));
     case 'care/bowl': {
-      const pos = action.at
+      const CA = BALANCE.care;
+      let pos = action.at
         ? { x: Math.min(F.maxX, Math.max(F.minX, action.at.x)), z: Math.min(F.maxZ, Math.max(F.minZ + 0.15, action.at.z)) }
-        : { x: 0.35, z: 0.75 };
+        : { ...CA.bowlSpots[action.kind] };
+      // Les deux gamelles tiennent côte à côte : posée sur l'autre, la nouvelle se décale.
+      const other = state.bowls.find((b) => b.kind !== action.kind);
+      if (other && Math.hypot(pos.x - other.pos.x, pos.z - other.pos.z) < CA.bowlGap) {
+        const side = other.pos.x + CA.bowlGap <= F.maxX ? 1 : -1;
+        pos = { x: other.pos.x + side * CA.bowlGap, z: other.pos.z };
+      }
       const bowl: BowlView = { id: `${action.kind}-${state.nextBowlId}`, kind: action.kind, pos };
       const s = { ...state, nextBowlId: state.nextBowlId + 1, bowls: [...state.bowls.filter((b) => b.kind !== action.kind), bowl] };
       return gestureAll(s, { kind: 'bowl' });
@@ -551,6 +561,11 @@ function reduceAction(state: GameState, action: GameAction): GameState {
         },
       };
       return gestureAll(s, { kind: 'toyThrown', toyId: toy.id, toyKind: toy.kind });
+    }
+    case 'toy/putAway':
+    case 'toy/putAwayAll': {
+      const away = (t: Toy): boolean => (action.type === 'toy/putAwayAll' || t.id === action.toyId) && (t.state === 'held' || t.state === 'ground');
+      return state.toys.some(away) ? { ...state, toys: state.toys.filter((t) => !away(t)) } : state;
     }
     case 'toy/tug':
       return gestureAll(state, { kind: 'tug', pullPx: action.pullPx });
