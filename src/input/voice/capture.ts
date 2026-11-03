@@ -4,6 +4,12 @@
  */
 import { BALANCE } from '../../data/balance';
 
+/** Contexte Web Audio, préfixé sur les anciens Safari. */
+function ctor(): (new () => AudioContext) | null {
+  const w = window as unknown as { AudioContext?: new () => AudioContext; webkitAudioContext?: new () => AudioContext };
+  return typeof w.AudioContext === 'function' ? w.AudioContext : (w.webkitAudioContext ?? null);
+}
+
 export class VoiceCapture {
   private ctx: AudioContext | null = null;
   private stream: MediaStream | null = null;
@@ -13,7 +19,7 @@ export class VoiceCapture {
 
   /** Micro disponible : navigateur compatible et page sécurisée (HTTPS ou localhost). */
   static supported(): boolean {
-    return typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && window.isSecureContext;
+    return typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && window.isSecureContext && ctor() !== null;
   }
 
   /** Ouvre le micro (le navigateur demande l'autorisation la première fois). */
@@ -24,7 +30,8 @@ export class VoiceCapture {
     } catch {
       return false;
     }
-    const Ctor = window.AudioContext;
+    const Ctor = ctor();
+    if (!Ctor) return false;
     this.ctx = new Ctor();
     const src = this.ctx.createMediaStreamSource(this.stream);
     // ScriptProcessor suffit ici : il ne sert qu'à copier quelques secondes d'échantillons.

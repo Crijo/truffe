@@ -1,3 +1,4 @@
+import { capturePointer } from './capture';
 import type { GestureRecognizer } from './gestures';
 
 /** Gestionnaire prioritaire (jouet en main) : prend l'appui s'il le concerne. */
@@ -21,7 +22,7 @@ export function bindPointer(el: HTMLElement, recognizer: () => GestureRecognizer
   el.addEventListener('pointerdown', (e) => {
     if (active !== null) return;
     active = e.pointerId;
-    el.setPointerCapture(e.pointerId);
+    capturePointer(el, e.pointerId);
     const p = pos(e);
     onInput(e.timeStamp);
     toAux = intercept?.down(p.x, p.y, e.timeStamp) ?? false;

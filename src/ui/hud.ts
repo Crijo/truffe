@@ -2,6 +2,7 @@
  * Interface du salon (DOM) : barre basse, Sac, Fiche, outils de soin.
  * Ne modifie jamais l'état : elle appelle les fonctions fournies par main.ts.
  */
+import { capturePointer } from '../input/capture';
 import { NEED_LABELS, SEX_LABELS, TEMPERAMENT_LABELS, TOY_HINT, TOY_LABELS, UI, type NeedKind, type NeedLevel } from '../data/strings';
 import type { BowlKind, CareTool } from '../sim/behavior';
 import type { Sex, TemperamentId } from '../sim/state';
@@ -257,7 +258,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   let micHeld = false;
   bMic.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    bMic.setPointerCapture(e.pointerId);
+    capturePointer(bMic, e.pointerId);
     micHeld = false;
     if (!h.training.voice.supported()) return;
     micTimer = window.setTimeout(() => {
@@ -309,7 +310,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   ] as const) {
     item.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      item.setPointerCapture(e.pointerId);
+      capturePointer(item, e.pointerId);
       const x0 = e.clientX;
       const y0 = e.clientY;
       let dragging = false;

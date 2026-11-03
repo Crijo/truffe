@@ -3,6 +3,7 @@
  * Le contexte audio ne démarre qu'après un premier geste du joueur.
  */
 import type { PuppyEventType } from '../sim/behavior';
+import { audioContextCtor } from './context';
 
 type Shape = OscillatorType;
 
@@ -16,7 +17,8 @@ export class Sfx {
 
   unlock(): void {
     if (!this.ctx) {
-      const Ctor = window.AudioContext;
+      const Ctor = audioContextCtor();
+      if (!Ctor) return;
       this.ctx = new Ctor();
       this.out = this.ctx.createGain();
       this.out.gain.value = 0.55 * this.volume;

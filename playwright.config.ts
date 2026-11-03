@@ -11,11 +11,16 @@ export default defineConfig({
   projects: [
     {
       name: 'mobile',
+      testIgnore: 'compat.spec.ts',
       use: {
         ...devices['Pixel 7'],
         // Rendu GPU : sans lui, Chromium sans écran dessine en logiciel à ~12 images/s.
         launchOptions: { args: ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11'] },
       },
     },
+    // Jalon 7 : compatibilité. Un parcours court sur le moteur de Safari et sur Firefox.
+    { name: 'safari-iphone', testMatch: /compat/ , use: { ...devices['iPhone 13'] } },
+    { name: 'firefox', testMatch: 'compat.spec.ts', use: { ...devices['Desktop Firefox'], viewport: { width: 412, height: 860 } } },
+    { name: 'chrome', testMatch: 'compat.spec.ts', use: { ...devices['Pixel 7'] } },
   ],
 });

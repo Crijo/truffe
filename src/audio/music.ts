@@ -3,6 +3,8 @@
  * (SPEC, Audio). Se règle et se coupe séparément des effets sonores.
  */
 
+import { audioContextCtor } from './context';
+
 export type MusicScene = 'home' | 'outdoor' | 'contest';
 
 /** Gamme pentatonique de do, sur deux octaves (Hz). */
@@ -40,7 +42,9 @@ export class Music {
   /** Démarre après un premier geste du joueur (règle des navigateurs). */
   unlock(): void {
     if (!this.ctx) {
-      this.ctx = new window.AudioContext();
+      const Ctor = audioContextCtor();
+      if (!Ctor) return;
+      this.ctx = new Ctor();
       this.out = this.ctx.createGain();
       this.out.gain.value = this.level();
       this.out.connect(this.ctx.destination);

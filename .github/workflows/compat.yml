@@ -1,0 +1,30 @@
+# Jalon 7 : le parcours essentiel sur les moteurs de Chrome, Safari (WebKit) et Firefox.
+# Ne bloque pas la publication : il signale une incompatibilité.
+name: Compatibilité
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit firefox
+      - run: npx playwright test --project=chrome --project=safari-iphone --project=firefox
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: captures-compatibilite
+          path: test-results/
+          retention-days: 7

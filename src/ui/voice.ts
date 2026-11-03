@@ -2,6 +2,7 @@
  * Voix dans le jeu : permission expliquée d'abord, ordres en maintenant le bouton Micro,
  * enregistrement des ordres et du nom depuis la fiche.
  */
+import { capturePointer } from '../input/capture';
 import type { GameStore } from '../core/store';
 import { BALANCE } from '../data/balance';
 import { VOICE } from '../data/strings';
@@ -142,7 +143,7 @@ export class VoiceController {
     status.textContent = progress();
     rec.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      rec.setPointerCapture(e.pointerId);
+      capturePointer(rec, e.pointerId);
       rec.setAttribute('aria-pressed', 'true');
       this.capture.start(() => rec.dispatchEvent(new PointerEvent('pointerup')));
     });

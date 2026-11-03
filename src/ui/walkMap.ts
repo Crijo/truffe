@@ -1,4 +1,5 @@
 /** Plan de ville (F-PRO-1, F-PRO-2, F-PRO-4) : tracer le trajet au doigt. */
+import { capturePointer } from '../input/capture';
 import { CITY, CITY_BY_ID, CITY_COLS, CITY_ROWS, HOME_NODE, PLACE_LABELS, type PlaceId } from '../data/city';
 import { WALK } from '../data/strings';
 import type { QuestionPoint, Route } from '../sim/walk';
@@ -110,7 +111,7 @@ export function openMap(h: MapHandlers, onClose: () => void): void {
   let drawing = false;
   svg.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    svg.setPointerCapture(e.pointerId);
+    capturePointer(svg, e.pointerId);
     drawing = true;
     const n = nearest(toLocal(e));
     if (n === HOME_NODE && route.length > 1) route = [HOME_NODE];

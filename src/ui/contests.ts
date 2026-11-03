@@ -2,6 +2,7 @@
  * Concours (F-CON) : choix de l'épreuve, affichage pendant l'épreuve, résultats.
  * L'interface appelle les fonctions fournies ; elle ne touche jamais à l'état.
  */
+import { capturePointer } from '../input/capture';
 import { BALANCE } from '../data/balance';
 import { CLASS_NAMES, CONTEST, CONTEST_NAMES, UI } from '../data/strings';
 import type { TrickId } from '../data/tricks';
@@ -112,7 +113,7 @@ export function mountContestHud(session: ContestSession, h: ContestHudHandlers):
       const mic = btn(`${ICONS.mic}<span>${UI.mic}</span>`, 'btn order mic', 'contest-mic');
       mic.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        mic.setPointerCapture(e.pointerId);
+        capturePointer(mic, e.pointerId);
         mic.setAttribute('aria-pressed', 'true');
         h.micHold(true);
       });
