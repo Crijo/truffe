@@ -1,0 +1,42 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #f6e7d0;
+  color: #3d2b1f;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  touch-action: none;
+}
+
+#app canvas {
+  display: block;
+}
+
+.debug {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgb(61 43 31 / 0.75);
+  color: #fff;
+  font-size: 12px;
+  pointer-events: none;
+}
