@@ -10,7 +10,7 @@ import type { ToyKind } from '../sim/toys';
 import { ICONS, type IconName } from './icons';
 import { renderOrders, renderTricks, type TrainingHandlers } from './training';
 import { ITEM_BY_ID } from '../data/items';
-import { OUT } from '../data/strings';
+import { OUT, SETTINGS } from '../data/strings';
 import { itemIcon } from './itemIcon';
 
 export interface CardRow {
@@ -45,6 +45,7 @@ export interface HudHandlers {
     armToy(id: string): void;
   };
   openOutings(): void;
+  openSettings(): void;
   openBook(): void;
   /** Barres toujours visibles du chiot actif ; `fn` est rappelée à chaque changement d'état. */
   status(): { name: string | null; rows: CardRow[] };
@@ -87,14 +88,19 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   const bBag = button('bag', UI.bag);
   const bOut = button('out', UI.out);
   const bMic = button('mic', UI.mic);
-  const bCard = button('card', UI.card);
+  const bSettings = button('settings', SETTINGS.title);
+  bSettings.dataset.testid = 'settings';
+  bSettings.addEventListener('click', () => {
+    show(null);
+    h.openSettings();
+  });
   bMic.dataset.testid = 'mic';
   bOut.dataset.testid = 'out';
   bOut.addEventListener('click', () => {
     show(null);
     h.openOutings();
   });
-  bar.append(bBag, bOut, bMic, bCard);
+  bar.append(bBag, bOut, bMic, bSettings);
 
   // Sac.
   const bag = el('section', 'sheet');
@@ -214,7 +220,9 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   cursor.hidden = true;
 
   // Barres d'état, toujours visibles (D-70).
-  const status = el('section', 'status');
+  const status = el('div', 'status');
+  status.setAttribute('role', 'button');
+  status.tabIndex = 0;
   status.setAttribute('aria-label', UI.card);
   status.dataset.testid = 'status';
   let statusKey = '';
@@ -228,6 +236,12 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   renderStatus();
   h.onStatus(renderStatus);
   status.addEventListener('click', () => show(card.hidden ? card : null));
+  status.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      show(card.hidden ? card : null);
+    }
+  });
 
   hud.append(status, bar, bag, card, orders, tools, toastEl, ghost, cursor);
 
@@ -289,7 +303,6 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   });
 
   bBag.addEventListener('click', () => show(bag.hidden ? bag : null));
-  bCard.addEventListener('click', () => show(card.hidden ? card : null));
   ordersClose.addEventListener('click', () => show(null));
   // Micro : appui bref → liste d'ordres ; appui maintenu → écoute à la voix.
   let micTimer = 0;

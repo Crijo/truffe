@@ -32,8 +32,7 @@ test('adopter, caresser, nourrir, ouvrir les concours et les réglages', async (
   await page.getByTestId('out-contests').click();
   await expect(page.getByTestId('refusal-obedience')).toBeVisible();
   await page.getByTestId('panel-close').click();
-  await page.getByTestId('out').click();
-  await page.getByTestId('out-settings').click();
+  await page.getByTestId('settings').click();
   await page.getByTestId('reduce-motion').check();
   expect(await page.evaluate(() => window.__truffe?.store.getState().save.settings.reduceMotion)).toBe(true);
   await page.getByTestId('panel-close').click();

@@ -299,41 +299,42 @@ async function boot(): Promise<void> {
       openContests: () => showContests(),
       openKennel: () => showKennel(),
       openFamily: () => showFamily(),
-      openSettings: () =>
-        openSettings(
-          {
-            get: () => store.getState().save.settings,
-            set(patch) {
-              store.dispatch({ type: 'settings/set', patch });
-              applySettings();
-              save();
-            },
-            clearVoices: () => voice.clearAll(),
-            exportSave() {
-              const t = Date.now();
-              const blob = new Blob([exportSave(store.getState().save, t)], { type: 'application/json' });
-              const a = document.createElement('a');
-              a.href = URL.createObjectURL(blob);
-              a.download = exportFileName(t);
-              a.click();
-              window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-            },
-            async importSave(text) {
-              let game;
-              try {
-                game = importSave(text);
-              } catch {
-                return SETTINGS.importBad;
-              }
-              autosave.stop();
-              await saves.save(game);
-              location.reload();
-              return null;
-            },
-          },
-          () => undefined,
-        ),
     };
+
+    const showSettings = (): void =>
+      openSettings(
+        {
+          get: () => store.getState().save.settings,
+          set(patch) {
+            store.dispatch({ type: 'settings/set', patch });
+            applySettings();
+            save();
+          },
+          clearVoices: () => voice.clearAll(),
+          exportSave() {
+            const t = Date.now();
+            const blob = new Blob([exportSave(store.getState().save, t)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = exportFileName(t);
+            a.click();
+            window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+          },
+          async importSave(text) {
+            let game;
+            try {
+              game = importSave(text);
+            } catch {
+              return SETTINGS.importBad;
+            }
+            autosave.stop();
+            await saves.save(game);
+            location.reload();
+            return null;
+          },
+        },
+        () => undefined,
+      );
 
     const showMap = (): void => {
       const last = dogOf()?.walks.lastRewardedAt ?? null;
@@ -609,6 +610,7 @@ async function boot(): Promise<void> {
         },
       },
       openOutings: () => openOutings(outings, () => undefined),
+      openSettings: () => showSettings(),
       openBook: () => openBook(outings, () => undefined),
       micHold(start) {
         sfx.unlock();

@@ -4,8 +4,7 @@ import { fresh } from './helpers';
 test.describe('Jalon 7 : réglages et sauvegarde', () => {
   test('réglages, export puis import de la sauvegarde', async ({ page }) => {
     await fresh(page);
-    await page.getByTestId('out').click();
-    await page.getByTestId('out-settings').click();
+    await page.getByTestId('settings').click();
     await page.getByTestId('reduce-motion').check();
     await page.getByTestId('music-volume').fill('0');
     await expect(page.locator('body')).toHaveClass(/reduce-motion/);
@@ -40,8 +39,7 @@ test.describe('Jalon 7 : réglages et sauvegarde', () => {
 
   test('un fichier qui n’est pas une sauvegarde est refusé', async ({ page }) => {
     await fresh(page);
-    await page.getByTestId('out').click();
-    await page.getByTestId('out-settings').click();
+    await page.getByTestId('settings').click();
     page.once('dialog', (d) => void d.accept());
     await page.getByTestId('import-file').setInputFiles({ name: 'x.json', mimeType: 'application/json', buffer: Buffer.from('{"bonjour":1}') });
     await expect(page.getByRole('status').filter({ hasText: 'pas une sauvegarde' })).toBeVisible();
@@ -60,8 +58,7 @@ test('D-72 : la luminosité éclaircit le salon le soir', async ({ page }) => {
     t.store.replaceForDebug({ ...s, save: { ...s.save, lastSeenAt: d.getTime() } });
   });
   const shot = async (v: string, name: string): Promise<number> => {
-    await page.getByTestId('out').click();
-    await page.getByTestId('out-settings').click();
+    await page.getByTestId('settings').click();
     await page.getByTestId('brightness').fill(v);
     await page.getByTestId('panel-close').click();
     await page.waitForTimeout(400);

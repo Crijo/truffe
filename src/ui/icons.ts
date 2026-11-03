@@ -7,6 +7,7 @@ export const ICONS = {
   bag: svg('<path d="M10 18h28l-3 22H13z"/><path d="M17 18v-4a7 7 0 0 1 14 0v4"/>'),
   out: svg('<path d="M14 42V8h20v34"/><path d="M8 42h32"/><circle cx="29" cy="26" r="1.8" fill="currentColor"/>'),
   mic: svg('<rect x="18" y="6" width="12" height="22" rx="6"/><path d="M11 22a13 13 0 0 0 26 0M24 35v7M17 42h14"/>'),
+  settings: svg('<circle cx="24" cy="24" r="6"/><path d="M24 6v6M24 36v6M6 24h6M36 24h6M11.3 11.3l4.2 4.2M32.5 32.5l4.2 4.2M11.3 36.7l4.2-4.2M32.5 15.5l4.2-4.2"/><circle cx="24" cy="24" r="12"/>'),
   card: svg('<rect x="10" y="7" width="28" height="34" rx="4"/><path d="M17 18h14M17 25h14M17 32h8"/><circle cx="35" cy="37" r="1" fill="currentColor"/>'),
   food: svg('<path d="M6 26h36l-5 12H11z"/><circle cx="17" cy="22" r="3"/><circle cx="24" cy="20" r="3"/><circle cx="31" cy="22" r="3"/>'),
   water: svg('<path d="M6 28h36l-5 11H11z"/><path d="M24 7c4 6 7 10 7 13a7 7 0 0 1-14 0c0-3 3-7 7-13z"/>'),

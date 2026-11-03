@@ -6,7 +6,7 @@ const DAY = 24 * 3_600_000;
 test.describe('Jalon 2 : besoins et temps', () => {
   test('la barre basse et ses cibles tactiles (≥ 44 px, texte et icône)', async ({ page }) => {
     await fresh(page);
-    for (const name of ['Sac', 'Sortir', 'Micro', 'Fiche']) {
+    for (const name of ['Sac', 'Sortir', 'Micro', 'Réglages']) {
       const b = page.getByRole('button', { name });
       await expect(b).toBeVisible();
       const box = await b.boundingBox();
@@ -14,10 +14,14 @@ test.describe('Jalon 2 : besoins et temps', () => {
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
       await expect(b.locator('svg')).toHaveCount(1);
     }
+    // D-70 : la fiche s'ouvre par les barres d'état, en haut à droite.
+    const status = page.getByRole('button', { name: 'Fiche' });
+    await expect(status).toBeVisible();
+    expect((await status.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
     await page.screenshot({ path: 'test-results/soins-1-salon.png' });
   });
 
-  test('F-SOIN-4 : la fiche dit l’état en mots, jamais en chiffres', async ({ page }) => {
+  test('F-SOIN-4 : la fiche montre l’état en barres (et en mots pour les lecteurs d’écran), jamais en chiffres', async ({ page }) => {
     await fresh(page);
     await page.getByRole('button', { name: 'Fiche' }).click();
     const card = page.getByTestId('card');
