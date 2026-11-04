@@ -48,6 +48,13 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
     ...raw,
     dogs: (Array.isArray(raw.dogs) ? raw.dogs : []).map((d: unknown) => (isObj(d) ? { lastReliefAt: isNum(raw.lastSeenAt) ? raw.lastSeenAt : 0, ...d } : d)),
   }),
+  // v6 → v7 : niveaux (D-78). L'XP de départ reprend les points de maître, partagés entre les chiots.
+  6: (raw) => {
+    const pts = isNum(raw.masterPoints) ? raw.masterPoints : 0;
+    const dogs: unknown[] = Array.isArray(raw.dogs) ? raw.dogs : [];
+    const each = dogs.length > 0 ? Math.round(pts / dogs.length) : 0;
+    return { xp: pts, ...raw, dogs: dogs.map((d) => (isObj(d) ? { xp: each, ...d } : d)) };
+  },
 };
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 

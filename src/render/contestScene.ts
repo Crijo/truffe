@@ -10,7 +10,9 @@ import type { AgilityRun } from '../sim/contest/agility';
 import type { DiscRun } from '../sim/contest/disc';
 import type { ContestSession } from '../sim/game';
 import type { CoatParams, ItemId } from '../sim/state';
+import { SEASONS, type Season } from '../data/seasons';
 import { PuppyView } from './puppy/PuppyView';
+import { SeasonFx } from './seasonFx';
 import { Room } from './room';
 
 const F = BALANCE.puppy.floor;
@@ -25,10 +27,6 @@ class FieldRoom extends Room {
 }
 
 const PALETTE = {
-  sky: 0xcfe6f2,
-  hills: 0xa9cf9a,
-  grass: 0x8cc27a,
-  grassLine: 0x7db36b,
   chalk: 0xf7f4ea,
   /** Texte sur l'herbe : contraste AA. */
   label: 0x1f3d1a,
@@ -51,6 +49,7 @@ export class ContestScene {
   private readonly bg = new Graphics();
   private readonly marks = new Graphics();
   private readonly fx = new Graphics();
+  private readonly falling = new SeasonFx(30);
   private readonly labels = new Container();
   private readonly view: PuppyView;
   private mind: PuppyMind;
@@ -65,6 +64,8 @@ export class ContestScene {
     coat: CoatParams,
     private readonly equipped: () => ItemId[],
     session: ContestSession,
+    /** D-77 : saison du terrain. */
+    private readonly season: Season = 'summer',
   ) {
     this.kind = session.contestId;
     const start = this.dogFloor(session.run);
@@ -76,7 +77,8 @@ export class ContestScene {
     this.marks.zIndex = -5;
     this.labels.zIndex = -4;
     this.fx.zIndex = 1000;
-    this.container.addChild(this.bg, this.marks, this.labels, this.view.container, this.fx);
+    this.falling.g.zIndex = -3;
+    this.container.addChild(this.bg, this.marks, this.labels, this.falling.g, this.view.container, this.fx);
   }
 
   layout(w: number, h: number): void {
@@ -121,11 +123,12 @@ export class ContestScene {
     const y = this.room.horizon;
     const g = this.bg;
     g.clear();
-    g.rect(0, 0, w, y).fill(PALETTE.sky);
-    g.ellipse(w * 0.25, y, w * 0.4, h * 0.06).fill(PALETTE.hills);
-    g.ellipse(w * 0.8, y, w * 0.45, h * 0.05).fill(PALETTE.hills);
-    g.rect(0, y, w, h - y).fill(PALETTE.grass);
-    for (let i = 1; i < 7; i++) g.rect(0, y + (h - y) * (i / 7) ** 1.3, w, 3).fill(PALETTE.grassLine);
+    const look = SEASONS[this.season];
+    g.rect(0, 0, w, y).fill(look.sky);
+    g.ellipse(w * 0.25, y, w * 0.4, h * 0.06).fill(look.hills);
+    g.ellipse(w * 0.8, y, w * 0.45, h * 0.05).fill(look.hills);
+    g.rect(0, y, w, h - y).fill(look.grass);
+    for (let i = 1; i < 7; i++) g.rect(0, y + (h - y) * (i / 7) ** 1.3, w, 3).fill(look.grassLine);
     this.labels.removeChildren().forEach((c) => c.destroy());
     const m = this.marks;
     m.clear();
@@ -281,6 +284,7 @@ export class ContestScene {
       }
     }
     this.mind = m;
+    this.falling.update(dtMs, this.season, { x: 0, y: 0, w: this.w, h: this.h }, PuppyView.reduceMotion);
     this.view.update(dtMs, m, null, 100, this.equipped());
     return fresh;
   }

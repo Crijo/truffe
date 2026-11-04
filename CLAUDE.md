@@ -4,7 +4,7 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-**Jalon 8 : retours de bêta** — lot 1 : icône du pelage, saleté visible, main et brosse sous le doigt, besoins dans la maison, statistiques d'obéissance. Lots 2 et 3 (saisons, niveaux, tracé en concours, mini-jeu, podomètre) après réponse du joueur.
+**Jalon 8 : retours de bêta** — lot 1 (icône du pelage, saleté visible, main sous le doigt, besoins dans la maison, obéissance affichée), lot 2 (saisons du calendrier français, niveaux du joueur et des chiots) et lot 3 (tracé en concours, atelier des tours avancés, pas réels en bonus de promenade). En attente de l'accord du joueur.
 
 Jalons 0 à 7 : validés. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
 
@@ -27,7 +27,7 @@ Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run ch
 
 Dépôt public : https://github.com/Crijo/truffe. Chaque envoi sur `main` lance `npm run check`, construit et publie sur https://crijo.github.io/truffe/ (`.github/workflows/pages.yml`). Les enregistrements vocaux de test (`tests/fixtures/voice/`) ne sont jamais commités.
 
-Paramètres de débogage de l'URL : `?debug` (panneau d'état, `window.__truffe`), `&adopt=beagle` (adoption immédiate, pour les tests), `&gallery` et `&gallery&silhouette` (les 6 races côte à côte).
+Paramètres de débogage de l'URL : `?debug` (panneau d'état, `window.__truffe`), `&adopt=beagle` (adoption immédiate, pour les tests), `&gallery` et `&gallery&silhouette` (les 6 races côte à côte), `&season=winter` (saison imposée : spring, summer, autumn, winter).
 
 ## Architecture
 

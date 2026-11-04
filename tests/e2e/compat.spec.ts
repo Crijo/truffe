@@ -37,6 +37,16 @@ test('adopter, caresser, nourrir, ouvrir les concours et les réglages', async (
   expect(await page.evaluate(() => window.__truffe?.store.getState().save.settings.reduceMotion)).toBe(true);
   await page.getByTestId('panel-close').click();
 
+  // Jalon 8 : Fiche avec les niveaux, atelier des tours.
+  await page.evaluate(() => window.__truffe?.store.dispatch({ type: 'debug/xp', walks: 20 }));
+  await page.getByTestId('status').click();
+  await expect(page.getByTestId('levels')).toContainText('Niveau');
+  await page.getByTestId('open-workshop').click();
+  await page.getByTestId('workshop-play-flip').click();
+  await expect(page.getByTestId('workshop-status')).toContainText('Manche 1');
+  await page.getByTestId('workshop-quit').click();
+  await page.getByTestId('panel-close').click();
+
   const fps = await page.evaluate(() => window.__truffe?.fps() ?? 0);
   await page.screenshot({ path: `test-results/compat-${info.project.name}.png` });
   console.log(`${info.project.name} : ${Math.round(fps)} i/s`);

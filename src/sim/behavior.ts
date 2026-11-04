@@ -155,7 +155,9 @@ export type Gesture =
   | { kind: 'call' }
   | { kind: 'forceSpontaneous'; trick: TrickId }
   /** D-74 : il fait ses besoins (renifle d'abord le sol). */
-  | { kind: 'relieved' };
+  | { kind: 'relieved' }
+  /** D-80 : l'atelier montre un mouvement (sans dressage). */
+  | { kind: 'perform'; trick: TrickId };
 
 export interface PuppyContext {
   traits: { docility: number; energy: number; boldness: number };
@@ -370,7 +372,7 @@ export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
 // ---------------------------------------------------------------- outils
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
-const noEffects = (): Effects => ({
+export const noEffects = (): Effects => ({
   affectionDelta: 0,
   caresses: 0,
   hungerDelta: 0,
@@ -1379,6 +1381,9 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
       // « Tourne » : dessiner un cercle autour de lui.
       startPerform(m, 'spin');
       offerBulb(m, ctx, 'spin');
+      break;
+    case 'perform':
+      startPerform(m, g.trick);
       break;
     case 'relieved':
       m.look = { kind: 'ground' };

@@ -15,7 +15,8 @@ describe('Équilibrage : 30 jours de joueurs types', () => {
         const ds = rs.map((r) => r.tierDay[i]).filter((d): d is number => d !== null);
         return `${t.at}: ${ds.length === rs.length ? `j${Math.min(...ds)}–${Math.max(...ds)}` : ds.length ? `j${Math.min(...ds)}+ (${ds.length}/${rs.length})` : '—'}`;
       });
-      return `${p.name.padEnd(22)} ${days.join(' | ')}  (30 j : ${Math.round(rs.reduce((a, r) => a + (r.points[29] ?? 0), 0) / rs.length)} pts)`;
+      const lv = (d: number): number => Math.round(rs.reduce((a, r) => a + (r.levels[d - 1] ?? 1), 0) / rs.length);
+      return `${p.name.padEnd(22)} ${days.join(' | ')}  (30 j : ${Math.round(rs.reduce((a, r) => a + (r.points[29] ?? 0), 0) / rs.length)} pts ; niveau j1 ${lv(1)}, j7 ${lv(7)}, j30 ${lv(30)})`;
     });
     // `npm run balance` affiche ce tableau ; il est aussi écrit dans test-results/.
     mkdirSync('test-results', { recursive: true });
@@ -31,6 +32,16 @@ describe('Équilibrage : 30 jours de joueurs types', () => {
       expect(d).toBeGreaterThanOrEqual(7);
       expect(d).toBeLessThanOrEqual(10);
     }
+  });
+
+  it('D-78 : niveaux — on monte vite au début, puis plus lentement ; jouer plus va plus vite', () => {
+    const lv = (min: number, d: number) => runs.find((r) => r.p.minutes === min)?.runs.map((r) => r.levels[d - 1] ?? 1) ?? [];
+    expect(Math.min(...lv(15, 1))).toBeGreaterThanOrEqual(2);
+    expect(Math.min(...lv(15, 7))).toBeGreaterThanOrEqual(5);
+    expect(Math.max(...lv(15, 30))).toBeLessThanOrEqual(20);
+    expect(Math.max(...lv(60, 30))).toBeLessThan(BALANCE.levels.maxLevel);
+    expect(Math.min(...lv(60, 30))).toBeGreaterThan(Math.max(...lv(15, 30)));
+    expect(Math.min(...lv(15, 30))).toBeGreaterThan(Math.max(...lv(5, 30)));
   });
 
   it('jouer plus va plus vite, sans tout débloquer en quelques jours', () => {

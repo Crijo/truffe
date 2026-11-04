@@ -10,6 +10,7 @@ import type { ContestResult, EntryRefusal } from '../sim/contests';
 import type { ContestSession } from '../sim/game';
 import type { ContestClass, ContestId } from '../sim/state';
 import { ICONS } from './icons';
+import { createTracePad } from './tracePad';
 import { panel } from './outings';
 
 export interface ContestMenuHandlers {
@@ -74,7 +75,8 @@ export function openContests(h: ContestMenuHandlers, onClose: () => void): void 
 export interface ContestHudHandlers {
   quit(): void;
   close(): void;
-  order(trickId: TrickId): void;
+  /** D-79 : `precision` si l'ordre a été donné en retraçant son dessin. */
+  order(trickId: TrickId, precision?: number): void;
   /** Tours appris, pour les boutons d'obéissance. */
   tricks(): { id: TrickId; label: string }[];
   micSupported(): boolean;
@@ -102,6 +104,13 @@ export function mountContestHud(session: ContestSession, h: ContestHudHandlers):
   const flash = el('div', 'contest-flash');
   flash.setAttribute('role', 'status');
   root.append(top, hint, flash);
+  let flashTimer = 0;
+  const say = (text: string): void => {
+    flash.textContent = text;
+    flash.classList.add('on');
+    window.clearTimeout(flashTimer);
+    flashTimer = window.setTimeout(() => flash.classList.remove('on'), 900);
+  };
 
   // Obéissance : l'ordre demandé, le temps qui reste, les boutons.
   const orderBox = el('section', 'contest-orders');
@@ -109,6 +118,10 @@ export function mountContestHud(session: ContestSession, h: ContestHudHandlers):
   wanted.dataset.testid = 'contest-wanted';
   const bar = el('div', 'progress', '<span></span>');
   const buttons = el('div', 'orders-grid');
+  const pad = createTracePad(CONTEST.traceLabel, (trick, score) => {
+    if (score >= BALANCE.trace.minScore) h.order(trick, score);
+    else say(CONTEST.traceAgain);
+  });
   if (session.contestId === 'obedience') {
     for (const t of h.tricks()) {
       const b = btn(`<span>${t.label}</span>`, 'btn order', `contest-order-${t.id}`);
@@ -131,7 +144,7 @@ export function mountContestHud(session: ContestSession, h: ContestHudHandlers):
       mic.addEventListener('pointercancel', up);
       buttons.append(mic);
     }
-    orderBox.append(wanted, bar, buttons);
+    orderBox.append(wanted, bar, pad.root, buttons);
     root.append(orderBox);
   }
 
@@ -141,14 +154,7 @@ export function mountContestHud(session: ContestSession, h: ContestHudHandlers):
   root.append(result);
   document.body.append(root);
 
-  let flashTimer = 0;
   let seen = 0;
-  const say = (text: string): void => {
-    flash.textContent = text;
-    flash.classList.add('on');
-    window.clearTimeout(flashTimer);
-    flashTimer = window.setTimeout(() => flash.classList.remove('on'), 900);
-  };
   let shownResult = false;
 
   const showResult = (s: ContestSession, r: ContestResult): void => {
@@ -202,6 +208,7 @@ export function mountContestHud(session: ContestSession, h: ContestHudHandlers):
         const trick = run.orders[run.index];
         const label = h.tricks().find((t) => t.id === trick)?.label ?? '';
         wanted.textContent = run.waiting ? '' : `« ${label} »`;
+        pad.show(run.waiting || !trick ? null : trick);
         const k = run.waiting ? 0 : Math.max(0, 1 - run.elapsedMs / BALANCE.contests.obedience.orderMs);
         const fill = bar.firstElementChild;
         if (fill instanceof HTMLElement) fill.style.width = `${Math.round(k * 100)}%`;

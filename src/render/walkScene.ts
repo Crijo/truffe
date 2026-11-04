@@ -10,7 +10,9 @@ import { ITEM_BY_ID } from '../data/items';
 import { createMind, type PuppyEventType, type PuppyMind, type Vec2 } from '../sim/behavior';
 import type { CoatParams } from '../sim/state';
 import type { WalkState } from '../sim/walk';
+import { SEASONS, type Season } from '../data/seasons';
 import { PuppyView } from './puppy/PuppyView';
+import { SeasonFx } from './seasonFx';
 import { Room } from './room';
 
 const W = BALANCE.walk;
@@ -43,6 +45,9 @@ export class WalkScene {
   private readonly things = new Graphics();
   private readonly leash = new Graphics();
   private readonly dogLayer = new Container();
+  /** D-77 : saison du décor, et ce qui tombe du ciel. */
+  season: Season = 'summer';
+  private readonly fx = new SeasonFx(30);
   private readonly signs = new Map<number, Text>();
   private readonly dog: PuppyView;
   private mind: PuppyMind;
@@ -66,7 +71,8 @@ export class WalkScene {
     this.dogLayer.sortableChildren = true;
     this.dogLayer.addChild(this.dog.container);
     this.leash.zIndex = 20;
-    this.container.addChild(this.back, this.ground, this.things, this.dogLayer, this.leash);
+    this.fx.g.zIndex = 2;
+    this.container.addChild(this.back, this.ground, this.fx.g, this.things, this.dogLayer, this.leash);
   }
 
   layout(w: number, h: number): void {
@@ -107,6 +113,7 @@ export class WalkScene {
       attentive: false,
     };
     this.drawBackground(w.progress);
+    this.fx.update(dtMs, this.season, { x: 0, y: 0, w: r.w, h: r.laneY(0) + 30 }, PuppyView.reduceMotion, w.progress * PX_PER_M * 0.8);
     this.drawThings(w);
     this.dog.update(dtMs, this.mind, null, 100, this.equipped());
 
@@ -150,8 +157,9 @@ export class WalkScene {
     const g = this.back;
     const w = r.w;
     const h = r.h;
+    const look = SEASONS[this.season];
     g.clear();
-    g.rect(0, 0, w, h).fill(0xcfe6f2);
+    g.rect(0, 0, w, h).fill(look.sky);
     // Maisons au loin (parallaxe lente).
     const far = progress * PX_PER_M * 0.45;
     const colors = [0xf2c9a0, 0xe8b37a, 0xd9a0a0, 0xc9d9b0, 0xf0dca0];
@@ -162,6 +170,7 @@ export class WalkScene {
       const top = h * (0.3 + ((k * 37) % 5) * 0.02);
       g.rect(x, top, 112, h * 0.62 - top).fill(c).stroke({ width: 2, color: 0x4a2f1f, alpha: 0.3 });
       g.moveTo(x - 6, top).lineTo(x + 56, top - 34).lineTo(x + 118, top).fill(0xb5562a);
+      if (look.snow) g.moveTo(x + 14, top - 8).lineTo(x + 56, top - 34).lineTo(x + 98, top - 8).quadraticCurveTo(x + 56, top - 16, x + 14, top - 8).fill(0xffffff);
       g.rect(x + 18, top + 22, 22, 22).fill(0xfdf6ea);
       g.rect(x + 70, top + 22, 22, 22).fill(0xfdf6ea);
     }
@@ -169,8 +178,19 @@ export class WalkScene {
     const mid = progress * PX_PER_M * 0.8;
     for (let i = -1; i < Math.ceil(w / 200) + 2; i++) {
       const x = i * 200 - (mid % 200) + 60;
-      g.rect(x - 4, h * 0.5, 8, h * 0.16).fill(0x8a5a2e);
-      g.circle(x, h * 0.48, 30).fill(0x7cc47f).stroke({ width: 2, color: 0x3e7c46, alpha: 0.6 });
+      g.rect(x - 4, h * 0.5, 8, h * 0.16).fill(look.trunk);
+      const k = Math.floor((mid + i * 200) / 200);
+      if (look.foliage.length === 0) {
+        // Hiver : branches nues, un peu de neige.
+        const y0 = h * 0.5;
+        g.moveTo(x, y0).lineTo(x - 18, y0 - 26).moveTo(x, y0 - 6).lineTo(x + 20, y0 - 30).moveTo(x, y0).lineTo(x, y0 - 38).moveTo(x - 9, y0 - 13).lineTo(x - 22, y0 - 14).stroke({ width: 3, color: look.trunk, cap: 'round' });
+        g.ellipse(x + 20, y0 - 31, 6, 2.5).fill(0xffffff);
+        g.ellipse(x - 18, y0 - 27, 6, 2.5).fill(0xffffff);
+      } else {
+        const c = look.foliage[((k % look.foliage.length) + look.foliage.length) % look.foliage.length] ?? 0x7cc47f;
+        g.circle(x, h * 0.48, 30).fill(c).stroke({ width: 2, color: 0x4a2f1f, alpha: 0.25 });
+        if (look.dots !== null) for (let j = 0; j < 7; j++) g.circle(x + Math.cos(j * 2.4) * 18, h * 0.48 + Math.sin(j * 2.4) * 16, 3).fill(look.dots);
+      }
     }
     // Trottoir : deux voies, et la bordure de la rue.
     const gr = this.ground;
@@ -182,7 +202,17 @@ export class WalkScene {
       const x = i * 64 - (near % 64);
       gr.rect(x, y1, 2, r.laneY(0) + 30 - y1).fill({ color: 0xb9ab98, alpha: 0.7 });
     }
-    gr.rect(0, r.laneY(0) + 30, w, 10).fill(0xa89a88);
+    if (look.falling === 'leaves') {
+      // Automne : feuilles tombées sur le trottoir.
+      for (let i = -1; i < Math.ceil(w / 37) + 2; i++) {
+        const x = i * 37 - (near % 37);
+        const k = Math.floor((near + i * 37) / 37);
+        const c = look.fallingColors[((k % 3) + 3) % 3] ?? 0xe08a3c;
+        gr.ellipse(x, y1 + 6 + ((k * 13) % 5) * ((r.laneY(0) + 24 - y1) / 5), 5, 2.5).fill({ color: c, alpha: 0.8 });
+      }
+    }
+    if (look.snow) gr.rect(0, y1 - 4, w, 8).fill(0xffffff);
+    gr.rect(0, r.laneY(0) + 30, w, 10).fill(look.snow ? 0xf2f5f7 : 0xa89a88);
     gr.rect(0, r.laneY(0) + 40, w, h).fill(0x6e6a66);
   }
 

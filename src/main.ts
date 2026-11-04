@@ -7,7 +7,7 @@ import { FixedStepper } from './core/loop';
 import { GameStore } from './core/store';
 import { BALANCE } from './data/balance';
 import { BREEDS, coatOf, type BreedLook } from './data/breeds';
-import { DECOR_NAMES, FAMILY, KENNEL, NAME_ERRORS, NEED_WORDS, TRAINING, UI, UNLOCKS } from './data/strings';
+import { DECOR_NAMES, FAMILY, KENNEL, LEVELS, NAME_ERRORS, NEED_WORDS, TRAINING, UI, UNLOCKS } from './data/strings';
 import { GestureRecognizer, type PuppyProbe } from './input/gestures';
 import { bindPointer, type PointerIntercept } from './input/pointer';
 import { ToyHand } from './input/toyHand';
@@ -31,16 +31,20 @@ import { VoiceController } from './ui/voice';
 import { ITEM_BY_ID } from './data/items';
 import { marketStock, shopCatalog } from './sim/economy';
 import { currentQuestions } from './sim/game';
-import { extendRoute, maxMeters, routeMeters, walkGains } from './sim/walk';
+import { extendRoute, maxMeters, routeMeters, stepBonus, walkGains } from './sim/walk';
 import { WalkScene } from './render/walkScene';
 import { openBook, openMarket, openOutings, type OutingHandlers } from './ui/outings';
 import { openMap } from './ui/walkMap';
 import { mountWalkHud } from './ui/walkHud';
 import { OUT } from './data/strings';
-import { repsNeeded } from './sim/tricks';
 import { availableBreeds, availableDecors, itemLocked, ropeUnlocked, tierContent } from './sim/unlocks';
 import { canEnter, prizeLeft } from './sim/contests';
 import { dogObedience } from './sim/obedience';
+import { levelOf } from './sim/levels';
+import { seasonAt, type Season } from './sim/season';
+import { canLearnNew, repsNeeded } from './sim/tricks';
+import { listenSteps } from './input/pedometer';
+import { openWorkshop } from './ui/workshop';
 import { ContestScene } from './render/contestScene';
 import { mountContestHud, openContests } from './ui/contests';
 import { openFamily } from './ui/family';
@@ -51,6 +55,12 @@ import { SETTINGS } from './data/strings';
 const tz = (now: number): number => new Date(now).getTimezoneOffset();
 const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
+/** D-77 : `?debug&season=winter` impose une saison (tests, captures). */
+const FORCED_SEASON = ((): Season | null => {
+  const v = DEBUG ? params.get('season') : null;
+  return v === 'spring' || v === 'summer' || v === 'autumn' || v === 'winter' ? v : null;
+})();
+const seasonNow = (now: number): Season => FORCED_SEASON ?? seasonAt(now, new Date(now).getTimezoneOffset());
 
 /** Humeur affichée au chenil : le tempérament se voit avant l'adoption. */
 const KENNEL_MOOD: Record<TemperamentId, Mood> = { sage: 'content', joueur: 'happy', timide: 'startled', tetu: 'calm' };
@@ -147,6 +157,7 @@ async function boot(): Promise<void> {
     const s = store.getState();
     stage.setHour(localHour(s.save.lastSeenAt, tz(s.save.lastSeenAt)), s.save.settings.brightness);
     stage.setDecor(s.save.settings.decor, (s.save.inventory.canape ?? 0) > 0);
+    stage.setSeason(seasonNow(s.save.lastSeenAt));
     mode?.frame(ticker.deltaMS, performance.now());
   });
 
@@ -364,6 +375,7 @@ async function boot(): Promise<void> {
       if (!w0 || !d0) return;
       const salon = mode;
       const scene = new WalkScene(breedOf(d0.breedId), d0.coat, () => dogOf()?.equipped ?? []);
+      scene.season = seasonNow(Date.now());
       scene.layout(stage.app.screen.width, stage.app.screen.height);
       stage.app.stage.addChild(scene.container);
       stage.world.visible = false;
@@ -371,7 +383,15 @@ async function boot(): Promise<void> {
       music.setScene('outdoor');
       let leashHand: { x: number; y: number } | null = null;
       let barks = 0;
+      let walking = true;
+      let pedometer: { stop(): void } | null = null;
+      void listenSteps(() => store.dispatch({ type: 'walk/steps', count: 1 })).then((l) => {
+        pedometer = l;
+        if (!walking) l?.stop();
+      });
       const back = (): void => {
+        walking = false;
+        pedometer?.stop();
         hud.destroy();
         scene.container.destroy({ children: true });
         stage.world.visible = true;
@@ -392,7 +412,7 @@ async function boot(): Promise<void> {
         },
         continue: () => store.dispatch({ type: 'walk/continue' }),
         close: back,
-        gains: (w) => (w.rewarded ? { points: walkGains(w.plan.lengthM).points + w.pointsDelta, stamina: BALANCE.walk.stamina } : null),
+        gains: (w) => (w.rewarded ? { points: walkGains(w.plan.lengthM).points + w.pointsDelta + stepBonus(w.steps).points, stamina: BALANCE.walk.stamina, stepPoints: stepBonus(w.steps).points } : null),
       });
       mode = {
         intercept: {
@@ -457,7 +477,7 @@ async function boot(): Promise<void> {
       const d0 = dogOf();
       if (!s0 || !d0) return;
       const salon = mode;
-      const scene = new ContestScene(breedOf(d0.breedId), d0.coat, () => dogOf()?.equipped ?? [], s0);
+      const scene = new ContestScene(breedOf(d0.breedId), d0.coat, () => dogOf()?.equipped ?? [], s0, seasonNow(Date.now()));
       scene.layout(stage.app.screen.width, stage.app.screen.height);
       stage.app.stage.addChild(scene.container);
       stage.world.visible = false;
@@ -479,7 +499,7 @@ async function boot(): Promise<void> {
       const hud = mountContestHud(s0, {
         quit: back,
         close: back,
-        order: (trickId) => store.dispatch({ type: 'contest/order', trickId }),
+        order: (trickId, precision) => store.dispatch(precision === undefined ? { type: 'contest/order', trickId } : { type: 'contest/order', trickId, precision }),
         tricks: () => (dogOf()?.tricks ?? []).filter((t) => t.learned).map((t) => ({ id: t.trickId, label: t.command.label })),
         micSupported: () => voice.supported(),
         micHold: (start) => (start ? void voice.holdStart() : voice.holdEnd()),
@@ -620,6 +640,32 @@ async function boot(): Promise<void> {
       openOutings: () => openOutings(outings, () => undefined),
       openSettings: () => showSettings(),
       openBook: () => openBook(outings, () => undefined),
+      openWorkshop: () => {
+        let attempts = 0;
+        openWorkshop(
+          {
+            dogName: () => dogOf()?.name || KENNEL.renameTitle,
+            dogLevel: () => levelOf(dogOf()?.xp ?? 0).level,
+            trick: (id) => {
+              const d = dogOf();
+              const t = d?.tricks.find((x) => x.trickId === id);
+              return {
+                learned: t?.learned ?? false,
+                reps: t?.repetitions ?? 0,
+                needed: d ? repsNeeded(d.traits, d.affection) : 3,
+                canLearn: d ? canLearnNew(d, store.getState().save.day.perDog[d.id]?.newTricks ?? 0) : false,
+              };
+            },
+            seed: () => (store.getState().save.rngState + 7919 * ++attempts) >>> 0,
+            perform: (id) => store.dispatch({ type: 'gesture', gesture: { kind: 'perform', trick: id } }),
+            done: (id) => {
+              store.dispatch({ type: 'workshop/done', trickId: id });
+              void autosave.saveNow();
+            },
+          },
+          () => undefined,
+        );
+      },
       micHold(start) {
         sfx.unlock();
         music.unlock();
@@ -659,6 +705,7 @@ async function boot(): Promise<void> {
           sex: d?.sex ?? 'm',
           temperament: d?.temperament ?? 'joueur',
           obedience: d && d.tricks.some((t) => t.learned) ? dogObedience(d) : null,
+          levels: { dog: levelOf(d?.xp ?? 0), player: levelOf(store.getState().save.xp) },
         };
       },
       status() {
@@ -666,6 +713,7 @@ async function boot(): Promise<void> {
         const d = dogOf();
         return {
           name: s.save.homeDogIds.length > 1 ? (d?.name ?? null) : null,
+          level: levelOf(d?.xp ?? 0).level,
           rows: NEED_KINDS.map((kind) => {
             const v = d?.needs[kind] ?? 0;
             const level = needLevel(kind, v);
@@ -694,7 +742,26 @@ async function boot(): Promise<void> {
     // Sons de chaque chiot ; annonces des déblocages.
     let bulbHinted = false;
     let tier = store.getState().save.unlockTier;
+    // D-78 : annonces des niveaux.
+    let playerLevel = levelOf(store.getState().save.xp).level;
+    const dogLevels = new Map(store.getState().save.dogs.map((d) => [d.id, levelOf(d.xp).level]));
     store.subscribe((s) => {
+      const pl = levelOf(s.save.xp).level;
+      const said: string[] = [];
+      if (pl > playerLevel) {
+        let coins = 0;
+        for (let lv = playerLevel + 1; lv <= pl; lv++) coins += BALANCE.levels.playerLevelCoins * lv;
+        said.push(LEVELS.playerUp.replace('{n}', String(pl)).replace('{c}', String(coins)));
+        sfx.play('learned');
+      }
+      playerLevel = pl;
+      for (const d of s.save.dogs) {
+        const lv = levelOf(d.xp).level;
+        const was = dogLevels.get(d.id);
+        if (was !== undefined && lv > was) said.push(LEVELS.dogUp.replace('{name}', d.name || KENNEL.renameTitle).replace('{n}', String(lv)));
+        dogLevels.set(d.id, lv);
+      }
+      if (said.length > 0) toast(said.join(' '));
       for (const id of s.save.homeDogIds) {
         const m = s.minds[id];
         if (!m) continue;

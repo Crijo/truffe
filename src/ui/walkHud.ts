@@ -13,7 +13,7 @@ export interface WalkHudHandlers {
   continue(): void;
   close(): void;
   /** Gains montrés dans le bilan. */
-  gains(w: WalkState): { points: number; stamina: number } | null;
+  gains(w: WalkState): { points: number; stamina: number; stepPoints: number } | null;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = ''): HTMLElementTagNameMap[K] {
@@ -34,7 +34,10 @@ export function mountWalkHud(h: WalkHudHandlers): { update(w: WalkState): void; 
   home.type = 'button';
   home.dataset.testid = 'walk-home';
   home.addEventListener('click', () => h.finish());
-  top.append(bar, home);
+  const steps = el('span', 'walk-steps');
+  steps.dataset.testid = 'walk-steps';
+  steps.hidden = true;
+  top.append(bar, steps, home);
   const hint = el('p', 'toast walk-hint', WALK.leashHint);
   const action = el('div', 'walk-action');
   const summary = el('section', 'name-box walk-summary');
@@ -47,6 +50,8 @@ export function mountWalkHud(h: WalkHudHandlers): { update(w: WalkState): void; 
   let lastKey = '';
   const update = (w: WalkState): void => {
     fill.style.width = `${Math.min(100, (w.progress / Math.max(1, w.plan.lengthM)) * 100)}%`;
+    steps.hidden = w.steps === 0;
+    if (w.steps > 0) steps.innerHTML = `${ICONS.steps}<span>${WALK.steps.replace('{n}', String(w.steps))}</span>`;
     const poop = !!w.poop && !w.poop.picked;
     const place = w.pause?.kind === 'place' ? w.plan.events[w.pause.index]?.place : undefined;
     const key = `${w.finished}-${poop}-${place ?? ''}`;
@@ -88,7 +93,8 @@ export function mountWalkHud(h: WalkHudHandlers): { update(w: WalkState): void; 
         ? `<div class="found">${w.collected.map((id) => { const d = ITEM_BY_ID[id]; return d ? `<span title="${d.label}">${itemIcon(d)}</span>` : ''; }).join('')}</div>`
         : `<p class="hint">${WALK.nothingFound}</p>`;
       const gains = g ? `<p><strong>${WALK.gains}</strong> : +${g.points} ${'★'} · ${WALK.stamina} +${g.stamina}</p>` : `<p class="hint">${WALK.noRewardNow}</p>`;
-      summary.innerHTML = `<h2 class="title">${w.progress >= w.plan.lengthM ? WALK.endTitle : WALK.endEarly}</h2><p>${Math.round(w.progress)} m</p><h3 class="subtitle">${WALK.found}</h3>${found}${gains}`;
+      const walked = w.steps > 0 ? `<p data-testid="walk-steps-bonus">${WALK.stepsBonus.replace('{n}', String(w.steps)).replace('{p}', String(g?.stepPoints ?? 0))}</p>` : '';
+      summary.innerHTML = `<h2 class="title">${w.progress >= w.plan.lengthM ? WALK.endTitle : WALK.endEarly}</h2><p>${Math.round(w.progress)} m</p><h3 class="subtitle">${WALK.found}</h3>${found}${gains}${walked}`;
       const back = el('button', 'btn primary', `${ICONS.home}<span>${WALK.backHome}</span>`);
       back.type = 'button';
       back.dataset.testid = 'walk-back';

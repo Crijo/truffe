@@ -1,6 +1,6 @@
 /** Modèle de données sauvegardé (SPEC, Modèle de données). */
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export type DogId = string;
 export type ItemId = string;
@@ -62,6 +62,8 @@ export interface Dog {
   familiar: Record<ItemId, number>;
   /** F-PRO-7 : dernière promenade avec gains. */
   walks: { lastRewardedAt: number | null; count: number };
+  /** D-78 : expérience du chiot. */
+  xp: number;
   /** D-74 : dernière fois qu'il a fait ses besoins (promenade terminée ou au salon). */
   lastReliefAt: number;
   /** Lieux visités en promenade (F-CON : un concours s'ouvre après une visite). */
@@ -82,6 +84,8 @@ export interface DogDailyCounters {
   caresses: number;
   newTricks: number;
   prizeContests: number;
+  /** D-78 : XP des soins gagnée aujourd'hui (plafonnée). */
+  careXp?: number;
 }
 
 /** Compteurs remis à zéro à 4 h du matin, heure locale. */
@@ -109,6 +113,8 @@ export interface SaveGame {
   lastSeenAt: number;
   coins: number;
   masterPoints: number;
+  /** D-78 : expérience du joueur. */
+  xp: number;
   /** Paliers de déblocage déjà accordés (SPEC, Économie et progression). */
   unlockTier: number;
   inventory: Record<ItemId, number>;

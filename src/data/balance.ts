@@ -8,6 +8,41 @@ export const BALANCE = {
     poop: { intervalMs: 4 * 3_600_000, max: 3, pickupPoints: 5, forgetPoints: -5, forgetMs: 3_600_000 },
   },
 
+  /**
+   * D-78 : niveaux du joueur et des chiots. Soins : un tout petit peu, plafonné par jour et par chiot ;
+   * activités et dressage : davantage. Passer du niveau n au suivant demande base + step × (n − 1) XP.
+   */
+  levels: {
+    xp: { meal: 2, water: 2, groom: 3, caress: 1, poop: 2, toy: 1, trickRepeat: 4, masteryUp: 3, newTrick: 15, walk: 20, walk100m: 1, steps: 1, contest: 10, podium: 10, workshop: 6 },
+    dailyCareXp: 40,
+    curve: { base: 40, step: 20 },
+    maxLevel: 50,
+    /** Pièces offertes au joueur à chaque niveau : ce nombre × le niveau atteint. */
+    playerLevelCoins: 20,
+  },
+
+  /**
+   * D-80 : atelier des tours avancés. Niveau du chiot qui ouvre chaque tour combiné ; mouvements du jeu de mémoire ;
+   * manches de longueur croissante. Un atelier réussi compte comme une répétition (ou fait monter la maîtrise).
+   */
+  workshop: {
+    levels: { flip: 5, handstand: 8, playdead: 11, dance: 14 },
+    pads: ['sit', 'down', 'jump', 'spin'],
+    firstLength: 3,
+    rounds: 3,
+    showMs: 700,
+  },
+
+  /**
+   * D-79 : tracé des ordres en concours, distances en part du carré de dessin. Un point du tracé compte en entier
+   * jusqu'à `near` du dessin, puis de moins en moins sur `falloff` ; le dessin est couvert là où le tracé passe à moins de `cover`.
+   * En dessous de minScore, il faut recommencer.
+   */
+  trace: { samples: 48, near: 0.06, falloff: 0.08, cover: 0.1, minScore: 0.75 },
+
+  /** D-77 : début des saisons en France, au format MMJJ (dates astronomiques habituelles). */
+  seasons: { starts: { spring: 320, summer: 621, autumn: 922, winter: 1221 } },
+
   /** D-72 : luminosité de la scène. La nuit assombrit le salon d'autant moins que la luminosité est haute. */
   display: { defaultBrightness: 0.7, nightMaxAlpha: 0.6 },
 
@@ -238,6 +273,15 @@ export const BALANCE = {
 
   /** F-PRO. */
   walk: {
+    /** D-81 : vrais pas du joueur pendant la promenade (bonus) : 1 point et 1 XP par tranche de pas, plafonnés. */
+    steps: {
+      perPoint: 50,
+      maxPoints: 20,
+      perXp: 50,
+      maxXp: 20,
+      /** Détection : pic au-dessus de la moyenne (m/s²), retour sous `rearm` avant le pas suivant, et écart minimal. */
+      detector: { smoothing: 0.05, threshold: 1.2, rearm: 0.3, minIntervalMs: 280 },
+    },
     /** Longueur d'une rue du plan. */
     edgeM: 50,
     /** D-13 : 1 point d'endurance = 100 m. */
@@ -342,6 +386,8 @@ export const BALANCE = {
       pointsPerTrick: 10,
       /** Bonus de rapidité, au plus, si l'ordre est donné aussitôt. */
       speedBonus: 8,
+      /** D-79 : bonus, au plus, d'un ordre donné en retraçant son dessin (× précision). */
+      traceBonus: 6,
     },
   },
 

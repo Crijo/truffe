@@ -121,6 +121,9 @@ export const OUT = {
 } as const;
 
 export const WALK = {
+  /** D-81 : vrais pas du joueur. */
+  steps: '{n} pas',
+  stepsBonus: 'Tes pas : {n} (+{p} ★)',
   mapTitle: 'Promenade',
   mapHint: 'Trace un trajet avec le doigt, en partant de la maison.',
   distance: 'Distance',
@@ -142,6 +145,38 @@ export const WALK = {
   backHome: 'Rentrer à la maison',
   stamina: 'Endurance',
   leashHint: 'Tire la laisse vers le haut ou le bas',
+} as const;
+
+/** D-80 : atelier des tours avancés. */
+export const WORKSHOP = {
+  title: 'Atelier des tours',
+  open: 'Atelier des tours',
+  intro: 'Des tours plus difficiles, qui s’ouvrent quand {name} monte de niveau. Regarde la suite de mouvements, puis refais-la dans l’ordre.',
+  locked: 'Niveau {n} du chiot',
+  learned: 'Appris : on peut s’exercer',
+  noRoom: 'Plus de place aujourd’hui',
+  play: 'Apprendre',
+  practice: 'S’exercer',
+  round: 'Manche {n} / {max}',
+  watch: 'Regarde…',
+  yourTurn: 'À toi !',
+  good: 'Bien !',
+  won: 'Réussi ! Encore {n} fois pour qu’il apprenne le tour.',
+  wonLearned: 'Bravo ! {name} connaît ce tour.',
+  lost: 'Raté ! Ce n’était pas le bon mouvement.',
+  again: 'Rejouer',
+  back: 'Terminer',
+  quit: 'Arrêter',
+} as const;
+
+/** D-78 : niveaux du joueur et des chiots. */
+export const LEVELS = {
+  you: 'Toi',
+  level: 'Niveau',
+  short: 'niv.',
+  xp: 'XP',
+  playerUp: 'Tu passes au niveau {n} (+{c} pièces).',
+  dogUp: '{name} passe au niveau {n} !',
 } as const;
 
 export const UI = {
@@ -192,7 +227,9 @@ export const CONTEST = {
   },
   discHint: 'Lance le disque d’un geste vers le haut. Doux, il l’attrape en l’air.',
   agilityHint: 'Garde le doigt sur l’écran : ton chiot suit ton doigt d’obstacle en obstacle.',
-  obedienceHint: 'Donne l’ordre affiché, au bouton ou à la voix, le plus vite possible.',
+  obedienceHint: 'Retrace le dessin de l’ordre affiché (bonus de précision), ou donne-le au bouton ou à la voix, le plus vite possible.',
+  traceLabel: 'Retrace ici le dessin de l’ordre',
+  traceAgain: 'Presque ! Retrace le dessin',
   start: 'Partez !',
   quit: 'Abandonner',
   time: 'Temps',

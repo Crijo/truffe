@@ -55,6 +55,8 @@ export interface WalkState {
   eligible: boolean;
   finished: boolean;
   rewarded: boolean;
+  /** D-81 : vrais pas du joueur comptés pendant la marche. */
+  steps: number;
 }
 
 // ---------------------------------------------------------------- plan
@@ -133,6 +135,12 @@ export function walkGains(lengthM: number): { points: number; stamina: number; a
   return { points: W.points.base + Math.floor((lengthM / 100) * W.points.per100m), stamina: W.stamina, affection: W.affection };
 }
 
+/** D-81 : bonus des vrais pas : points de maître et XP, plafonnés. */
+export function stepBonus(steps: number): { points: number; xp: number } {
+  const S = W.steps;
+  return { points: Math.min(S.maxPoints, Math.floor(steps / S.perPoint)), xp: Math.min(S.maxXp, Math.floor(steps / S.perXp)) * BALANCE.levels.xp.steps };
+}
+
 export const rewardable = (lastRewardedAt: number | null, now: number): boolean => lastRewardedAt === null || now - lastRewardedAt >= W.cooldownMs;
 
 // ---------------------------------------------------------------- marche
@@ -157,6 +165,7 @@ export function startWalk(route: Route, seed: number, questions: readonly Questi
     eligible,
     finished: false,
     rewarded: false,
+    steps: 0,
   };
 }
 

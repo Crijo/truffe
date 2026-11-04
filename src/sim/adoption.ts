@@ -68,6 +68,7 @@ export function dogFromCandidate(c: Candidate, name: string): Dog {
     familiar: {},
     walks: { lastRewardedAt: null, count: 0 },
     lastReliefAt: 0,
+    xp: 0,
     visited: { park: false, gym: false, market: false },
   };
 }

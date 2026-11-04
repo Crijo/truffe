@@ -1,7 +1,10 @@
 import { Application, Container, Graphics } from 'pixi.js';
 import type { DecorId } from '../sim/state';
 import { nightAlpha } from '../sim/needs';
+import { SEASONS, type Season } from '../data/seasons';
+import { PuppyView } from './puppy/PuppyView';
 import { Room } from './room';
+import { SeasonFx } from './seasonFx';
 
 /** Palettes du salon : aplats doux de livre illustré ; deux décors à débloquer (D-63). */
 const PALETTES = {
@@ -21,6 +24,8 @@ export interface Stage {
   setHour(hour: number, brightness: number): void;
   /** Décor du salon et canapé (déblocages). */
   setDecor(decor: DecorId, sofa: boolean): void;
+  /** D-77 : saison vue par la fenêtre. */
+  setSeason(season: Season): void;
 }
 
 /** Part de nuit : 1 de 22 h à 6 h, transitions le soir et au matin. */
@@ -49,9 +54,14 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
   world.sortableChildren = true;
   const night = new Graphics();
   night.eventMode = 'none';
-  app.stage.addChild(decor, world, night);
+  const falling = new SeasonFx(14);
+  const pane = new Graphics();
+  falling.g.mask = pane;
+  app.stage.addChild(decor, pane, falling.g, world, night);
 
   let decorId: DecorId = 'home';
+  let season: Season = 'summer';
+  let windowRect = { x: 0, y: 0, w: 0, h: 0 };
   let sofa = false;
   const drawRoom = (): void => {
     const w = app.screen.width;
@@ -70,6 +80,35 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
     decor.rect(0, y - 6, w, 12).fill(ROOM.baseboard);
     const rug = room.floorToScreen({ x: 0, z: 0.62 });
     decor.ellipse(w / 2, rug.y, Math.min(w * 0.44, 420), (h - y) * 0.3).fill(ROOM.rug).stroke({ width: 4, color: ROOM.rugEdge });
+    windowRect = { x: 0, y: 0, w: 0, h: 0 };
+    pane.clear();
+    if (decorId === 'home') {
+      // D-77 : fenêtre sur le jardin, aux couleurs de la saison.
+      const look = SEASONS[season];
+      const fw = Math.min(w * 0.3, 220);
+      const fh = Math.min(y * 0.42, fw * 1.05);
+      const fx = w * 0.08;
+      const fy = Math.max(y * 0.3, y - fh - h * 0.22);
+      decor.roundRect(fx - 6, fy - 6, fw + 12, fh + 12, 10).fill(ROOM.baseboard);
+      decor.rect(fx, fy, fw, fh).fill(look.sky);
+      decor.rect(fx, fy + fh * 0.72, fw, fh * 0.28).fill(look.snow ? 0xf4f7f9 : look.grass);
+      const tx = fx + fw * 0.35;
+      const ty = fy + fh * 0.72;
+      decor.rect(tx - 4, ty - fh * 0.3, 8, fh * 0.3).fill(look.trunk);
+      if (look.foliage.length === 0) {
+        decor.moveTo(tx, ty - fh * 0.25).lineTo(tx - 18, ty - fh * 0.5).moveTo(tx, ty - fh * 0.2).lineTo(tx + 20, ty - fh * 0.48).moveTo(tx, ty - fh * 0.28).lineTo(tx, ty - fh * 0.56).stroke({ width: 3, color: look.trunk, cap: 'round' });
+      } else {
+        decor.circle(tx, ty - fh * 0.42, fh * 0.2).fill(look.foliage[0] ?? 0x7cc47f);
+        decor.circle(tx + fh * 0.14, ty - fh * 0.34, fh * 0.13).fill(look.foliage[1] ?? look.foliage[0] ?? 0x7cc47f);
+        if (look.dots !== null) for (let j = 0; j < 6; j++) decor.circle(tx + Math.cos(j * 2.4) * fh * 0.12, ty - fh * 0.42 + Math.sin(j * 2.4) * fh * 0.1, 2.5).fill(look.dots);
+      }
+      if (look.falling === 'leaves') for (let j = 0; j < 5; j++) decor.ellipse(fx + fw * (0.15 + j * 0.17), ty + fh * 0.08, 4, 2).fill(look.fallingColors[j % 3] ?? 0xe08a3c);
+      // Croisillons de la fenêtre.
+      decor.rect(fx + fw / 2 - 3, fy, 6, fh).fill(ROOM.baseboard);
+      decor.rect(fx, fy + fh / 2 - 3, fw, 6).fill(ROOM.baseboard);
+      windowRect = { x: fx, y: fy, w: fw, h: fh };
+      pane.rect(fx, fy, fw, fh).fill(0xffffff);
+    }
     if (decorId === 'seaside') {
       // Fenêtre sur la mer, vagues et soleil.
       const fx = w * 0.62;
@@ -107,6 +146,7 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
     if (tint > 0) night.rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0x1f2546, alpha: tint });
   };
   drawRoom();
+  app.ticker.add((tk) => falling.update(tk.deltaMS, season, windowRect, PuppyView.reduceMotion));
   app.renderer.on('resize', () => {
     drawRoom();
     drawNight();
@@ -121,6 +161,11 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
       if (t === tint) return;
       tint = t;
       drawNight();
+    },
+    setSeason(next) {
+      if (next === season) return;
+      season = next;
+      drawRoom();
     },
     setDecor(d, s) {
       if (d === decorId && s === sofa) return;

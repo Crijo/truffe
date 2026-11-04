@@ -10,7 +10,7 @@ import type { ToyKind } from '../sim/toys';
 import { ICONS, type IconName } from './icons';
 import { renderOrders, renderTricks, type TrainingHandlers } from './training';
 import { ITEM_BY_ID } from '../data/items';
-import { OUT, SETTINGS, TRAINING } from '../data/strings';
+import { LEVELS, OUT, SETTINGS, TRAINING, WORKSHOP } from '../data/strings';
 import { itemIcon } from './itemIcon';
 
 export interface CardRow {
@@ -27,12 +27,19 @@ function gauge(r: CardRow): string {
   return `<span class="gauge-bar" role="meter" aria-label="${NEED_LABELS[r.kind]}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}" aria-valuetext="${r.word}"><span style="width:${v}%"></span></span><span class="sr">${r.word}</span>`;
 }
 
+/** D-78 : niveau, XP dans le niveau, XP qu'il demande. */
+export interface LevelInfo {
+  level: number;
+  into: number;
+  need: number;
+}
+
 export interface HudHandlers {
   /** Gamelle lâchée en (x, y) écran ; null : posée à l'emplacement habituel. */
   dropBowl(kind: BowlKind, at: { x: number; y: number } | null): void;
   setTool(tool: CareTool | null): void;
   bath(start: boolean): void;
-  card(): { rows: CardRow[]; asleep: boolean; name: string; breed: string; sex: Sex; temperament: TemperamentId; obedience: number | null };
+  card(): { rows: CardRow[]; asleep: boolean; name: string; breed: string; sex: Sex; temperament: TemperamentId; obedience: number | null; levels: { dog: LevelInfo; player: LevelInfo } };
   /** Jouet choisi : le prochain appui sur la scène le prend en main. */
   armToy(kind: ToyKind): void;
   onChange(fn: () => void): void;
@@ -47,8 +54,10 @@ export interface HudHandlers {
   openOutings(): void;
   openSettings(): void;
   openBook(): void;
+  /** D-80 : atelier des tours avancés. */
+  openWorkshop(): void;
   /** Barres toujours visibles du chiot actif ; `fn` est rappelée à chaque changement d'état. */
-  status(): { name: string | null; rows: CardRow[] };
+  status(): { name: string | null; rows: CardRow[]; level: number };
   onStatus(fn: () => void): void;
   /** Micro maintenu : commencer ou finir d'écouter un ordre à la voix. */
   micHold(start: boolean): void;
@@ -183,7 +192,17 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     show(null);
     h.openBook();
   });
-  card.append(cardClose, cardTitle, cardSub, rows, bookBtn, tricksBox);
+  const workshopBtn = button('star', WORKSHOP.open, 'mini');
+  workshopBtn.dataset.testid = 'open-workshop';
+  workshopBtn.addEventListener('click', () => {
+    show(null);
+    h.openWorkshop();
+  });
+  const levelsBox = el('ul', 'levels');
+  levelsBox.dataset.testid = 'levels';
+  const cardLinks = el('div', 'row-buttons card-links');
+  cardLinks.append(bookBtn, workshopBtn);
+  card.append(cardClose, cardTitle, cardSub, levelsBox, rows, cardLinks, tricksBox);
 
   // Liste d'ordres (bouton Micro touché brièvement).
   const orders = el('section', 'sheet');
@@ -228,10 +247,10 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   let statusKey = '';
   const renderStatus = (): void => {
     const st = h.status();
-    const key = (st.name ?? '') + st.rows.map((r) => `${r.kind}${Math.round(r.value)}${r.level}`).join();
+    const key = `${st.name ?? ''}${st.level}` + st.rows.map((r) => `${r.kind}${Math.round(r.value)}${r.level}`).join();
     if (key === statusKey) return;
     statusKey = key;
-    status.innerHTML = (st.name ? `<strong class="status-name">${st.name}</strong>` : '') + st.rows.map((r) => `<div class="gauge level-${r.level}" data-kind="${r.kind}">${ICONS[ROW_ICONS[r.kind]]}<span class="gauge-body"><small aria-hidden="true">${NEED_LABELS[r.kind]}</small>${gauge(r)}</span></div>`).join('');
+    status.innerHTML = `<strong class="status-name" data-testid="status-level">${st.name ? `${st.name} · ` : ''}<small>${LEVELS.short} ${st.level}</small></strong>` + st.rows.map((r) => `<div class="gauge level-${r.level}" data-kind="${r.kind}">${ICONS[ROW_ICONS[r.kind]]}<span class="gauge-body"><small aria-hidden="true">${NEED_LABELS[r.kind]}</small>${gauge(r)}</span></div>`).join('');
   };
   renderStatus();
   h.onStatus(renderStatus);
@@ -288,6 +307,11 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     const c = h.card();
     cardTitle.textContent = c.name;
     cardSub.textContent = `${c.breed} · ${SEX_LABELS[c.sex]} · ${TEMPERAMENT_LABELS[c.temperament]}`;
+    const lvRow = (who: string, l: LevelInfo, kind: string): string => {
+      const v = Math.round((l.into / l.need) * 100);
+      return `<li class="level-row" data-kind="${kind}"><span class="label">${who}</span><strong>${LEVELS.level} ${l.level}</strong><span class="gauge-bar" role="meter" aria-label="${LEVELS.xp} : ${who}" aria-valuemin="0" aria-valuemax="${l.need}" aria-valuenow="${l.into}"><span style="width:${Math.max(3, v)}%"></span></span><small>${l.into} / ${l.need} ${LEVELS.xp}</small></li>`;
+    };
+    levelsBox.innerHTML = lvRow(c.name, c.levels.dog, 'dog') + lvRow(LEVELS.you, c.levels.player, 'player');
     rows.innerHTML = '';
     for (const r of c.rows) {
       const li = el('li', `row level-${r.level}`, `${ICONS[ROW_ICONS[r.kind]]}<span class="label">${NEED_LABELS[r.kind]}</span>${gauge(r)}`);

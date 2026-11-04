@@ -64,8 +64,8 @@ function record(run: ObedienceRun, ok: boolean, points: number): ObedienceRun {
   return { ...run, results: [...run.results, { ok, points }], score: run.score + points, waiting: true, waitMs: 0 };
 }
 
-/** Ordre donné au bouton ou à la voix. */
-export function orderObedience(run: ObedienceRun, trickId: TrickId): ObedienceRun {
+/** Ordre donné au bouton, à la voix, ou en retraçant son dessin (`precision`, de 0 à 1 : D-79). */
+export function orderObedience(run: ObedienceRun, trickId: TrickId, precision = 0): ObedienceRun {
   if (run.finished || run.waiting) return run;
   const wanted = run.orders[run.index];
   if (trickId !== wanted) return record(run, false, 0);
@@ -74,7 +74,8 @@ export function orderObedience(run: ObedienceRun, trickId: TrickId): ObedienceRu
   const malus = obedienceMalus({ hunger: d.hunger, thirst: d.thirst, energy: d.energy, recentOrders: 0 });
   const p = obeyProbability({ docility: d.docility, affection: d.affection, mastery: d.mastery[trickId] ?? 0, malus });
   const ok = rng.next() < p;
-  const points = ok ? Math.round(O.pointsPerTrick + O.speedBonus * Math.max(0, 1 - run.elapsedMs / O.orderMs)) : 0;
+  const trace = Math.round(O.traceBonus * Math.max(0, Math.min(1, precision)));
+  const points = ok ? Math.round(O.pointsPerTrick + O.speedBonus * Math.max(0, 1 - run.elapsedMs / O.orderMs)) + trace : 0;
   return { ...record(run, ok, points), rngState: rng.getState() };
 }
 

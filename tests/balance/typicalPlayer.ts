@@ -10,6 +10,7 @@ import { startDisc, stepDisc, throwDisc } from '../../src/sim/contest/disc';
 import { aimAgility, startAgility, stepAgility } from '../../src/sim/contest/agility';
 import { orderObedience, startObedience, stepObedience } from '../../src/sim/contest/obedience';
 import { awardPoints } from '../../src/sim/economy';
+import { awardXp, levelOf } from '../../src/sim/levels';
 import { createRng, type Rng } from '../../src/sim/rng';
 import { tiersAt } from '../../src/sim/unlocks';
 import { walkGains } from '../../src/sim/walk';
@@ -111,6 +112,8 @@ export interface Run {
   points: number[];
   /** Jour (1 = premier jour) où chaque palier de déblocage est atteint. */
   tierDay: (number | null)[];
+  /** D-78 : niveau du joueur à la fin de chaque jour. */
+  levels: number[];
 }
 
 export function simulate(profile: Profile, days = 30, seed = 1): Run {
@@ -118,6 +121,7 @@ export function simulate(profile: Profile, days = 30, seed = 1): Run {
   let save = startWithDog(T0, -60, seed).save;
   const id = dogOf(save).id;
   const points: number[] = [];
+  const levels: number[] = [];
   const tierDay: (number | null)[] = BALANCE.unlocks.map(() => null);
   const learnable = TRICK_IDS.filter((t) => t !== 'flip' && t !== 'handstand' && t !== 'playdead' && t !== 'dance');
   for (let day = 1; day <= days; day++) {
@@ -125,9 +129,14 @@ export function simulate(profile: Profile, days = 30, seed = 1): Run {
     save = { ...save, lastSeenAt: now, day: { dayKey: `j${day}`, perDog: {} } };
     // Soins : après une journée, faim et soif sont bien bas.
     save = awardPoints(save, id, 2 * G.meal);
-    if (day % profile.groomEvery === 0) save = awardPoints(save, id, G.groom);
+    save = awardXp(awardXp(save, id, 'meal'), id, 'water');
+    save = awardXp(save, id, 'caress', Math.min(BALANCE.puppy.caress.dailyCap, profile.minutes));
+    if (day % profile.groomEvery === 0) save = awardXp(awardPoints(save, id, G.groom), id, 'groom');
     // Promenade : 10 + 1 par 100 m, et un besoin ramassé. Le 1er jour passe par le parc, le 2e par le gymnase.
-    for (let w = 0; w < profile.walks; w++) save = awardPoints(save, id, walkGains(profile.walkM).points + BALANCE.walk.points.pickup);
+    for (let w = 0; w < profile.walks; w++) {
+      save = awardPoints(save, id, walkGains(profile.walkM).points + BALANCE.walk.points.pickup);
+      save = awardXp(awardXp(save, id, 'walk'), id, 'walk100m', Math.floor(profile.walkM / 100));
+    }
     if (profile.walks > 0 || day >= 3) save = editDog(save, (d) => ({ ...d, visited: { park: true, gym: day >= 2 || profile.walks > 1, market: true } }));
     // Dressage : nouveaux tours (4 par jour au plus, 14 en tout), puis ordres réussis selon l'obéissance.
     const known = dogOf(save).tricks.filter((t) => t.learned).length;
@@ -136,11 +145,11 @@ export function simulate(profile: Profile, days = 30, seed = 1): Run {
       const trick = learnable[known + k] as TrickId | undefined;
       if (!trick) break;
       save = editDog(save, (d) => ({ ...d, tricks: [...d.tricks, { trickId: trick, repetitions: 5, learned: true, mastery: 0, command: { label: trick } }] }));
-      save = awardPoints(save, id, G.newTrick);
+      save = awardXp(awardXp(awardPoints(save, id, G.newTrick), id, 'newTrick'), id, 'trickRepeat', 5);
     }
     for (let o = 0; o < profile.orders && dogOf(save).tricks.length > 0; o++) {
       if (rng.next() < 0.65) {
-        save = awardPoints(save, id, G.trickRepeat);
+        save = awardXp(awardPoints(save, id, G.trickRepeat), id, 'masteryUp');
         const t = rng.pick(dogOf(save).tricks);
         save = editDog(save, (d) => ({ ...d, tricks: d.tricks.map((x) => (x.trickId === t.trickId ? { ...x, mastery: Math.min(1, x.mastery + 0.05) } : x)) }));
       }
@@ -154,11 +163,14 @@ export function simulate(profile: Profile, days = 30, seed = 1): Run {
       const contest = open[c % open.length] ?? 'disc';
       const cseed = Math.floor(rng.next() * 2 ** 31);
       const score = Math.round(playContest(d, contest, cseed, profile.skill, rng) * 10) / 10;
-      save = settleContest(save, id, contest, score, cseed, now, true).save;
+      const settled = settleContest(save, id, contest, score, cseed, now, true);
+      save = awardXp(settled.save, id, 'contest');
+      if (settled.result.place <= 3) save = awardXp(save, id, 'podium', 4 - settled.result.place);
     }
     points.push(save.masterPoints);
+    levels.push(levelOf(save.xp).level);
     const reached = tiersAt(save.masterPoints);
     for (let i = 0; i < reached; i++) tierDay[i] ??= day;
   }
-  return { profile: profile.name, points, tierDay };
+  return { profile: profile.name, points, tierDay, levels };
 }
