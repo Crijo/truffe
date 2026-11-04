@@ -4,7 +4,7 @@
  */
 import { capturePointer } from '../input/capture';
 import { BALANCE } from '../data/balance';
-import { CLASS_NAMES, CONTEST, CONTEST_NAMES, UI } from '../data/strings';
+import { CLASS_NAMES, CONTEST, CONTEST_NAMES, TRAINING, UI } from '../data/strings';
 import type { TrickId } from '../data/tricks';
 import type { ContestResult, EntryRefusal } from '../sim/contests';
 import type { ContestSession } from '../sim/game';
@@ -16,6 +16,8 @@ export interface ContestMenuHandlers {
   coins(): number;
   dogName(): string;
   info(c: ContestId): { contestClass: ContestClass; trophies: number; refusal: EntryRefusal | null };
+  /** D-75 : note d'obéissance du chiot, de 0 à 1. */
+  obedience(): number;
   prizesLeft(): number;
   enter(c: ContestId): void;
 }
@@ -48,6 +50,10 @@ export function openContests(h: ContestMenuHandlers, onClose: () => void): void 
     const card = el('div', 'contest-card');
     card.dataset.contest = c;
     card.append(el('div', 'contest-head', `${ICON[c]}<strong>${CONTEST_NAMES[c]}</strong><small>${CLASS_NAMES[info.contestClass]} · ${ICONS.trophy}${info.trophies}</small>`));
+    if (c === 'obedience') {
+      const v = Math.round(h.obedience() * 100);
+      card.append(el('div', 'contest-obey', `<small>${TRAINING.obedience}</small><span class="gauge-bar" role="meter" aria-label="${TRAINING.obedience}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}"><span style="width:${v}%"></span></span>`));
+    }
     if (info.refusal) {
       const why = el('p', 'contest-why', CONTEST.refusal(info.refusal, c, h.dogName()));
       why.dataset.testid = `refusal-${c}`;

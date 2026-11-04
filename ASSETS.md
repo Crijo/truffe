@@ -20,6 +20,7 @@ Toute ressource du dépôt est créée pour le projet ou placée sous licence CC
 | Terrains de concours, haies, tunnel, slalom, balançoire, disque | `src/render/contestScene.ts` | Formes dessinées par le code | Propre au projet |
 | Décors « Bord de mer » et « Espace », canapé, gros ballon, souris mécanique, coupe | `src/render/stage.ts`, `src/data/items.ts`, `src/ui/itemIcon.ts`, `src/ui/icons.ts` | Formes et SVG dessinés pour Truffe | Propre au projet |
 | Noms des rivaux de concours | `src/data/strings.ts` | Mots français courants choisis pour Truffe | Propre au projet |
+| Besoins au salon et mouches, main qui caresse, icône de bulles (pelage), engrenage (réglages) | `src/render/poops.ts`, `src/ui/icons.ts` | Formes et SVG dessinés pour Truffe | Propre au projet |
 | Plan de la ville, décor de promenade, enseignes | `src/ui/walkMap.ts`, `src/render/walkScene.ts` | SVG et formes dessinés par le code | Propre au projet |
 | Idées de noms du chenil | `src/data/strings.ts` | Mots français courants choisis pour Truffe | Propre au projet |
 

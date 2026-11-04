@@ -116,6 +116,7 @@ export type GameAction =
   | { type: 'family/select'; dogId: DogId }
   | { type: 'family/move'; dogId: DogId; to: 'home' | 'hotel' }
   | { type: 'settings/decor'; decor: DecorId }
+  | { type: 'poop/pickup'; poopId: string }
   | { type: 'shop/buy'; itemId: ItemId }
   | { type: 'market/buy'; itemId: ItemId }
   | { type: 'market/sell'; itemId: ItemId }
@@ -142,6 +143,7 @@ export function createNewGame(now: number, seed: number): SaveGame {
     settings: { reduceMotion: false, musicVolume: 0.6, sfxVolume: 0.8, micAllowed: null, decor: 'home', brightness: BALANCE.display.defaultBrightness },
     rngState: seed >>> 0,
     stats: { sessions: 0 },
+    poops: [],
   };
 }
 
@@ -340,6 +342,7 @@ function settleWalk(state: GameState, w: WalkState): GameState {
     dogs: state.save.dogs.map((d) => {
       if (d.id !== dog.id) return d;
       const needs = done ? { ...d.needs, cleanliness: clamp100(d.needs.cleanliness + BALANCE.walk.cleanliness), energy: clamp100(d.needs.energy + BALANCE.walk.energy) } : d.needs;
+      if (done) d = { ...d, lastReliefAt: now };
       if (!w.rewarded) return { ...d, needs };
       return { ...d, needs, stamina: d.stamina + g.stamina, affection: clamp100(d.affection + g.affection), walks: { lastRewardedAt: now, count: d.walks.count + 1 } };
     }),
@@ -374,6 +377,43 @@ function stepContest(state: GameState, dtMs: number): GameState {
 function boarded(d: Dog): Dog {
   const k = BALANCE.family.hotelCare;
   return { ...d, needs: { hunger: Math.max(d.needs.hunger, k), thirst: Math.max(d.needs.thirst, k), cleanliness: Math.max(d.needs.cleanliness, k), energy: 100 } };
+}
+
+/**
+ * D-74 : chaque chiot de la maison fait ses besoins s'il n'est pas sorti depuis le délai ;
+ * un besoin oublié trop longtemps coûte des points, une seule fois.
+ */
+function homeRelief(state: GameState, now: number): GameState {
+  const P = BALANCE.home.poop;
+  if (state.walk || state.contest) return state;
+  let s = state;
+  for (const id of s.save.homeDogIds) {
+    const dog = s.save.dogs.find((d) => d.id === id);
+    const mind = s.minds[id];
+    if (!dog || now - dog.lastReliefAt < P.intervalMs || mind?.activity === 'sleep') continue;
+    if (s.save.poops.length >= P.max) {
+      s = { ...s, save: { ...s.save, dogs: s.save.dogs.map((d) => (d.id === id ? { ...d, lastReliefAt: now } : d)) } };
+      continue;
+    }
+    const rng = createRng(s.save.rngState);
+    const base = mind?.pos ?? { x: rng.range(F.minX, F.maxX), z: rng.range(F.minZ + 0.2, F.maxZ - 0.1) };
+    // À côté du chiot, un peu devant : il ne le cache pas.
+    const side = rng.next() < 0.5 ? -1 : 1;
+    const pos = clampFloor({ x: base.x + side * rng.range(0.5, 0.6), z: base.z + rng.range(0, 0.05) });
+    const poop = { id: `poop-${now.toString(36)}-${id}`, dogId: id, pos, at: now, forgotten: false };
+    s = {
+      ...s,
+      save: { ...s.save, rngState: rng.getState(), poops: [...s.save.poops, poop], dogs: s.save.dogs.map((d) => (d.id === id ? { ...d, lastReliefAt: now } : d)) },
+    };
+    if (mind) s = gestureAll(s, { kind: 'relieved' }, id);
+  }
+  const late = s.save.poops.filter((p) => !p.forgotten && now - p.at >= P.forgetMs);
+  if (late.length > 0) {
+    let save: SaveGame = { ...s.save, poops: s.save.poops.map((p) => (late.includes(p) ? { ...p, forgotten: true } : p)) };
+    for (const p of late) save = awardPoints(save, p.dogId, P.forgetPoints);
+    s = { ...s, save };
+  }
+  return s;
 }
 
 /** Temps écoulé hors du jeu, appliqué à chaque chien. */
@@ -427,7 +467,7 @@ function reduceAction(state: GameState, action: GameAction): GameState {
         stats: action.type === 'session/start' ? { ...save.stats, sessions: save.stats.sessions + 1 } : save.stats,
       };
       const night = action.now >= state.save.lastSeenAt ? isNight(action.now, action.tzOffsetMin) : state.night;
-      return greetAll(ensureMinds({ ...state, save, night }), absence);
+      return homeRelief(greetAll(ensureMinds({ ...state, save, night }), absence), save.lastSeenAt);
     }
     case 'tick': {
       // Une horloge qui recule ne fait passer aucun temps sur les besoins ;
@@ -460,6 +500,7 @@ function reduceAction(state: GameState, action: GameAction): GameState {
         const r = tickMind(m, action.dtMs, contextOf(updated, s));
         s = applyEffects({ ...s, minds: { ...s.minds, [dog.id]: r.mind } }, dog.id, r.effects);
       }
+      if (!backwards) s = homeRelief(s, s.save.lastSeenAt);
       // Un jouet porté suit la gueule de son chien.
       if (s.toys.some((t) => t.state === 'carried')) {
         s = {
@@ -505,7 +546,7 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       if (!pick || !name.ok || state.save.dogs.length >= BALANCE.family.maxDogs) return state;
       const price = adoptionPrice(state.save, pick.breedId);
       if (state.save.coins < price) return state;
-      const dog = dogFromCandidate(pick, name.name);
+      const dog = { ...dogFromCandidate(pick, name.name), lastReliefAt: Math.max(state.save.lastSeenAt, action.now) };
       const atHome = state.save.homeDogIds.length < BALANCE.family.maxHome;
       const save: SaveGame = {
         ...state.save,
@@ -670,6 +711,12 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       // Ce qu'il tenait reste au salon.
       const toys = state.toys.map((t) => (t.carrier === action.dogId ? { ...t, state: 'ground' as const, carrier: null, h: 0 } : t));
       return { ...state, minds, toys, active: state.active === action.dogId ? null : state.active, save: { ...state.save, homeDogIds: home.filter((id) => id !== action.dogId) } };
+    }
+    case 'poop/pickup': {
+      const p = state.save.poops.find((x) => x.id === action.poopId);
+      if (!p) return state;
+      const save = { ...state.save, poops: state.save.poops.filter((x) => x.id !== p.id) };
+      return { ...state, save: p.forgotten ? save : awardPoints(save, p.dogId, BALANCE.home.poop.pickupPoints) };
     }
     case 'settings/decor':
       return availableDecors(state.save.masterPoints).includes(action.decor) ? { ...state, save: { ...state.save, settings: { ...state.save.settings, decor: action.decor } } } : state;

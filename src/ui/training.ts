@@ -12,6 +12,8 @@ export interface TrickRow {
   reps: number;
   needed: number;
   voices: number;
+  /** D-75 : maîtrise du tour, de 0 à 1. */
+  mastery: number;
 }
 
 export interface TrainingHandlers {
@@ -88,6 +90,10 @@ export function renderTricks(box: HTMLElement, h: TrainingHandlers, refresh: () 
     li.dataset.trick = r.trickId;
     const dots = r.learned ? `<span class="ok">${ICONS.done}</span>` : `<span class="dots">${'●'.repeat(r.reps)}${'○'.repeat(Math.max(0, r.needed - r.reps))}</span>`;
     li.innerHTML = `<span class="name">${r.label}</span>${dots}`;
+    if (r.learned) {
+      const v = Math.round(r.mastery * 100);
+      li.insertAdjacentHTML('beforeend', `<span class="mastery"><small>${TRAINING.mastery}</small><span class="gauge-bar" role="meter" aria-label="${TRAINING.mastery} : ${r.label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}"><span style="width:${Math.max(3, v)}%"></span></span></span>`);
+    }
     const actions = el('div', 'actions');
     const rename = small(TRAINING.rename, 'card', `rename-${r.trickId}`);
     rename.addEventListener('click', () => {

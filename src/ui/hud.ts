@@ -10,7 +10,7 @@ import type { ToyKind } from '../sim/toys';
 import { ICONS, type IconName } from './icons';
 import { renderOrders, renderTricks, type TrainingHandlers } from './training';
 import { ITEM_BY_ID } from '../data/items';
-import { OUT, SETTINGS } from '../data/strings';
+import { OUT, SETTINGS, TRAINING } from '../data/strings';
 import { itemIcon } from './itemIcon';
 
 export interface CardRow {
@@ -32,7 +32,7 @@ export interface HudHandlers {
   dropBowl(kind: BowlKind, at: { x: number; y: number } | null): void;
   setTool(tool: CareTool | null): void;
   bath(start: boolean): void;
-  card(): { rows: CardRow[]; asleep: boolean; name: string; breed: string; sex: Sex; temperament: TemperamentId };
+  card(): { rows: CardRow[]; asleep: boolean; name: string; breed: string; sex: Sex; temperament: TemperamentId; obedience: number | null };
   /** Jouet choisi : le prochain appui sur la scène le prend en main. */
   armToy(kind: ToyKind): void;
   onChange(fn: () => void): void;
@@ -78,7 +78,7 @@ function button(icon: IconName, label: string, cls = 'btn'): HTMLButtonElement {
   return b;
 }
 
-export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: string): void } {
+export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: string): void; petting(at: { x: number; y: number }): void } {
   const hud = el('div', 'hud');
   root.appendChild(hud);
 
@@ -231,7 +231,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     const key = (st.name ?? '') + st.rows.map((r) => `${r.kind}${Math.round(r.value)}${r.level}`).join();
     if (key === statusKey) return;
     statusKey = key;
-    status.innerHTML = (st.name ? `<strong class="status-name">${st.name}</strong>` : '') + st.rows.map((r) => `<div class="gauge level-${r.level}" data-kind="${r.kind}">${ICONS[ROW_ICONS[r.kind]]}${gauge(r)}</div>`).join('');
+    status.innerHTML = (st.name ? `<strong class="status-name">${st.name}</strong>` : '') + st.rows.map((r) => `<div class="gauge level-${r.level}" data-kind="${r.kind}">${ICONS[ROW_ICONS[r.kind]]}<span class="gauge-body"><small aria-hidden="true">${NEED_LABELS[r.kind]}</small>${gauge(r)}</span></div>`).join('');
   };
   renderStatus();
   h.onStatus(renderStatus);
@@ -293,6 +293,12 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
       const li = el('li', `row level-${r.level}`, `${ICONS[ROW_ICONS[r.kind]]}<span class="label">${NEED_LABELS[r.kind]}</span>${gauge(r)}`);
       li.dataset.kind = r.kind;
       li.dataset.level = r.level;
+      rows.append(li);
+    }
+    if (c.obedience !== null) {
+      const v = Math.round(c.obedience * 100);
+      const li = el('li', 'row obedience', `${ICONS.paw}<span class="label">${TRAINING.obedience}</span><span class="gauge-bar" role="meter" aria-label="${TRAINING.obedience}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v}"><span style="width:${v}%"></span></span>`);
+      li.dataset.kind = 'obedience';
       rows.append(li);
     }
     if (c.asleep) rows.append(el('li', 'row asleep', `${ICONS.moon}<span class="label">${UI.asleep}</span>`));
@@ -389,8 +395,35 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     });
   }
 
-  window.addEventListener('pointermove', (e) => {
-    if (tool) cursor.style.transform = `translate(${e.clientX - 20}px, ${e.clientY - 64}px)`;
+  // L'outil, ou la main qui caresse, suit le doigt dès qu'il touche l'écran.
+  let petting = false;
+  const place = (x: number, y: number): void => {
+    cursor.style.transform = `translate(${x - 20}px, ${y - 64}px)`;
+  };
+  window.addEventListener('pointerdown', (e) => {
+    if (tool) place(e.clientX, e.clientY);
   });
-  return { toast };
+  window.addEventListener('pointermove', (e) => {
+    if (tool || petting) place(e.clientX, e.clientY);
+  });
+  const endPetting = (): void => {
+    if (!petting) return;
+    petting = false;
+    cursor.classList.remove('hand');
+    cursor.hidden = tool === null;
+    cursor.innerHTML = tool ? ICONS[tool] : '';
+  };
+  window.addEventListener('pointerup', endPetting);
+  window.addEventListener('pointercancel', endPetting);
+  return {
+    toast,
+    petting(at) {
+      if (tool) return;
+      petting = true;
+      cursor.innerHTML = ICONS.hand;
+      cursor.classList.add('hand');
+      cursor.hidden = false;
+      place(at.x, at.y);
+    },
+  };
 }

@@ -17,3 +17,14 @@ export function obedienceMalus(s: { hunger: number; thirst: number; energy: numb
   if (s.recentOrders >= O.spamCount) m += O.malusSpam;
   return m;
 }
+
+/**
+ * D-75 : note d'obéissance montrée au joueur (0 à 1) : la probabilité d'obéir, sans malus,
+ * avec la maîtrise moyenne des tours appris. Elle monte quand on fait s'exercer le chiot.
+ */
+export function dogObedience(d: { traits: { docility: number }; affection: number; tricks: readonly { learned: boolean; mastery: number }[] }): number {
+  const learned = d.tricks.filter((t) => t.learned);
+  if (learned.length === 0) return 0;
+  const mastery = learned.reduce((a, t) => a + t.mastery, 0) / learned.length;
+  return obeyProbability({ docility: d.traits.docility, affection: d.affection, mastery, malus: 0 });
+}

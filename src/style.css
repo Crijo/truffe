@@ -1242,8 +1242,8 @@ body.reduce-motion *::after {
   top: calc(max(8px, env(safe-area-inset-top)) + 30px);
   right: 10px;
   display: grid;
-  gap: 6px;
-  width: 132px;
+  gap: 4px;
+  width: 136px;
   padding: 8px 10px;
   border-radius: 14px;
   background: rgb(253 246 234 / 0.88);
@@ -1267,6 +1267,17 @@ body.reduce-motion *::after {
 .gauge svg {
   width: 18px;
   height: 18px;
+}
+
+.gauge-body {
+  display: grid;
+  gap: 1px;
+}
+
+.gauge-body small {
+  font-size: 11px;
+  line-height: 1.1;
+  color: #6b5444;
 }
 
 .gauge-bar {
@@ -1309,4 +1320,29 @@ body.reduce-motion *::after {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- obéissance (D-75) */
+.trick .mastery {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b5444;
+}
+
+.trick .mastery .gauge-bar > span,
+.row.obedience .gauge-bar > span,
+.contest-obey .gauge-bar > span {
+  background: var(--accent);
+}
+
+.contest-obey {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
 }

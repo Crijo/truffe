@@ -43,3 +43,15 @@ describe('Critère du jalon 3 : têtu et sage diffèrent sur 100 ordres', () => 
     expect(sum / 20).toBeCloseTo(100 * 0.3 * (sage - tetu), -1);
   });
 });
+
+describe('D-75 : note d’obéissance affichée', () => {
+  it('monte avec la maîtrise des tours, l’affection et la docilité', async () => {
+    const { dogObedience } = await import('../../src/sim/obedience');
+    const base = { traits: { docility: 0.5, energy: 0.5, boldness: 0.5 }, affection: 50, tricks: [{ learned: true, mastery: 0 }] };
+    const low = dogObedience(base);
+    expect(dogObedience({ ...base, tricks: [{ learned: true, mastery: 1 }] })).toBeGreaterThan(low);
+    expect(dogObedience({ ...base, affection: 90 })).toBeGreaterThan(low);
+    expect(dogObedience({ ...base, tricks: [] })).toBe(0);
+    expect(dogObedience({ ...base, tricks: [{ learned: true, mastery: 1 }, { learned: false, mastery: 0 }] })).toBe(dogObedience({ ...base, tricks: [{ learned: true, mastery: 1 }] }));
+  });
+});

@@ -7,7 +7,7 @@ import { FixedStepper } from './core/loop';
 import { GameStore } from './core/store';
 import { BALANCE } from './data/balance';
 import { BREEDS, coatOf, type BreedLook } from './data/breeds';
-import { DECOR_NAMES, FAMILY, KENNEL, NAME_ERRORS, NEED_WORDS, TRAINING, UNLOCKS } from './data/strings';
+import { DECOR_NAMES, FAMILY, KENNEL, NAME_ERRORS, NEED_WORDS, TRAINING, UI, UNLOCKS } from './data/strings';
 import { GestureRecognizer, type PuppyProbe } from './input/gestures';
 import { bindPointer, type PointerIntercept } from './input/pointer';
 import { ToyHand } from './input/toyHand';
@@ -16,6 +16,7 @@ import { PuppyView } from './render/puppy/PuppyView';
 import { Room } from './render/room';
 import { createStage, type Stage } from './render/stage';
 import { ToysView } from './render/toys';
+import { PoopsView } from './render/poops';
 import { openSaveStore } from './save/storage';
 import { adoptionPrice, validateName, type Candidate } from './sim/adoption';
 import { createMind, type CareTool, type Mood, type PuppyMind } from './sim/behavior';
@@ -39,6 +40,7 @@ import { OUT } from './data/strings';
 import { repsNeeded } from './sim/tricks';
 import { availableBreeds, availableDecors, itemLocked, ropeUnlocked, tierContent } from './sim/unlocks';
 import { canEnter, prizeLeft } from './sim/contests';
+import { dogObedience } from './sim/obedience';
 import { ContestScene } from './render/contestScene';
 import { mountContestHud, openContests } from './ui/contests';
 import { openFamily } from './ui/family';
@@ -204,6 +206,7 @@ async function boot(): Promise<void> {
 
     const bowls = new BowlsView(layer, stage.room);
     const toysView = new ToysView(layer, stage.room);
+    const poopsView = new PoopsView(layer, stage.room);
     let tool: CareTool | null = null;
 
     const recognizer = new GestureRecognizer(probe, (gesture) => {
@@ -253,6 +256,7 @@ async function boot(): Promise<void> {
           reps: t.repetitions,
           needed,
           voices: t.command.voice?.length ?? 0,
+          mastery: t.mastery,
         }));
         return { rows, learned: rows.filter((r) => r.learned).length, max: BALANCE.training.maxTricks };
       },
@@ -437,6 +441,10 @@ async function boot(): Promise<void> {
             };
           },
           prizesLeft: () => prizeLeft(store.getState().save, aid()),
+          obedience: () => {
+            const d = dogOf();
+            return d ? dogObedience(d) : 0;
+          },
           enter: (c) => startContest(c),
         },
         () => undefined,
@@ -650,6 +658,7 @@ async function boot(): Promise<void> {
           breed: breedOf(d?.breedId).label,
           sex: d?.sex ?? 'm',
           temperament: d?.temperament ?? 'joueur',
+          obedience: d && d.tricks.some((t) => t.learned) ? dogObedience(d) : null,
         };
       },
       status() {
@@ -728,10 +737,23 @@ async function boot(): Promise<void> {
               return true;
             }
           }
+          // D-74 : toucher un besoin le ramasse.
+          const poop = poopsView.hitTest(x, y);
+          if (poop) {
+            const forgotten = store.getState().save.poops.find((p) => p.id === poop)?.forgotten ?? false;
+            store.dispatch({ type: 'poop/pickup', poopId: poop });
+            toast(forgotten ? UI.poopForgotten : UI.poopPicked);
+            sfx.tool('towel');
+            save();
+            return true;
+          }
           // D-61 : toucher un chiot en fait le chiot actif.
           const hit = dogAt(x, y);
           if (hit && hit !== aid()) store.dispatch({ type: 'family/select', dogId: hit });
-          return hand.down(x, y, t);
+          const toy = hand.down(x, y, t);
+          // Toucher le chiot : une main apparaît sous le doigt.
+          if (hit && !toy && !tool) hudApi.petting({ x, y });
+          return toy;
         },
         move: (x, y, t) => hand.move(x, y, t),
         up: (x, y, t) => hand.up(x, y, t),
@@ -756,6 +778,7 @@ async function boot(): Promise<void> {
           ring.ellipse(f.x, f.y, k * 0.4, k * 0.11).stroke({ width: 3, color: 0xb5562a, alpha: 0.45 });
         }
         bowls.update(s.bowls, am);
+        poopsView.update(s.save.poops, t);
         toysView.update(dtMs, s.toys, hand.hand, (id) => {
           const v = views.get(id);
           if (!v) return null;
@@ -766,7 +789,7 @@ async function boot(): Promise<void> {
     };
 
     if (DEBUG) {
-      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null };
+      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null, poopsOnScreen: () => poopsView.targets() };
       mountDebug(debugProbe);
     }
 

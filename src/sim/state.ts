@@ -1,6 +1,6 @@
 /** Modèle de données sauvegardé (SPEC, Modèle de données). */
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export type DogId = string;
 export type ItemId = string;
@@ -62,8 +62,19 @@ export interface Dog {
   familiar: Record<ItemId, number>;
   /** F-PRO-7 : dernière promenade avec gains. */
   walks: { lastRewardedAt: number | null; count: number };
+  /** D-74 : dernière fois qu'il a fait ses besoins (promenade terminée ou au salon). */
+  lastReliefAt: number;
   /** Lieux visités en promenade (F-CON : un concours s'ouvre après une visite). */
   visited: { park: boolean; gym: boolean; market: boolean };
+}
+
+export interface Poop {
+  id: string;
+  dogId: DogId;
+  pos: { x: number; z: number };
+  at: number;
+  /** Resté trop longtemps : les points sont déjà retirés, des mouches tournent. */
+  forgotten: boolean;
 }
 
 export interface DogDailyCounters {
@@ -109,4 +120,6 @@ export interface SaveGame {
   /** Graine du générateur, conservée pour rejouer à l'identique. */
   rngState: number;
   stats: { sessions: number };
+  /** D-74 : besoins à ramasser au salon. */
+  poops: Poop[];
 }

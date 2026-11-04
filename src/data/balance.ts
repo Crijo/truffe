@@ -3,6 +3,11 @@
  * Aucune valeur chiffrée de gameplay ne doit être écrite en dur ailleurs.
  */
 export const BALANCE = {
+  /** D-74 : besoins dans la maison, si le chiot n'est pas sorti depuis un moment. */
+  home: {
+    poop: { intervalMs: 4 * 3_600_000, max: 3, pickupPoints: 5, forgetPoints: -5, forgetMs: 3_600_000 },
+  },
+
   /** D-72 : luminosité de la scène. La nuit assombrit le salon d'autant moins que la luminosité est haute. */
   display: { defaultBrightness: 0.7, nightMaxAlpha: 0.6 },
 

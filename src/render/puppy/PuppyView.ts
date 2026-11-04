@@ -852,15 +852,27 @@ export class PuppyView {
       .map((sp, i) => ({ i, sp, ...this.surface(sp.onHead ? headC : bodyC, sp.onHead ? Rh : Rb, sp.onHead ? B.head : bodyR, sp.dir) }))
       .filter((v) => this.facing(v.n) > 0.15);
 
-    // Saleté : taches brunes en dessous de « Propre » (F-SOIN-4).
-    const dirt = clamp((60 - this.cleanliness) / 50, 0, 1);
+    // Saleté (F-SOIN-4) : dès que le pelage n'est plus « Superbe », des taches de boue
+    // de plus en plus nombreuses et foncées ; très sale, de la poussière flotte autour.
+    const dirt = clamp((90 - this.cleanliness) / 75, 0, 1);
     const dg = this.g('dirt');
     dg.zIndex = bodyZ + 0.0008;
     if (dirt > 0) {
       for (const v of visible) {
-        if (v.sp.onHead || v.i % 3 !== 0 || v.i / 22 > dirt) continue;
+        if ((v.sp.onHead && dirt < 0.35) || (!v.sp.onHead && v.i % 2 !== 0) || v.i / this.spots.length > Math.max(dirt, 0.25)) continue;
         const q = this.toS(v.p);
-        dg.ellipse(q.x, q.y, s * 0.04 * v.sp.r, s * 0.028 * v.sp.r).fill({ color: 0x6b4a2a, alpha: 0.45 });
+        const k = 0.8 + 0.7 * dirt;
+        // Les taches de la tête passent au-dessus d'elle (calque des effets), celles du corps restent dessous.
+        const g = v.sp.onHead ? fx : dg;
+        g.ellipse(q.x, q.y, s * 0.045 * v.sp.r * k, s * 0.032 * v.sp.r * k).fill({ color: 0x5e3f22, alpha: 0.35 + 0.35 * dirt });
+        g.circle(q.x + s * 0.03 * v.sp.r, q.y + s * 0.02, s * 0.012 * k).fill({ color: 0x5e3f22, alpha: 0.3 + 0.3 * dirt });
+      }
+      if (dirt > 0.6) {
+        const c = this.toS(bodyC);
+        for (let k = 0; k < 6; k++) {
+          const a = now * 0.6 + k * 1.05;
+          dg.circle(c.x + Math.cos(a) * s * 0.42, c.y - s * 0.25 + Math.sin(a * 1.3) * s * 0.16, s * 0.012).fill({ color: 0x8a7258, alpha: 0.55 });
+        }
       }
     }
 

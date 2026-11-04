@@ -42,6 +42,12 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
     ...raw,
     settings: { brightness: BALANCE.display.defaultBrightness, ...(isObj(raw.settings) ? raw.settings : {}) },
   }),
+  // v5 → v6 : besoins dans la maison (D-74).
+  5: (raw) => ({
+    poops: [],
+    ...raw,
+    dogs: (Array.isArray(raw.dogs) ? raw.dogs : []).map((d: unknown) => (isObj(d) ? { lastReliefAt: isNum(raw.lastSeenAt) ? raw.lastSeenAt : 0, ...d } : d)),
+  }),
 };
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 

@@ -153,7 +153,9 @@ export type Gesture =
   | { kind: 'voiceMiss' }
   | { kind: 'treat' }
   | { kind: 'call' }
-  | { kind: 'forceSpontaneous'; trick: TrickId };
+  | { kind: 'forceSpontaneous'; trick: TrickId }
+  /** D-74 : il fait ses besoins (renifle d'abord le sol). */
+  | { kind: 'relieved' };
 
 export interface PuppyContext {
   traits: { docility: number; energy: number; boldness: number };
@@ -1377,6 +1379,10 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
       // « Tourne » : dessiner un cercle autour de lui.
       startPerform(m, 'spin');
       offerBulb(m, ctx, 'spin');
+      break;
+    case 'relieved':
+      m.look = { kind: 'ground' };
+      emit(m, 'sniffGround');
       break;
     case 'forceSpontaneous':
       startPerform(m, g.trick);

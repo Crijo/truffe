@@ -28,6 +28,7 @@ export function createStarterDog(rng: Rng): Dog {
     temperament: 'joueur',
     familiar: {},
     walks: { lastRewardedAt: null, count: 0 },
+    lastReliefAt: 0,
     visited: { park: false, gym: false, market: false },
     traits: rollTraits(rng, 'joueur'),
     needs: { hunger: s.hunger, thirst: s.thirst, cleanliness: s.cleanliness, energy: s.energy },

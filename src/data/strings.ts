@@ -64,6 +64,8 @@ export const TRAINING = {
   reName: 'Redire son nom',
   clearVoices: 'Effacer les voix',
   learnedToast: 'Il a appris un nouveau tour !',
+  obedience: 'Obéissance',
+  mastery: 'Maîtrise',
   bulbHint: 'Touche l’ampoule !',
   limitToast: 'Il a assez appris pour aujourd’hui.',
 } as const;
@@ -144,6 +146,8 @@ export const WALK = {
 
 export const UI = {
   putAway: 'Ranger les jouets',
+  poopPicked: 'Ramassé ! +5',
+  poopForgotten: 'Ramassé, enfin…',
   putAwayDone: 'Jouets rangés.',
   bag: 'Sac',
   out: 'Sortir',
