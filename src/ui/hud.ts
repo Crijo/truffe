@@ -38,7 +38,8 @@ export interface HudHandlers {
   /** Gamelle lâchée en (x, y) écran ; null : posée à l'emplacement habituel. */
   dropBowl(kind: BowlKind, at: { x: number; y: number } | null): void;
   setTool(tool: CareTool | null): void;
-  bath(start: boolean): void;
+  /** D-88 : ouvre la salle de bain avec le chiot actif. */
+  bath(): void;
   card(): { rows: CardRow[]; asleep: boolean; name: string; breed: string; sex: Sex; temperament: TemperamentId; obedience: number | null; levels: { dog: LevelInfo; player: LevelInfo } };
   /** Jouet choisi : le prochain appui sur la scène le prend en main. */
   armToy(kind: ToyKind): void;
@@ -216,12 +217,9 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   // Outils de soin.
   const tools = el('nav', 'bar tools');
   tools.hidden = true;
-  const tSoap = button('soap', UI.soap);
-  const tShower = button('shower', UI.shower);
-  const tTowel = button('towel', UI.towel);
   const tBrush = button('brush', UI.brush);
   const tDone = button('done', UI.done);
-  tools.append(tSoap, tShower, tTowel, tBrush, tDone);
+  tools.append(tBrush, tDone);
 
   const toastEl = el('div', 'toast');
   toastEl.setAttribute('role', 'status');
@@ -301,7 +299,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   hud.append(you, status, bar, bag, card, orders, tools, toastEl, ghost, cursor);
 
   // ------------------------------------------------------------ états
-  let mode: 'bar' | 'bath' | 'brush' = 'bar';
+  let mode: 'bar' | 'brush' = 'bar';
   let tool: CareTool | null = null;
   const show = (sheet: HTMLElement | null): void => {
     bag.hidden = sheet !== bag;
@@ -319,14 +317,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   const setTool = (t: CareTool | null): void => {
     tool = t;
     h.setTool(t);
-    for (const [b, name] of [
-      [tSoap, 'soap'],
-      [tShower, 'shower'],
-      [tTowel, 'towel'],
-      [tBrush, 'brush'],
-    ] as const) {
-      b.setAttribute('aria-pressed', String(t === name));
-    }
+    tBrush.setAttribute('aria-pressed', String(t === 'brush'));
     cursor.hidden = t === null;
     cursor.innerHTML = t ? ICONS[t] : '';
   };
@@ -334,8 +325,6 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     mode = m;
     bar.hidden = m !== 'bar';
     tools.hidden = m === 'bar';
-    for (const b of [tSoap, tShower, tTowel]) b.hidden = m !== 'bath';
-    tBrush.hidden = m !== 'brush';
     show(null);
   };
 
@@ -405,17 +394,13 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     setMode('brush');
     setTool('brush');
   });
+  // D-88 : le bain se donne dans la salle de bain, une scène à part.
   iBath.addEventListener('click', () => {
-    setMode('bath');
-    h.bath(true);
-    setTool('soap');
+    show(null);
+    h.bath();
   });
-  tSoap.addEventListener('click', () => setTool('soap'));
-  tShower.addEventListener('click', () => setTool('shower'));
-  tTowel.addEventListener('click', () => setTool('towel'));
   tBrush.addEventListener('click', () => setTool('brush'));
   tDone.addEventListener('click', () => {
-    if (mode === 'bath') h.bath(false);
     setTool(null);
     setMode('bar');
   });

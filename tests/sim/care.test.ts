@@ -34,7 +34,7 @@ function advance(s: GameState, ms: number): GameState {
 }
 const act = (s: GameState, a: GameAction) => reduce(s, a);
 const gesture = (s: GameState, g: Gesture) => reduce(s, { type: 'gesture', gesture: g });
-function scrub(s: GameState, tool: 'soap' | 'shower' | 'towel' | 'brush', px: number): GameState {
+function scrub(s: GameState, tool: 'soap' | 'shower' | 'dryer' | 'brush', px: number): GameState {
   for (let d = 0; d < px; d += 20) {
     s = gesture(s, { kind: 'scrub', tool, distancePx: 20 });
     s = advance(s, 20);
@@ -113,43 +113,58 @@ describe('F-SOIN-1 : gamelles', () => {
   });
 });
 
-describe('F-SOIN-2 : bain au doigt', () => {
-  it('savonner, rincer, sécher : propreté à 100 et ébrouement', () => {
+describe('F-SOIN-2, D-88 : bain en quatre étapes', () => {
+  const steps = (s: GameState) => mind(s).events.filter((e) => e.type === 'bathStep').length;
+
+  it('mouiller, savonner, rincer, sécher au sèche-cheveux : propreté à 100, un signal à chaque étape', () => {
     let s = withNeeds(start(), { cleanliness: 30 });
     s = gesture(s, { kind: 'groomStart' });
     expect(mind(s).activity).toBe('groom');
+    expect(mind(s).bath.stage).toBe('wet');
+    s = scrub(s, 'shower', C.wetPx);
+    expect(mind(s).bath.wet).toBe(1);
+    expect(mind(s).bath.stage).toBe('soap');
+    expect(steps(s)).toBe(1);
     s = scrub(s, 'soap', C.soapPx);
-    expect(mind(s).bath.foam).toBeCloseTo(1);
+    expect(mind(s).bath.foam).toBe(1);
+    expect(mind(s).bath.stage).toBe('rinse');
     s = scrub(s, 'shower', C.rinsePx);
     expect(mind(s).bath.foam).toBe(0);
-    expect(mind(s).bath.wet).toBe(1);
-    expect(dog(s).needs.cleanliness).toBeLessThan(100);
-    s = scrub(s, 'towel', C.dryPx);
-    expect(dog(s).needs.cleanliness).toBeCloseTo(100, 2);
+    expect(mind(s).bath.stage).toBe('dry');
     expect(mind(s).events.map((e) => e.type)).toContain('shake');
+    expect(dog(s).needs.cleanliness).toBeLessThan(100);
+    s = scrub(s, 'dryer', C.dryPx);
+    expect(mind(s).bath.stage).toBe('done');
+    expect(steps(s)).toBe(4);
+    expect(dog(s).needs.cleanliness).toBeCloseTo(100, 2);
+  });
+
+  it('chaque étape attend la précédente : savonner un chiot sec ne mousse pas', () => {
+    let s = withNeeds(start(), { cleanliness: 30 });
+    s = gesture(s, { kind: 'groomStart' });
+    s = scrub(s, 'soap', C.soapPx);
+    expect(mind(s).bath.foam).toBe(0);
+    s = scrub(s, 'dryer', C.dryPx);
+    expect(mind(s).bath.stage).toBe('wet');
+    expect(dog(s).needs.cleanliness).toBeLessThan(31);
   });
 
   it('sécher sans avoir rincé ne lave pas', () => {
     let s = withNeeds(start(), { cleanliness: 30 });
     s = gesture(s, { kind: 'groomStart' });
+    s = scrub(s, 'shower', C.wetPx);
     s = scrub(s, 'soap', C.soapPx);
-    s = scrub(s, 'towel', C.dryPx);
+    s = scrub(s, 'dryer', C.dryPx);
+    expect(mind(s).bath.foam).toBe(1);
     expect(dog(s).needs.cleanliness).toBeLessThan(31);
   });
 
-  it('rincer sans savon ne lave pas non plus', () => {
-    let s = withNeeds(start(), { cleanliness: 30 });
-    s = gesture(s, { kind: 'groomStart' });
-    s = scrub(s, 'shower', C.rinsePx);
-    s = scrub(s, 'towel', C.dryPx);
-    expect(dog(s).needs.cleanliness).toBeLessThan(31);
-  });
-
-  it('le chiot reste en place pendant le bain', () => {
+  it('le chiot reste debout, en place, pendant le bain', () => {
     let s = gesture(start(), { kind: 'groomStart' });
     const pos = { ...mind(s).pos };
     s = advance(s, 30_000);
     expect(mind(s).pos).toEqual(pos);
+    expect(mind(s).posture).toBe('stand');
     s = gesture(s, { kind: 'groomEnd' });
     expect(mind(s).activity).not.toBe('groom');
   });
@@ -286,9 +301,10 @@ describe('F-VIE-3 : retour après une longue absence', () => {
     s = act(s, { type: 'care/bowl', kind: 'water', at: { x: -0.3, z: 0.7 } });
     s = advance(s, 20_000);
     s = gesture(s, { kind: 'groomStart' });
+    s = scrub(s, 'shower', C.wetPx);
     s = scrub(s, 'soap', C.soapPx);
     s = scrub(s, 'shower', C.rinsePx);
-    s = scrub(s, 'towel', C.dryPx);
+    s = scrub(s, 'dryer', C.dryPx);
     s = gesture(s, { kind: 'groomEnd' });
     // D-82 : il s'ennuie aussi ; quelques lancers le divertissent.
     for (let i = 0; i < 3; i++) {

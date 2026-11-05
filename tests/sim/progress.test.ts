@@ -26,7 +26,7 @@ function advance(s: GameState, ms: number): GameState {
   for (let t = 0; t < ms; t += 100) s = reduce(s, { type: 'tick', now: (now += 100), dtMs: 100, tzOffsetMin: TZ });
   return s;
 }
-function scrub(s: GameState, tool: 'soap' | 'shower' | 'towel' | 'brush', px: number): GameState {
+function scrub(s: GameState, tool: 'soap' | 'shower' | 'dryer' | 'brush', px: number): GameState {
   for (let d = 0; d < px; d += 20) {
     s = reduce(s, { type: 'gesture', gesture: { kind: 'scrub', tool, distancePx: 20 } });
     s = advance(s, 20);
@@ -70,9 +70,10 @@ describe('F-ECO-2 : gains des soins et du dressage', () => {
     const bath = (cleanliness: number) => {
       let s = withNeeds(startWithDog(T0, TZ), { cleanliness });
       s = reduce(s, { type: 'gesture', gesture: { kind: 'groomStart' } });
+      s = scrub(s, 'shower', C.wetPx);
       s = scrub(s, 'soap', C.soapPx);
       s = scrub(s, 'shower', C.rinsePx);
-      s = scrub(s, 'towel', C.dryPx);
+      s = scrub(s, 'dryer', C.dryPx);
       return s.save.masterPoints;
     };
     expect(bath(30)).toBe(G.groom);

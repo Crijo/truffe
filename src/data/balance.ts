@@ -182,6 +182,8 @@ export const BALANCE = {
     eatMs: 3500,
     /** Le chiot se place derrière la gamelle, tête au-dessus. */
     bowlOffsetZ: 0.13,
+    /** D-88 : glissé (px) pour mouiller tout le chiot, avant le savon. */
+    wetPx: 400,
     soapPx: 700,
     rinsePx: 500,
     dryPx: 600,

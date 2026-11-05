@@ -109,6 +109,11 @@ export class Sfx {
       case 'bulb':
         this.voice(t, [1200, 1800], 0.18, 'sine', 0.12, 2400);
         break;
+      case 'bathStep':
+        // D-88 : petite cloche à deux notes à chaque étape du bain.
+        this.voice(t, [880, 880], 0.12, 'sine', 0.22, 2400);
+        this.voice(t + 0.13, [1320, 1320], 0.2, 'sine', 0.22, 2800);
+        break;
       case 'learned':
         this.voice(t, [980, 760], 0.1, 'triangle', 0.4, 1800);
         this.voice(t + 0.14, [1100, 820], 0.1, 'triangle', 0.4, 1800);
@@ -138,7 +143,7 @@ export class Sfx {
   }
 
   /** Bruit d'outil de soin pendant le geste (limité à un toutes les 120 ms). */
-  tool(kind: 'soap' | 'shower' | 'towel' | 'brush'): void {
+  tool(kind: 'soap' | 'shower' | 'dryer' | 'brush'): void {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
     const prev = this.lastAt.get(kind) ?? 0;
@@ -149,7 +154,11 @@ export class Sfx {
       this.burst(t, 0.06, 1800, 2, 0.18);
       if (Math.random() < 0.4) this.voice(t + 0.03, [900, 1500], 0.03, 'sine', 0.12, 2000);
     } else if (kind === 'shower') this.burst(t, 0.16, 4200, 0.6, 0.2);
-    else if (kind === 'towel') this.burst(t, 0.12, 900, 0.7, 0.2);
+    else if (kind === 'dryer') {
+      // Souffle du sèche-cheveux : bruit grave et continu, avec un léger sifflement.
+      this.burst(t, 0.16, 700, 0.5, 0.22);
+      this.voice(t, [320, 330], 0.15, 'sawtooth', 0.03, 900);
+    }
     else this.burst(t, 0.08, 3800, 1.5, 0.14);
   }
 

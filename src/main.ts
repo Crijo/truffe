@@ -34,6 +34,8 @@ import { marketStock, shopCatalog } from './sim/economy';
 import { currentQuestions } from './sim/game';
 import { extendRoute, maxMeters, routeMeters, stepBonus, walkGains } from './sim/walk';
 import { WalkScene } from './render/walkScene';
+import { BathScene } from './render/bathScene';
+import { mountBathHud, STAGE_TOOL } from './ui/bath';
 import { openBook, openMarket, openOutings, type OutingHandlers } from './ui/outings';
 import { openMap } from './ui/walkMap';
 import { mountWalkHud } from './ui/walkHud';
@@ -231,13 +233,16 @@ async function boot(): Promise<void> {
     sync();
     const av = (): PuppyView | undefined => views.get(aid());
     /** Les gestes visent le chiot actif (D-61). */
+    /** D-88 : dans la salle de bain, la sonde (pour le débogage et les tests) vise le chiot de la salle de bain. */
+    let bathProbe: PuppyProbe | null = null;
+    const pv = (): PuppyProbe | undefined => bathProbe ?? av()?.probe;
     const probe: PuppyProbe = {
-      hitTest: (x, y) => av()?.probe.hitTest(x, y) ?? null,
-      nose: () => av()?.probe.nose() ?? { x: 0, y: 0 },
-      headTop: () => av()?.probe.headTop() ?? { x: 0, y: 0 },
-      headRadius: () => av()?.probe.headRadius() ?? 1,
+      hitTest: (x, y) => pv()?.hitTest(x, y) ?? null,
+      nose: () => pv()?.nose() ?? { x: 0, y: 0 },
+      headTop: () => pv()?.headTop() ?? { x: 0, y: 0 },
+      headRadius: () => pv()?.headRadius() ?? 1,
       toFloor: (x, y) => stage.room.screenToFloor(x, y),
-      bodyCenter: () => av()?.probe.bodyCenter() ?? { x: 0, y: 0 },
+      bodyCenter: () => pv()?.bodyCenter() ?? { x: 0, y: 0 },
     };
     /** Le chiot sous le doigt, le plus en avant. */
     const dogAt = (x: number, y: number): DogId | null => {
@@ -396,6 +401,91 @@ async function boot(): Promise<void> {
         },
         () => undefined,
       );
+    };
+
+    /**
+     * D-88 : salle de bain. Le chiot actif y est seul et debout ; les autres restent au salon.
+     * Les gestes vont à la sonde du chiot de la salle de bain.
+     */
+    const startBath = (): void => {
+      const d0 = dogOf();
+      if (!d0) return;
+      const id = aid();
+      store.dispatch({ type: 'gesture', gesture: { kind: 'groomStart' } });
+      const salon = mode;
+      const scene = new BathScene(breedOf(d0.breedId), d0.coat);
+      scene.layout(stage.app.screen.width, stage.app.screen.height);
+      stage.app.stage.addChild(scene.container);
+      stage.world.visible = false;
+      document.body.dataset.mode = 'bath';
+      let bathTool: CareTool | null = null;
+      let pointer: { x: number; y: number } | null = null;
+      const rec = new GestureRecognizer(scene.probe, (gesture) => {
+        if (bathTool && (gesture.kind === 'stroke' || gesture.kind === 'push')) {
+          const stageNow = store.getState().minds[id]?.bath.stage ?? 'done';
+          if (stageNow !== 'done' && STAGE_TOOL[stageNow] !== bathTool) hud.wrongTool(stageNow);
+          const distancePx = gesture.kind === 'stroke' ? gesture.distancePx : BALANCE.gestures.pushMinPx;
+          store.dispatch({ type: 'gesture', gesture: { kind: 'scrub', tool: bathTool, distancePx } });
+          sfx.tool(bathTool);
+          if (pointer) scene.splash(bathTool, pointer.x, pointer.y);
+          return;
+        }
+        // Sans outil (bain fini), on peut le caresser.
+        if (!bathTool && (gesture.kind === 'stroke' || gesture.kind === 'touch')) store.dispatch({ type: 'gesture', gesture });
+      });
+      recognizerRef.current = rec;
+      bathProbe = scene.probe;
+      let seen = store.getState().minds[id]?.events.at(-1)?.seq ?? 0;
+      const back = (): void => {
+        store.dispatch({ type: 'gesture', gesture: { kind: 'groomEnd' } });
+        hud.destroy();
+        scene.container.destroy({ children: true });
+        stage.world.visible = true;
+        recognizerRef.current = recognizer;
+        bathProbe = null;
+        mode = salon;
+        document.body.dataset.mode = 'living';
+        save();
+      };
+      const hud = mountBathHud({ setTool: (t) => (bathTool = t), close: back });
+      hud.update(store.getState().minds[id]?.bath.stage ?? 'wet');
+      mode = {
+        intercept: {
+          down: (x, y) => {
+            pointer = { x, y };
+            return false;
+          },
+          move: (x, y) => {
+            pointer = { x, y };
+          },
+          up: () => {
+            pointer = null;
+          },
+          cancel: () => {
+            pointer = null;
+          },
+        },
+        frame(dtMs, t) {
+          rec.update(t);
+          const s = store.getState();
+          const m = s.minds[id];
+          const d = s.save.dogs.find((x) => x.id === id);
+          if (!m || !d) return;
+          scene.layout(stage.app.screen.width, stage.app.screen.height);
+          scene.update(dtMs, m, d.needs.cleanliness, d.equipped, rec.pointerAt(t));
+          // Une étape finie : son mot (la cloche est jouée avec les autres sons du chiot).
+          for (const e of m.events) {
+            if (e.seq <= seen) continue;
+            seen = e.seq;
+            if (e.type !== 'bathStep') continue;
+            const order = ['wet', 'soap', 'rinse', 'dry'] as const;
+            const i = m.bath.stage === 'done' ? 3 : order.indexOf(m.bath.stage as (typeof order)[number]) - 1;
+            const finished = order[i];
+            if (finished) hud.flash(finished);
+          }
+          hud.update(m.bath.stage);
+        },
+      };
     };
 
     /** Promenade : la scène de profil remplace le salon le temps de la marche. */
@@ -716,9 +806,9 @@ async function boot(): Promise<void> {
       setTool(t) {
         tool = t;
       },
-      bath(start) {
+      bath() {
         sfx.unlock();
-        store.dispatch({ type: 'gesture', gesture: { kind: start ? 'groomStart' : 'groomEnd' } });
+        startBath();
       },
       armToy(kind) {
         sfx.unlock();
@@ -846,7 +936,7 @@ async function boot(): Promise<void> {
             const forgotten = store.getState().save.poops.find((p) => p.id === poop)?.forgotten ?? false;
             store.dispatch({ type: 'poop/pickup', poopId: poop });
             toast(forgotten ? UI.poopForgotten : UI.poopPicked);
-            sfx.tool('towel');
+            sfx.tool('brush');
             save();
             return true;
           }

@@ -16,7 +16,7 @@ export const ICONS = {
   bath: svg('<path d="M6 24h36v4a10 10 0 0 1-10 10H16A10 10 0 0 1 6 28z"/><path d="M12 24V12a5 5 0 0 1 9-3"/><path d="M14 38l-2 4M34 38l2 4"/>'),
   soap: svg('<rect x="9" y="20" width="28" height="18" rx="6"/><circle cx="20" cy="12" r="4"/><circle cx="31" cy="9" r="3"/><circle cx="36" cy="16" r="2"/>'),
   shower: svg('<path d="M10 10h14a8 8 0 0 1 8 8v2"/><path d="M24 20h16"/><path d="M27 27l-2 4M33 27v5M39 27l2 4"/>'),
-  towel: svg('<path d="M10 10h28v28H10z"/><path d="M10 30h28M16 34h16"/>'),
+  dryer: svg('<path d="M8 14h20a8 8 0 0 1 0 16H8z"/><path d="M16 30l-3 12h7l3-12"/><path d="M36 18h6M37 24h6M36 30h6"/>'),
   close: svg('<path d="M14 14l20 20M34 14L14 34"/>'),
   done: svg('<path d="M10 25l9 9 19-20"/>'),
   hunger: svg('<path d="M8 26h32l-4 12H12z"/><path d="M16 22c0-4 4-8 8-8s8 4 8 8"/>'),

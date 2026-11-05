@@ -42,7 +42,9 @@ export type Activity =
 export type Mood = 'calm' | 'happy' | 'content' | 'curious' | 'sulky' | 'startled' | 'asleep';
 export type BodyPart = 'head' | 'ear' | 'muzzle' | 'back' | 'flank' | 'belly' | 'tail' | 'paw';
 export type Gait = 'still' | 'walk' | 'trot' | 'run';
-export type CareTool = 'soap' | 'shower' | 'towel' | 'brush';
+export type CareTool = 'soap' | 'shower' | 'dryer' | 'brush';
+/** D-88 : étapes du bain, dans l'ordre. */
+export type BathStage = 'wet' | 'soap' | 'rinse' | 'dry' | 'done';
 export type BowlKind = 'food' | 'water';
 export type PuppyEventType =
   | 'bark'
@@ -87,7 +89,9 @@ export type PuppyEventType =
   | 'treat'
   | 'nibble'
   /** Halètement, après avoir couru. */
-  | 'pant';
+  | 'pant'
+  /** D-88 : une étape du bain vient d'être finie. */
+  | 'bathStep';
 
 export interface PuppyEvent {
   seq: number;
@@ -271,7 +275,7 @@ export interface PuppyMind {
   curiousUntil: number;
 
   eating: { bowlId: string; kind: BowlKind; meal: number; until: number | null; nextBiteAt: number } | null;
-  bath: { active: boolean; foam: number; soaped: boolean; rinsed: boolean; wet: number };
+  bath: { active: boolean; stage: BathStage; foam: number; wet: number };
   brush: { gained: number; accumPx: number; lastAt: number };
   shineUntil: number;
   /** F-JEU-2 : ce que le chiot a décidé de faire du dernier jouet lancé. */
@@ -347,7 +351,7 @@ export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
     happyUntil: NEVER,
     curiousUntil: NEVER,
     eating: null,
-    bath: { active: false, foam: 0, soaped: false, rinsed: false, wet: 0 },
+    bath: { active: false, stage: 'wet', foam: 0, wet: 0 },
     brush: { gained: 0, accumPx: 0, lastAt: NEVER },
     shineUntil: NEVER,
     urgentSince: null,
@@ -739,11 +743,12 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       break;
     }
     case 'groom':
+      // D-88 : debout, pour qu'on puisse le laver partout.
       m.target = null;
       m.gait = 'still';
       m.look = { kind: 'player' };
       m.postureLockUntil = 0;
-      m.posture = 'sit';
+      m.posture = 'stand';
       m.facing = 0;
       break;
     case 'fetch':
@@ -1228,25 +1233,38 @@ function scrub(m: PuppyMind, tool: CareTool, px: number, fx: Effects): void {
     return;
   }
   if (!b.active) return;
-  if (tool === 'soap') {
-    b.foam = Math.min(1, b.foam + px / C.soapPx);
-    if (b.foam >= 0.95) b.soaped = true;
-    b.rinsed = false;
-  } else if (tool === 'shower') {
-    b.wet = 1;
-    if (b.foam > 0) {
-      b.foam = Math.max(0, b.foam - px / C.rinsePx);
-      if (b.foam < EPS) b.foam = 0;
-      if (b.foam === 0 && b.soaped) b.rinsed = true;
+  // D-88 : mouiller, savonner, rincer, sécher ; chaque étape attend la précédente.
+  const next = (stage: BathStage): void => {
+    b.stage = stage;
+    emit(m, 'bathStep');
+  };
+  if (b.stage === 'wet' && tool === 'shower') {
+    b.wet = Math.min(1, b.wet + px / C.wetPx);
+    if (b.wet > 1 - EPS) {
+      b.wet = 1;
+      next('soap');
     }
-  } else if (b.wet > 0) {
-    b.wet = Math.max(0, b.wet - px / C.dryPx);
-    if (b.wet < EPS) b.wet = 0;
-    if (b.wet === 0 && b.rinsed) {
-      fx.cleanSet = N.bath;
-      m.bath = { active: true, foam: 0, soaped: false, rinsed: false, wet: 0 };
-      m.happyUntil = m.t + 3000;
+  } else if (b.stage === 'soap' && tool === 'soap') {
+    b.foam = Math.min(1, b.foam + px / C.soapPx);
+    if (b.foam > 1 - EPS) {
+      b.foam = 1;
+      next('rinse');
+    }
+  } else if (b.stage === 'rinse' && tool === 'shower') {
+    b.foam = Math.max(0, b.foam - px / C.rinsePx);
+    if (b.foam < EPS) {
+      b.foam = 0;
+      next('dry');
+      // Rincé : il s'ébroue, avant le sèche-cheveux.
       emit(m, 'shake');
+    }
+  } else if (b.stage === 'dry' && tool === 'dryer') {
+    b.wet = Math.max(0, b.wet - px / C.dryPx);
+    if (b.wet < EPS) {
+      b.wet = 0;
+      fx.cleanSet = N.bath;
+      m.happyUntil = m.t + 3000;
+      next('done');
     }
   }
 }
@@ -1471,11 +1489,11 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
       emit(m, 'perk');
       break;
     case 'groomStart':
-      m.bath = { active: true, foam: 0, soaped: false, rinsed: false, wet: 0 };
+      m.bath = { active: true, stage: 'wet', foam: 0, wet: 0 };
       break;
     case 'groomEnd':
       if (m.bath.wet > 0 || m.bath.foam > 0) emit(m, 'shake');
-      m.bath = { active: false, foam: 0, soaped: false, rinsed: false, wet: 0 };
+      m.bath = { active: false, stage: 'wet', foam: 0, wet: 0 };
       break;
     case 'scrub':
       scrub(m, g.tool, g.distancePx, fx);

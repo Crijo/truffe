@@ -181,6 +181,24 @@ export const LEVELS = {
   dogUp: '{name} passe au niveau {n} !',
 } as const;
 
+/** D-88 : salle de bain. */
+export const BATH = {
+  title: 'Salle de bain',
+  steps: { wet: 'Mouiller', soap: 'Savonner', rinse: 'Rincer', dry: 'Sécher' },
+  /** Mot affiché et lu quand l'étape est finie. */
+  doneWords: { wet: 'Mouillé !', soap: 'Savonné !', rinse: 'Rincé !', dry: 'Sec et tout propre !' },
+  hints: {
+    wet: 'Passe la douche sur tout le chiot.',
+    soap: 'Frotte-le avec le savon, partout.',
+    rinse: 'Rince toute la mousse avec la douche.',
+    dry: 'Sèche-le au sèche-cheveux.',
+    done: 'Tout propre ! Tu peux le ramener au salon.',
+  },
+  wrongTool: 'Pas encore : {step} d’abord.',
+  dryer: 'Sèche-cheveux',
+  back: 'Retour au salon',
+} as const;
+
 export const UI = {
   putAway: 'Ranger les jouets',
   poopPicked: 'Ramassé ! +5',
@@ -198,7 +216,6 @@ export const UI = {
   bath: 'Bain',
   soap: 'Savon',
   shower: 'Douche',
-  towel: 'Serviette',
   done: 'Fini',
   dragHint: 'Glisse sur le sol',
   puppy: 'Ton chiot',

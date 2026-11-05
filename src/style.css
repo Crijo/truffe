@@ -875,6 +875,7 @@ body {
   background: var(--accent);
 }
 
+body[data-mode='bath'] .hud,
 body[data-mode='contest'] .hud,
 body[data-mode='kennel'] .hud,
 body[data-mode='walk'] .hud {
@@ -1651,4 +1652,110 @@ body.reduce-motion *::after {
 .walk-steps svg {
   width: 20px;
   height: 20px;
+}
+
+/* ---------------------------------------------------------------- salle de bain (D-88) */
+.bath-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bath-hud > * {
+  pointer-events: auto;
+}
+
+.bath-hud .tool-cursor {
+  pointer-events: none;
+}
+
+.bath-steps {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 8px;
+  border-radius: 18px;
+  background: rgb(253 246 234 / 0.94);
+  list-style: none;
+}
+
+.bath-step {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 4px 2px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b5444;
+}
+
+.bath-step .n {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--paper-2);
+  font-weight: 800;
+}
+
+.bath-step.current {
+  background: #dcecf3;
+  color: var(--ink);
+}
+
+.bath-step.current .n {
+  background: #4a8fb5;
+  color: #fff;
+}
+
+.bath-step.done .n {
+  background: var(--ok);
+  color: #fff;
+}
+
+.bath-step.done .n::after {
+  content: '✓';
+  position: absolute;
+}
+
+.bath-step.done .n {
+  position: relative;
+  color: transparent;
+}
+
+.bath-step.done .n::after {
+  color: #fff;
+}
+
+.bath-hint {
+  position: absolute;
+  top: calc(max(10px, env(safe-area-inset-top)) + 78px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgb(61 43 31 / 0.82);
+  color: #fff;
+  font-size: 15px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.bath-flash {
+  top: 30%;
+  white-space: nowrap;
+}
+
+.bath-bar .btn.primary {
+  min-height: 60px;
+  font-size: 13px;
 }
