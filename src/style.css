@@ -876,6 +876,7 @@ body {
 }
 
 body[data-mode='bath'] .hud,
+body[data-mode='chores'] .hud,
 body[data-mode='contest'] .hud,
 body[data-mode='kennel'] .hud,
 body[data-mode='walk'] .hud {
@@ -1807,4 +1808,92 @@ body.reduce-motion *::after {
 
 body:not([data-mode='living']) .toy-basket {
   display: none;
+}
+
+/* ---------------------------------------------------------------- ménage (D-91) */
+.chores-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.chores-hud > * {
+  pointer-events: auto;
+}
+
+.chores-hud .tool-cursor,
+.chores-hud .chores-side,
+.chores-hud .chores-hint {
+  pointer-events: none;
+}
+
+.chores-top {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgb(253 246 234 / 0.94);
+}
+
+.chores-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+}
+
+.chores-title svg {
+  width: 26px;
+  height: 26px;
+}
+
+.chores-count {
+  justify-self: end;
+  font-weight: 700;
+}
+
+.chores-time {
+  grid-column: 1 / -1;
+}
+
+.chores-time > span {
+  background: #4a8fb5;
+  transition: width 0.2s linear;
+}
+
+.chores-bonus {
+  grid-column: 1 / -1;
+  color: #6b5444;
+}
+
+.chores-hint {
+  top: calc(max(10px, env(safe-area-inset-top)) + 100px);
+}
+
+.chores-side {
+  position: absolute;
+  top: 45%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgb(61 43 31 / 0.8);
+  color: #fff;
+  font-weight: 800;
+}
+
+.chores-side[hidden] {
+  display: none;
+}
+
+.chores-side.left {
+  left: 8px;
+}
+
+.chores-side.right {
+  right: 8px;
 }

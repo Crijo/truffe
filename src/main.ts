@@ -7,7 +7,7 @@ import { FixedStepper } from './core/loop';
 import { GameStore } from './core/store';
 import { BALANCE } from './data/balance';
 import { BREEDS, coatOf, type BreedLook } from './data/breeds';
-import { DECOR_NAMES, FAMILY, KENNEL, LEVELS, NAME_ERRORS, NEED_WORDS, TRAINING, UI, UNLOCKS } from './data/strings';
+import { DECOR_NAMES, FAMILY, KENNEL, LEVELS, NAME_ERRORS, NEED_WORDS, TRAINING, UI, UNLOCKS, CHORES } from './data/strings';
 import { GestureRecognizer, type PuppyProbe } from './input/gestures';
 import { bindPointer, type PointerIntercept } from './input/pointer';
 import { ToyHand } from './input/toyHand';
@@ -36,6 +36,8 @@ import { currentQuestions } from './sim/game';
 import { extendRoute, maxMeters, routeMeters, stepBonus, walkGains } from './sim/walk';
 import { WalkScene } from './render/walkScene';
 import { BathScene } from './render/bathScene';
+import { DirtView } from './render/dirt';
+import { mountChoresHud } from './ui/chores';
 import { mountBathHud, STAGE_TOOL } from './ui/bath';
 import { openBook, openMarket, openOutings, type OutingHandlers } from './ui/outings';
 import { openMap } from './ui/walkMap';
@@ -324,6 +326,7 @@ async function boot(): Promise<void> {
     const bowls = new BowlsView(layer, stage.room);
     const toysView = new ToysView(layer, stage.room);
     const poopsView = new PoopsView(layer, stage.room);
+    const dirtView = new DirtView(layer, stage.room);
     let tool: CareTool | null = null;
 
     /**
@@ -587,6 +590,86 @@ async function boot(): Promise<void> {
             if (finished) hud.flash(finished);
           }
           hud.update(m.bath.stage);
+        },
+      };
+    };
+
+    /**
+     * D-91 : ménage. Le salon reste vivant ; un glissé sur une tache la frotte à l'éponge,
+     * un glissé à côté fait glisser la vue. Tout propre (ou « Terminer ») : bilan.
+     */
+    const startChores = (): void => {
+      if (store.getState().save.dirt.length === 0) {
+        toast(CHORES.clean);
+        return;
+      }
+      store.dispatch({ type: 'chores/start' });
+      const salon = mode;
+      if (!salon) return;
+      document.body.dataset.mode = 'chores';
+      let last: { x: number; y: number } | null = null;
+      let ending = false;
+      const finish = (): void => {
+        if (ending) return;
+        ending = true;
+        store.dispatch({ type: 'chores/end' });
+        const r = store.getState().choresResult;
+        hud.destroy();
+        panning = null;
+        mode = salon;
+        document.body.dataset.mode = 'living';
+        if (r && r.cleaned > 0) {
+          toast((r.bonus ? CHORES.doneBonus : CHORES.done).replace('{n}', String(r.cleaned)).replace('{p}', String(r.points)));
+          sfx.play('learned');
+        } else toast(CHORES.none);
+        save();
+      };
+      const hud = mountChoresHud({ end: finish });
+      mode = {
+        intercept: {
+          down: (x, y) => {
+            last = { x, y };
+            panning = dirtView.hitTest(x, y) ? null : { x0: x, cam0: viewCam };
+            return true;
+          },
+          move: (x, y) => {
+            if (panning) {
+              viewCam = clampView(panning.cam0 + (x - panning.x0));
+              return;
+            }
+            const prev = last;
+            last = { x, y };
+            if (!prev) return;
+            const id = dirtView.hitTest(x, y);
+            if (!id) return;
+            store.dispatch({ type: 'chores/scrub', dirtId: id, px: Math.hypot(x - prev.x, y - prev.y) });
+            sfx.tool('soap');
+          },
+          up: () => {
+            last = null;
+            panning = null;
+          },
+          cancel: () => {
+            last = null;
+            panning = null;
+          },
+        },
+        frame(dtMs, t) {
+          salon.frame(dtMs, t);
+          const s = store.getState();
+          const run = s.chores;
+          if (!run || s.save.dirt.length === 0) {
+            finish();
+            return;
+          }
+          const w = stage.room.w;
+          let offL = 0;
+          let offR = 0;
+          for (const d of dirtView.targets()) {
+            if (d.x < 0) offL++;
+            else if (d.x > w) offR++;
+          }
+          hud.update(s.save.dirt.length, run.start, run.t, offL, offR);
         },
       };
     };
@@ -916,6 +999,11 @@ async function boot(): Promise<void> {
         sfx.unlock();
         startBath();
       },
+      chores() {
+        sfx.unlock();
+        startChores();
+      },
+      dirtCount: () => store.getState().save.dirt.length,
       armToy(kind) {
         sfx.unlock();
         hand.arm(kind);
@@ -1116,6 +1204,7 @@ async function boot(): Promise<void> {
         showBasket(t);
         bowls.update(s.bowls, am);
         poopsView.update(s.save.poops, t);
+        dirtView.update(s.save.dirt, document.body.dataset.mode === 'chores');
         toysView.update(dtMs, s.toys, hand.hand, (id) => {
           const v = views.get(id);
           if (!v) return null;
@@ -1126,7 +1215,7 @@ async function boot(): Promise<void> {
     };
 
     if (DEBUG) {
-      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null, poopsOnScreen: () => poopsView.targets(), camera: () => stage.room.camX, edges: () => edgeMarks };
+      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null, poopsOnScreen: () => poopsView.targets(), dirtOnScreen: () => dirtView.targets(), camera: () => stage.room.camX, edges: () => edgeMarks };
       mountDebug(debugProbe);
     }
 

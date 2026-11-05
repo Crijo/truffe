@@ -3,7 +3,7 @@
  * Ne modifie jamais l'état : elle appelle les fonctions fournies par main.ts.
  */
 import { capturePointer } from '../input/capture';
-import { NEED_LABELS, SEX_LABELS, TEMPERAMENT_LABELS, TOY_HINT, TOY_LABELS, UI, type NeedKind, type NeedLevel } from '../data/strings';
+import { NEED_LABELS, SEX_LABELS, TEMPERAMENT_LABELS, TOY_HINT, TOY_LABELS, UI, type NeedKind, type NeedLevel, CHORES } from '../data/strings';
 import type { BowlKind, CareTool } from '../sim/behavior';
 import type { Sex, TemperamentId } from '../sim/state';
 import type { ToyKind } from '../sim/toys';
@@ -40,6 +40,9 @@ export interface HudHandlers {
   setTool(tool: CareTool | null): void;
   /** D-88 : ouvre la salle de bain avec le chiot actif. */
   bath(): void;
+  /** D-91 : ménage du salon ; nombre de taches. */
+  chores(): void;
+  dirtCount(): number;
   card(): { rows: CardRow[]; asleep: boolean; name: string; breed: string; sex: Sex; temperament: TemperamentId; obedience: number | null; levels: { dog: LevelInfo; player: LevelInfo } };
   /** Jouet choisi : le prochain appui sur la scène le prend en main. */
   armToy(kind: ToyKind): void;
@@ -125,6 +128,10 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   iWater.dataset.testid = 'item-water';
   iBrush.dataset.testid = 'item-brush';
   iBath.dataset.testid = 'item-bath';
+  const iChores = button('sponge', CHORES.item, 'item');
+  iChores.dataset.testid = 'item-chores';
+  const choresBadge = el('small', 'hint');
+  iChores.append(choresBadge);
   for (const i of [iFood, iWater]) i.append(el('small', 'hint', UI.dragHint));
   const toyItems = (['ball', 'disc', 'rope'] as const).map((k) => {
     const b = button(k, TOY_LABELS[k], 'item');
@@ -136,7 +143,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     });
     return b;
   });
-  bagGrid.append(iFood, iWater, iBrush, iBath, ...toyItems);
+  bagGrid.append(iFood, iWater, iBrush, iBath, iChores, ...toyItems);
   const bagClose = button('close', UI.close, 'close');
   const putAway = button('done', UI.putAway, 'mini');
   putAway.dataset.testid = 'put-away';
@@ -309,6 +316,8 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
       const rope = toyItems[2];
       if (rope) rope.hidden = !h.ropeUnlocked();
       putAway.hidden = h.toysOut() === 0;
+      const n = h.dirtCount();
+      choresBadge.textContent = n > 0 ? CHORES.count.replace('{n}', String(n)) : CHORES.clean;
     }
     if (sheet === card) renderCard();
     if (sheet === orders) renderOrders(ordersBox, h.training, () => show(null));
@@ -396,6 +405,10 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   iBath.addEventListener('click', () => {
     show(null);
     h.bath();
+  });
+  iChores.addEventListener('click', () => {
+    show(null);
+    h.chores();
   });
   tBrush.addEventListener('click', () => setTool('brush'));
   tDone.addEventListener('click', () => {

@@ -85,4 +85,41 @@ test.describe('Jalon 10 : retours de bêta', () => {
     await page.mouse.up();
     await expect.poll(async () => (await state(page))?.toys.length ?? -1).toBe(0);
   });
+
+  test('D-91 : ménage à l’éponge ; tout propre, le bilan s’affiche', async ({ page }) => {
+    await fresh(page);
+    await page.evaluate(() => {
+      const t = window.__truffe;
+      if (!t) return;
+      const s = t.store.getState();
+      const at = s.save.lastSeenAt;
+      const dirt = [
+        { id: 'a', kind: 'paw' as const, pos: { x: -0.45, z: 0.75 }, size: 1, at },
+        { id: 'b', kind: 'crumbs' as const, pos: { x: 0.4, z: 0.8 }, size: 1, at },
+        { id: 'c', kind: 'fur' as const, pos: { x: 0.5, z: 0.35 }, size: 1, at },
+      ];
+      t.store.replaceForDebug({ ...s, save: { ...s.save, dirt } });
+    });
+    await page.getByRole('button', { name: 'Sac' }).click();
+    await expect(page.getByTestId('item-chores')).toContainText('Taches : 3');
+    await page.getByTestId('item-chores').click();
+    await expect(page.locator('body')).toHaveAttribute('data-mode', 'chores');
+    await expect(page.getByTestId('chores-count')).toContainText('3');
+    await page.screenshot({ path: 'test-results/j10-menage.png' });
+    const pts = (await state(page))?.save.masterPoints ?? 0;
+    for (let round = 0; round < 6; round++) {
+      const spots = await page.evaluate(() => window.__truffe?.dirtOnScreen?.() ?? []);
+      const target = spots[0];
+      if (!target) break;
+      await page.mouse.move(target.x - 25, target.y);
+      await page.mouse.down();
+      for (let i = 0; i < 8; i++) await page.mouse.move(target.x + (i % 2 ? 25 : -25), target.y + (i % 3) * 3, { steps: 4 });
+      await page.mouse.up();
+    }
+    await expect(page.locator('body')).toHaveAttribute('data-mode', 'living');
+    await expect(page.locator('.toast')).toContainText('points');
+    expect((await state(page))?.save.dirt.length).toBe(0);
+    expect((await state(page))?.save.masterPoints ?? 0).toBeGreaterThan(pts);
+    await page.screenshot({ path: 'test-results/j10-menage-fini.png' });
+  });
 });
