@@ -44,7 +44,8 @@ describe('D-91 : le salon se salit', () => {
 
   it('avec le temps, des poils s’accumulent, jamais plus de taches que le maximum', () => {
     let s = startWithDog(T0, TZ);
-    s = advance(s, C.furEveryMs + 1000);
+    // En jeu : un pas de temps après 4 h (une absence de 4 h compte pareil, D-91).
+    s = advance({ ...s, save: { ...s.save, dirtClockAt: s.save.lastSeenAt - C.furEveryMs } }, 200);
     expect(dirt(s).some((d) => d.kind === 'fur')).toBe(true);
     s = reduce(s, { type: 'session/resume', now: s.save.lastSeenAt + 30 * 24 * HOUR, tzOffsetMin: TZ });
     expect(dirt(s).length).toBe(C.maxSpots);
