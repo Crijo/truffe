@@ -55,6 +55,11 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
     const each = dogs.length > 0 ? Math.round(pts / dogs.length) : 0;
     return { xp: pts, ...raw, dogs: dogs.map((d) => (isObj(d) ? { xp: each, ...d } : d)) };
   },
+  // v7 → v8 : amusement (D-82).
+  7: (raw) => ({
+    ...raw,
+    dogs: (Array.isArray(raw.dogs) ? raw.dogs : []).map((d: unknown) => (isObj(d) && isObj(d.needs) ? { ...d, needs: { fun: BALANCE.start.fun, ...d.needs } } : d)),
+  }),
 };
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 

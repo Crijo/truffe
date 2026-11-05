@@ -290,6 +290,12 @@ describe('F-VIE-3 : retour après une longue absence', () => {
     s = scrub(s, 'shower', C.rinsePx);
     s = scrub(s, 'towel', C.dryPx);
     s = gesture(s, { kind: 'groomEnd' });
+    // D-82 : il s'ennuie aussi ; quelques lancers le divertissent.
+    for (let i = 0; i < 3; i++) {
+      s = act(s, { type: 'toy/hold', kind: 'ball', at: { x: 0, z: 0.8 } });
+      s = act(s, { type: 'toy/throw', toyId: s.toys[0]?.id ?? '', vx: 0.3, vz: -1 });
+      s = advance(s, 6000);
+    }
     for (let i = 0; i < 4; i++) {
       s = gesture(s, { kind: 'stroke', part: 'head', distancePx: 70 });
       s = advance(s, 2100);

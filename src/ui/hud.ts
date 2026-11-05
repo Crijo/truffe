@@ -71,7 +71,7 @@ export interface HudHandlers {
 /** Durée d'appui au-delà de laquelle le bouton Micro écoute au lieu d'ouvrir la liste. */
 const MIC_HOLD_MS = 280;
 
-const ROW_ICONS: Record<NeedKind, IconName> = { hunger: 'hunger', thirst: 'thirst', cleanliness: 'coat' };
+const ROW_ICONS: Record<NeedKind, IconName> = { hunger: 'hunger', thirst: 'thirst', cleanliness: 'coat', fun: 'ball' };
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = ''): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);

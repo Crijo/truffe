@@ -25,11 +25,11 @@ test.describe('Corrections : fiche, barres d’état, gamelles, jouets', () => {
     await page.screenshot({ path: 'test-results/correction-1-fiche.png' });
   });
 
-  test('les barres de faim, soif et pelage restent visibles sur l’écran', async ({ page }) => {
+  test('les barres de faim, soif, pelage et amusement restent visibles sur l’écran', async ({ page }) => {
     await fresh(page);
     const status = page.getByTestId('status');
     await expect(status).toBeVisible();
-    await expect(status.locator('[role=meter]')).toHaveCount(3);
+    await expect(status.locator('[role=meter]')).toHaveCount(4); // D-82 : + amusement
     await page.evaluate(() => {
       const t = window.__truffe;
       if (!t) return;

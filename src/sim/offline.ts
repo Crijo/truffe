@@ -28,6 +28,7 @@ export function applyOffline(dog: Dog, fromMs: number, toMs: number, tzOffsetMin
       thirst: decay(dog.needs.thirst, r.thirst),
       cleanliness: decay(dog.needs.cleanliness, r.cleanliness),
       energy: Math.min(100, dog.needs.energy + O.energyRestPerHour * h),
+      fun: decay(dog.needs.fun, r.funOffline),
     },
   };
 }

@@ -251,6 +251,7 @@ describe('F-VIE-4 : ils jouent, se mordillent et dorment ensemble', () => {
     hunger: 80,
     thirst: 80,
     cleanliness: 90,
+    fun: 80,
     night: false,
     bowls: [],
     toys: [],

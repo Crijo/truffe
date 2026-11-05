@@ -93,7 +93,7 @@ describe('F-ADO-4 : prix', () => {
     expect(d?.breedId).toBe('teckel');
     expect(d?.traits).toEqual(pick?.traits);
     expect(d?.affection).toBe(BALANCE.start.affection);
-    expect(d?.needs).toEqual({ hunger: 80, thirst: 80, cleanliness: 90, energy: 100 });
+    expect(d?.needs).toEqual({ hunger: 80, thirst: 80, cleanliness: 90, energy: 100, fun: 80 });
     expect(s.save.homeDogIds).toEqual([d?.id]);
     expect(s.minds[d?.id ?? '']).toBeDefined();
     expect(s.kennel).toBeNull();

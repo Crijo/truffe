@@ -26,6 +26,7 @@ export interface Toy {
 
 const T = BALANCE.toys;
 const F = BALANCE.puppy.floor;
+const Y = T.yard;
 
 export function createToy(id: string, kind: ToyKind, at: Vec2): Toy {
   return { id, kind, state: 'held', pos: { ...at }, h: 0.5, v: { x: 0, z: 0, h: 0 }, carrier: null };
@@ -62,9 +63,9 @@ export function stepToy(toy: Toy, dtMs: number): Toy {
   t.pos.x += t.v.x * dt;
   t.pos.z += t.v.z * dt;
 
-  // Murs du salon.
-  if (t.pos.x < F.minX || t.pos.x > F.maxX) {
-    t.pos.x = Math.min(F.maxX, Math.max(F.minX, t.pos.x));
+  // Murs du salon (D-83 : les côtés sont loin, hors de l'écran).
+  if (t.pos.x < Y.minX || t.pos.x > Y.maxX) {
+    t.pos.x = Math.min(Y.maxX, Math.max(Y.minX, t.pos.x));
     t.v.x = -t.v.x * 0.5;
   }
   if (t.pos.z < F.minZ) {

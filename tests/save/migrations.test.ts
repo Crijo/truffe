@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BALANCE } from '../../src/data/balance';
 import { migrate, SaveError } from '../../src/save/migrations';
 import { createNewGame } from '../../src/sim/game';
 import { SAVE_VERSION } from '../../src/sim/state';
@@ -59,7 +60,7 @@ describe('Migration v1 → v2 (jalon 3 : sexe, tempérament, objets familiers)',
     expect(g.version).toBe(SAVE_VERSION);
     const d = g.dogs[0];
     expect(d?.affection).toBe(42);
-    expect(d?.needs).toEqual(v1.dogs[0]?.needs);
+    expect(d?.needs).toEqual({ ...v1.dogs[0]?.needs, fun: BALANCE.start.fun });
     expect(d?.traits).toEqual(v1.dogs[0]?.traits);
     expect(['f', 'm']).toContain(d?.sex);
     expect(d?.temperament).toBe('joueur');

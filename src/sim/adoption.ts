@@ -58,7 +58,7 @@ export function dogFromCandidate(c: Candidate, name: string): Dog {
     sex: c.sex,
     temperament: c.temperament,
     traits: c.traits,
-    needs: { hunger: s.hunger, thirst: s.thirst, cleanliness: s.cleanliness, energy: s.energy },
+    needs: { hunger: s.hunger, thirst: s.thirst, cleanliness: s.cleanliness, energy: s.energy, fun: s.fun },
     affection: s.affection,
     stamina: s.stamina,
     tricks: [],

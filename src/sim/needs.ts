@@ -19,6 +19,7 @@ export function tickNeeds(n: Needs, dtMs: number, asleep: boolean): Needs {
     thirst: clamp100(n.thirst - r.thirst * h),
     cleanliness: clamp100(n.cleanliness - r.cleanliness * h),
     energy: clamp100(n.energy + (asleep ? r.energyAsleep : -r.energyAwake) * h),
+    fun: asleep ? n.fun : clamp100(n.fun - r.fun * h),
   };
 }
 
@@ -30,7 +31,7 @@ export function needLevel(kind: NeedKind, v: number): NeedLevel {
   return 'urgent';
 }
 
-export const NEED_KINDS: readonly NeedKind[] = ['hunger', 'thirst', 'cleanliness'];
+export const NEED_KINDS: readonly NeedKind[] = ['hunger', 'thirst', 'cleanliness', 'fun'];
 
 export function isUrgent(n: Pick<Needs, NeedKind>): boolean {
   return NEED_KINDS.some((k) => needLevel(k, n[k]) === 'urgent');
@@ -53,4 +54,10 @@ export function isNight(now: number, tzOffsetMin: number): boolean {
 export function nightAlpha(night: number, brightness: number): number {
   const b = Math.min(1, Math.max(0, brightness));
   return BALANCE.display.nightMaxAlpha * Math.min(1, Math.max(0, night)) * (1 - b);
+}
+
+/** D-82 : amuse un chiot de `n` points. */
+export function amuse<S extends { dogs: Dog[] }>(save: S, dogId: string, n: number): S {
+  if (n <= 0) return save;
+  return { ...save, dogs: save.dogs.map((d) => (d.id === dogId ? { ...d, needs: { ...d.needs, fun: clamp100(d.needs.fun + n) } } : d)) };
 }

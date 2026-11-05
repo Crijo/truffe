@@ -1,6 +1,6 @@
 /** Modèle de données sauvegardé (SPEC, Modèle de données). */
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export type DogId = string;
 export type ItemId = string;
@@ -50,7 +50,8 @@ export interface Dog {
   /** Étiquette visible du tempérament (F-ADO-2). */
   temperament: TemperamentId;
   traits: { docility: number; energy: number; boldness: number };
-  needs: { hunger: number; thirst: number; cleanliness: number; energy: number };
+  /** D-82 : fun = amusement. */
+  needs: { hunger: number; thirst: number; cleanliness: number; energy: number; fun: number };
   affection: number;
   stamina: number;
   tricks: LearnedTrick[];

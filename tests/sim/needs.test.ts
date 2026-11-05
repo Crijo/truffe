@@ -3,7 +3,7 @@ import { NEED_WORDS } from '../../src/data/strings';
 import { isNight, isUrgent, needLevel, tickNeeds } from '../../src/sim/needs';
 
 const HOUR = 3_600_000;
-const full = { hunger: 80, thirst: 80, cleanliness: 90, energy: 100 };
+const full = { hunger: 80, thirst: 80, cleanliness: 90, energy: 100, fun: 80 };
 
 describe('Jauges en jeu (SPEC, Jauges)', () => {
   it('faim −4/h, soif −6/h, propreté −1,5/h, énergie −15/h éveillé', () => {
@@ -25,7 +25,7 @@ describe('Jauges en jeu (SPEC, Jauges)', () => {
   });
 
   it('reste entre 0 et 100', () => {
-    const n = tickNeeds({ hunger: 1, thirst: 1, cleanliness: 1, energy: 99 }, 10 * HOUR, true);
+    const n = tickNeeds({ hunger: 1, thirst: 1, cleanliness: 1, energy: 99, fun: 1 }, 10 * HOUR, true);
     expect(n.hunger).toBe(0);
     expect(n.thirst).toBe(0);
     expect(n.cleanliness).toBe(0);

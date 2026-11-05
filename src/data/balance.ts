@@ -44,7 +44,9 @@ export const BALANCE = {
   seasons: { starts: { spring: 320, summer: 621, autumn: 922, winter: 1221 } },
 
   /** D-72 : luminosité de la scène. La nuit assombrit le salon d'autant moins que la luminosité est haute. */
-  display: { defaultBrightness: 0.7, nightMaxAlpha: 0.6 },
+  display: {
+    /** D-83 : caméra qui suit un lancer hors du salon (marge en part de la largeur, vitesse de suivi par seconde). */
+    camera: { margin: 0.16, follow: 5 }, defaultBrightness: 0.7, nightMaxAlpha: 0.6 },
 
   time: {
     /** Pas fixe de la simulation (SPEC, Temps et sauvegarde). */
@@ -63,6 +65,8 @@ export const BALANCE = {
     thirst: 80,
     cleanliness: 90,
     energy: 100,
+    /** D-82 */
+    fun: 80,
     affection: 30,
     stamina: 5,
   },
@@ -133,14 +137,20 @@ export const BALANCE = {
 
   /** SPEC, Jauges : évolution des besoins. */
   needs: {
-    perHour: { hunger: 4, thirst: 6, cleanliness: 1.5, energyAwake: 15, energyAsleep: 20 },
+    perHour: { hunger: 4, thirst: 6, cleanliness: 1.5, energyAwake: 15, energyAsleep: 20, fun: 6, funOffline: 2.5 },
     meal: 40,
     water: 50,
     bath: 100,
     /** Seuils des mots (SPEC) : Excellent ≥ [0], Normal ≥ [1], À surveiller ≥ [2], sinon Urgent. */
-    words: { hunger: [75, 40, 15], thirst: [75, 40, 15], cleanliness: [90, 40, 15] },
+    words: { hunger: [75, 40, 15], thirst: [75, 40, 15], cleanliness: [90, 40, 15], fun: [70, 40, 15] },
     /** D-08 : « besoin réel » = sous le niveau Excellent. */
     realNeed: { hunger: 75, thirst: 75, cleanliness: 90 },
+    /** D-82 : amusement. Toute activité qui rapporte de l'XP amuse aussi (soins exceptés), plus lancer et tirer un jouet. */
+    fun: {
+      gain: { caress: 1, toy: 3, trickRepeat: 4, masteryUp: 4, newTrick: 10, walk: 35, contest: 20, workshop: 15 },
+      throw: 5,
+      tug: 3,
+    },
     offline: { floor: 5, maxHours: 72, affectionPerDay: 1, affectionFloor: 20, energyRestPerHour: 20 },
     /** D-03 : la bouderie due à un besoin urgent attend 2 min de session. */
     sulkAfterUrgentMs: 120_000,
@@ -217,6 +227,8 @@ export const BALANCE = {
     /** D-63 : la souris mécanique roule seule un moment après le lancer. */
     motor: { ms: 5000, speed: 0.35, turn: 2.2 },
     maxSpeed: 2.4,
+    /** D-83 : le salon continue hors de l'écran sur les côtés ; un jouet lancé (et le chiot qui le suit) peut y aller. */
+    yard: { minX: -2.4, maxX: 2.4 },
     /** Part de la vitesse du doigt transmise au jouet. */
     fingerSensitivity: 0.18,
     grabDistance: 0.07,

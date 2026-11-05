@@ -3,6 +3,7 @@
  * (plafonné par jour et par chiot), davantage pour les activités et le dressage.
  */
 import { BALANCE } from '../data/balance';
+import { amuse } from './needs';
 import type { DogId, SaveGame } from './state';
 
 const L = BALANCE.levels;
@@ -29,6 +30,9 @@ export function levelOf(xp: number): { level: number; into: number; need: number
 
 /** Donne l'XP de `n` fois cette source au joueur et au chiot ; un niveau du joueur rapporte des pièces. */
 export function awardXp(save: SaveGame, dogId: DogId, source: XpSource, n = 1): SaveGame {
+  // D-82 : ce qui rapporte de l'XP amuse aussi le chiot (même au-delà du plafond des soins).
+  const fun: Partial<Record<XpSource, number>> = BALANCE.needs.fun.gain;
+  save = amuse(save, dogId, (fun[source] ?? 0) * n);
   let amount = L.xp[source] * n;
   if (amount <= 0) return save;
   let day = save.day;

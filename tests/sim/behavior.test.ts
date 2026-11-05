@@ -20,6 +20,7 @@ const ctx: PuppyContext = {
   hunger: 80,
   thirst: 80,
   cleanliness: 90,
+    fun: 80,
   night: false,
   bowls: [],
   toys: [],

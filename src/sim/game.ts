@@ -17,7 +17,7 @@ import {
   type Vec2,
 } from './behavior';
 import { dayKeyAt } from './day';
-import { isNight, tickNeeds } from './needs';
+import { amuse, isNight, tickNeeds } from './needs';
 import { applyOffline } from './offline';
 import { createRng } from './rng';
 import { SAVE_VERSION, type BreedId, type Dog, type DogDailyCounters, type DogId, type SaveGame } from './state';
@@ -200,6 +200,7 @@ function contextOf(dog: Dog, state: GameState): PuppyContext {
     hunger: dog.needs.hunger,
     thirst: dog.needs.thirst,
     cleanliness: dog.needs.cleanliness,
+    fun: dog.needs.fun,
     night: state.night,
     bowls: state.bowls,
     toys: state.toys,
@@ -275,7 +276,7 @@ function applyEffects(state: GameState, dogId: DogId, fx: Effects): GameState {
   let s: GameState = save === state.save ? state : { ...state, save };
   if (fx.bowlEaten) s = { ...s, bowls: s.bowls.filter((b) => b.id !== fx.bowlEaten) };
   if (fx.toyGrab) s = setToy(s, fx.toyGrab, (t) => ({ ...t, state: 'carried', carrier: dogId, v: { x: 0, z: 0, h: 0 } }));
-  if (fx.toyTug) s = setToy(s, fx.toyTug, (t) => ({ ...t, state: 'tug', carrier: dogId }));
+  if (fx.toyTug) s = { ...setToy(s, fx.toyTug, (t) => ({ ...t, state: 'tug', carrier: dogId })), save: amuse(s.save, dogId, BALANCE.needs.fun.tug) };
   if (fx.toyRelease) s = setToy(s, fx.toyRelease, (t) => ({ ...t, state: 'held', carrier: null }));
   if (fx.toyDrop) {
     const drop = fx.toyDrop;
@@ -380,6 +381,8 @@ function settleWalk(state: GameState, w: WalkState): GameState {
   };
   const bonus = stepBonus(w.steps);
   if (w.rewarded) save = awardPoints(save, dog.id, g.points + w.pointsDelta + bonus.points);
+  // D-82 : une promenade sans gains amuse quand même (avec gains, l'XP s'en charge).
+  else if (done) save = amuse(save, dog.id, BALANCE.needs.fun.gain.walk);
   if (w.rewarded) save = awardXp(awardXp(awardXp(save, dog.id, 'walk'), dog.id, 'walk100m', Math.floor(w.plan.lengthM / 100)), dog.id, 'steps', bonus.xp / BALANCE.levels.xp.steps);
   return { ...state, save, walk: w };
 }
@@ -411,7 +414,7 @@ function stepContest(state: GameState, dtMs: number): GameState {
 /** D-60 : à la pension, on nourrit, abreuve et brosse les chiots. */
 function boarded(d: Dog): Dog {
   const k = BALANCE.family.hotelCare;
-  return { ...d, needs: { hunger: Math.max(d.needs.hunger, k), thirst: Math.max(d.needs.thirst, k), cleanliness: Math.max(d.needs.cleanliness, k), energy: 100 } };
+  return { ...d, needs: { hunger: Math.max(d.needs.hunger, k), thirst: Math.max(d.needs.thirst, k), cleanliness: Math.max(d.needs.cleanliness, k), energy: 100, fun: Math.max(d.needs.fun, k) } };
 }
 
 /**
@@ -476,6 +479,12 @@ function gestureAll(state: GameState, gesture: Gesture, only?: DogId): GameState
     s = applyEffects({ ...s, minds: { ...s.minds, [dog.id]: r.mind } }, dog.id, r.effects);
   }
   return s;
+}
+
+/** D-83 : un jouet tenu suit le doigt, même quand la caméra a suivi un lancer hors du salon. */
+function clampYard(p: Vec2): Vec2 {
+  const y = BALANCE.toys.yard;
+  return { x: Math.min(y.maxX, Math.max(y.minX, p.x)), z: Math.min(F.maxZ, Math.max(F.minZ, p.z)) };
 }
 
 function clampFloor(p: Vec2): Vec2 {
@@ -600,7 +609,7 @@ function reduceAction(state: GameState, action: GameAction): GameState {
 
     // ------------------------------------------------------------ jouets (F-JEU)
     case 'toy/hold': {
-      const at = clampFloor(action.at);
+      const at = clampYard(action.at);
       const existing = state.toys.find((t) => t.kind === action.kind && t.state !== 'carried' && t.state !== 'tug');
       const fresh = createToy(`${action.kind}-${state.nextToyId}`, action.kind, at);
       const toy = existing ? { ...existing, state: 'held' as const, pos: at, h: 0.5, v: { x: 0, z: 0, h: 0 }, itemId: action.itemId } : { ...fresh, itemId: action.itemId };
@@ -622,7 +631,7 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       return s;
     }
     case 'toy/move':
-      return setToy(state, action.toyId, (t) => (t.state === 'held' || t.state === 'tug' ? { ...t, pos: clampFloor(action.at) } : t));
+      return setToy(state, action.toyId, (t) => (t.state === 'held' || t.state === 'tug' ? { ...t, pos: clampYard(action.at) } : t));
     case 'toy/throw': {
       const toy = state.toys.find((t) => t.id === action.toyId);
       if (!toy || toy.state !== 'held') return state;
@@ -633,7 +642,7 @@ function reduceAction(state: GameState, action: GameAction): GameState {
         ...s,
         save: {
           ...s.save,
-          dogs: s.save.dogs.map((d) => (s.save.homeDogIds.includes(d.id) ? { ...d, needs: { ...d.needs, energy: clamp100(d.needs.energy - cost) } } : d)),
+          dogs: s.save.dogs.map((d) => (s.save.homeDogIds.includes(d.id) ? { ...d, needs: { ...d.needs, energy: clamp100(d.needs.energy - cost), fun: clamp100(d.needs.fun + BALANCE.needs.fun.throw) } } : d)),
         },
       };
       return gestureAll(s, { kind: 'toyThrown', toyId: toy.id, toyKind: toy.kind });

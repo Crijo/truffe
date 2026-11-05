@@ -76,9 +76,9 @@ describe('F-JEU-1 : la trajectoire suit le geste', () => {
     expect(0.9 - hard.z).toBeGreaterThan(0.9 - soft.z);
   });
 
-  it('le jouet reste dans la pièce et finit par s’arrêter', () => {
+  it('le jouet reste dans le jardin du lancer (D-83) et finit par s’arrêter', () => {
     const r = fly(throwToy(start('ball'), 3, -3, 0)).toy;
-    expect(r.pos.x).toBeLessThanOrEqual(F.maxX);
+    expect(r.pos.x).toBeLessThanOrEqual(T.yard.maxX);
     expect(r.pos.z).toBeGreaterThanOrEqual(F.minZ);
     expect(r.state).toBe('ground');
     expect(Math.hypot(r.v.x, r.v.z)).toBeLessThan(0.01);
@@ -152,6 +152,25 @@ describe('F-JEU-2 : rapporter, mâchouiller ou ignorer', () => {
     expect(toy?.state).toBe('ground');
     expect(mind(s).holding).toBeNull();
     expect(Math.hypot((toy?.pos.x ?? 9) - F.front.x, (toy?.pos.z ?? 9) - F.front.z)).toBeLessThan(0.2);
+  });
+
+  it('D-83 : un lancer de côté sort du salon visible ; le chiot va le chercher là-bas et le ramène', () => {
+    let seed = 1;
+    while (outcome(seed, 'sage', 90) !== 'fetch') seed++;
+    let s = familiarize(adopted(seed, 'sage', 90), 'ball');
+    s = throwFrom(s, 'ball', T.maxSpeed, -0.2);
+    let far = 0;
+    let dogFar = 0;
+    for (let i = 0; i < 200; i++) {
+      s = advance(s, 100);
+      far = Math.max(far, s.toys[0]?.pos.x ?? 0);
+      dogFar = Math.max(dogFar, mind(s).pos.x);
+    }
+    expect(far).toBeGreaterThan(F.maxX + 0.3);
+    expect(far).toBeLessThanOrEqual(T.yard.maxX);
+    expect(dogFar).toBeGreaterThan(F.maxX + 0.2);
+    s = advance(s, 15_000);
+    expect(Math.abs(s.toys[0]?.pos.x ?? 9)).toBeLessThanOrEqual(F.maxX);
   });
 
   it('mâchouiller : il prend le jouet et se couche pour le mordiller', () => {

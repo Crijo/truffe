@@ -32,7 +32,7 @@ export function createStarterDog(rng: Rng): Dog {
     xp: 0,
     visited: { park: false, gym: false, market: false },
     traits: rollTraits(rng, 'joueur'),
-    needs: { hunger: s.hunger, thirst: s.thirst, cleanliness: s.cleanliness, energy: s.energy },
+    needs: { hunger: s.hunger, thirst: s.thirst, cleanliness: s.cleanliness, energy: s.energy, fun: s.fun },
     affection: s.affection,
     stamina: s.stamina,
     tricks: [],

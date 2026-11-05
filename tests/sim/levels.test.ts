@@ -3,7 +3,6 @@ import { BALANCE } from '../../src/data/balance';
 import { migrate } from '../../src/save/migrations';
 import { reduce, type GameState } from '../../src/sim/game';
 import { awardXp, levelOf, xpToNext } from '../../src/sim/levels';
-import { SAVE_VERSION } from '../../src/sim/state';
 import { startWithDog } from './fixtures';
 
 const TZ = -60;
@@ -78,7 +77,7 @@ describe('D-78 : niveaux du joueur et de chaque chiot', () => {
 
   it('migration : l’XP de départ reprend les points de maître déjà gagnés', () => {
     const s = startWithDog(T0, TZ);
-    const old: Record<string, unknown> = { ...s.save, version: SAVE_VERSION - 1, masterPoints: 900 };
+    const old: Record<string, unknown> = { ...s.save, version: 6, masterPoints: 900 };
     delete old.xp;
     const raw = { ...old, dogs: s.save.dogs.map((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== 'xp'))) };
     const m = migrate(JSON.parse(JSON.stringify(raw)));

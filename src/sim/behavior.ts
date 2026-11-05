@@ -166,6 +166,8 @@ export interface PuppyContext {
   hunger: number;
   thirst: number;
   cleanliness: number;
+  /** D-82 : amusement. */
+  fun: number;
   night: boolean;
   bowls: readonly BowlView[];
   toys: readonly ToyView[];
@@ -390,6 +392,13 @@ export const noEffects = (): Effects => ({
   masteryUp: null,
 });
 
+/** D-83 : le sol où l'on peut courir après un jouet, plus large que le salon visible. */
+function clampToYard(p: Vec2): Vec2 {
+  const f = P.floor;
+  const y = BALANCE.toys.yard;
+  return { x: clamp(p.x, y.minX, y.maxX), z: clamp(p.z, f.minZ, f.maxZ) };
+}
+
 function clampToFloor(p: Vec2): Vec2 {
   const f = P.floor;
   return { x: clamp(p.x, f.minX, f.maxX), z: clamp(p.z, f.minZ, f.maxZ) };
@@ -456,7 +465,7 @@ function fearAvailable(m: PuppyMind, ctx: PuppyContext): boolean {
 /** Vers le jouet, en restant un peu en retrait pour l'attraper avec la gueule. */
 function approachPoint(m: PuppyMind, at: Vec2, gap: number): Vec2 {
   const d = dist2(m.pos, at) || 1;
-  return clampToFloor({ x: at.x + ((m.pos.x - at.x) / d) * gap, z: at.z + ((m.pos.z - at.z) / d) * gap });
+  return clampToYard({ x: at.x + ((m.pos.x - at.x) / d) * gap, z: at.z + ((m.pos.z - at.z) / d) * gap });
 }
 
 // ---------------------------------------------------------------- dressage (F-DRE)
@@ -795,7 +804,7 @@ function startChew(m: PuppyMind): void {
 /** Position de la gueule, au sol. */
 function mouthPos(m: PuppyMind): Vec2 {
   const off = TY.dropOffsetZ;
-  return clampToFloor({ x: m.pos.x + Math.sin(m.facing) * off, z: m.pos.z + Math.cos(m.facing) * off });
+  return clampToYard({ x: m.pos.x + Math.sin(m.facing) * off, z: m.pos.z + Math.cos(m.facing) * off });
 }
 
 /** Le chiot gagne la corde (F-JEU-3) : il l'emporte et la mâchouille. */
@@ -861,7 +870,7 @@ function move(m: PuppyMind, dtMs: number): void {
     arrive(m);
     return;
   }
-  m.pos = clampToFloor({ x: m.pos.x + (dx / d) * step, z: m.pos.z + (dz / d) * step });
+  m.pos = clampToYard({ x: m.pos.x + (dx / d) * step, z: m.pos.z + (dz / d) * step });
   m.facing = Math.atan2(dx, dz);
 }
 
@@ -1173,6 +1182,7 @@ const DEFAULT_CTX: PuppyContext = {
   hunger: 80,
   thirst: 80,
   cleanliness: 90,
+  fun: 80,
   night: false,
   bowls: [],
   toys: [],
