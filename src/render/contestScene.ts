@@ -49,7 +49,7 @@ export class ContestScene {
   private readonly bg = new Graphics();
   private readonly marks = new Graphics();
   private readonly fx = new Graphics();
-  private readonly falling = new SeasonFx(30);
+  private readonly falling = new SeasonFx(18);
   private readonly labels = new Container();
   private readonly view: PuppyView;
   private mind: PuppyMind;

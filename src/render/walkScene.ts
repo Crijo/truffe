@@ -18,6 +18,11 @@ import { Room } from './room';
 const W = BALANCE.walk;
 /** Pixels par mètre sur le trottoir. */
 const PX_PER_M = 16;
+/** D-84 : longueurs (px) après lesquelles les bandes du décor se répètent à l'identique. */
+const FAR_PERIOD = 600;
+/** Joints des dalles tous les 64 px ; feuilles tous les 37 px, motif qui revient toutes les 15. */
+const STRIPE_PERIOD = 64;
+const LEAF_PERIOD = 37 * 15;
 
 /** Le chiot reste au même endroit de l'écran ; c'est le décor qui défile. */
 class WalkRoom extends Room {
@@ -47,7 +52,14 @@ export class WalkScene {
   private readonly dogLayer = new Container();
   /** D-77 : saison du décor, et ce qui tombe du ciel. */
   season: Season = 'summer';
-  private readonly fx = new SeasonFx(30);
+  private readonly fx = new SeasonFx(16);
+  /** D-84 : bandes du décor, dessinées une fois et déplacées. */
+  private readonly farStrip = new Graphics();
+  private readonly midStrip = new Graphics();
+  private readonly groundStrip = new Graphics();
+  private readonly leafStrip = new Graphics();
+  private midPeriod = 400;
+  private backKey = '';
   private readonly signs = new Map<number, Text>();
   private readonly dog: PuppyView;
   private mind: PuppyMind;
@@ -72,7 +84,11 @@ export class WalkScene {
     this.dogLayer.addChild(this.dog.container);
     this.leash.zIndex = 20;
     this.fx.g.zIndex = 2;
-    this.container.addChild(this.back, this.ground, this.fx.g, this.things, this.dogLayer, this.leash);
+    this.farStrip.zIndex = 0.2;
+    this.midStrip.zIndex = 0.4;
+    this.groundStrip.zIndex = 1.5;
+    this.leafStrip.zIndex = 1.6;
+    this.container.addChild(this.back, this.farStrip, this.midStrip, this.ground, this.groundStrip, this.leafStrip, this.fx.g, this.things, this.dogLayer, this.leash);
   }
 
   layout(w: number, h: number): void {
@@ -116,6 +132,8 @@ export class WalkScene {
     this.fx.update(dtMs, this.season, { x: 0, y: 0, w: r.w, h: r.laneY(0) + 30 }, PuppyView.reduceMotion, w.progress * PX_PER_M * 0.8);
     this.drawThings(w);
     this.dog.update(dtMs, this.mind, null, 100, this.equipped());
+    // La voie du haut est plus loin : on trie par hauteur à l'écran, pas par z du salon.
+    this.dog.container.zIndex = r.laneY(w.lane);
 
     // Rencontre : le chien voisin vient renifler.
     const enc = w.pause?.kind === 'encounter' ? w.pause.index : -1;
@@ -135,6 +153,7 @@ export class WalkScene {
       const dx = ((e?.at ?? 0) - w.progress) * PX_PER_M + 70;
       this.neighbor.view.container.x = dx;
       this.neighbor.view.update(dtMs, this.neighbor.mind, null);
+      this.neighbor.view.container.zIndex = r.laneY(0.5);
       if (dx < -r.w) {
         this.neighbor.view.container.destroy({ children: true });
         this.neighbor = null;
@@ -152,44 +171,67 @@ export class WalkScene {
       .stroke({ width: 4, color: 0xb5562a, cap: 'round' });
   }
 
+  /**
+   * D-84 : le décor (maisons, arbres, dalles, feuilles tombées) est dessiné une seule fois en bandes
+   * qui se répètent ; à chaque image on ne fait que les faire glisser. Redessiné seulement
+   * quand la taille de l'écran ou la saison change.
+   */
   private drawBackground(progress: number): void {
     const r = this.room;
-    const g = this.back;
+    const key = `${r.w}x${r.h}:${this.season}`;
+    if (key !== this.backKey) {
+      this.backKey = key;
+      this.paintBackground();
+    }
+    const scroll = (layer: Container, speed: number, period: number): void => {
+      layer.x = -((((progress * PX_PER_M * speed) % period) + period) % period);
+    };
+    scroll(this.farStrip, 0.45, FAR_PERIOD);
+    scroll(this.midStrip, 0.8, this.midPeriod);
+    scroll(this.groundStrip, 1, STRIPE_PERIOD);
+    scroll(this.leafStrip, 1, LEAF_PERIOD);
+  }
+
+  private paintBackground(): void {
+    const r = this.room;
     const w = r.w;
     const h = r.h;
     const look = SEASONS[this.season];
+    // Ciel.
+    const g = this.back;
     g.clear();
     g.rect(0, 0, w, h).fill(look.sky);
-    // Maisons au loin (parallaxe lente).
-    const far = progress * PX_PER_M * 0.45;
+    // Maisons au loin : 5 maisons qui se répètent (couleur et hauteur suivent k mod 5).
+    const far = this.farStrip;
+    far.clear();
     const colors = [0xf2c9a0, 0xe8b37a, 0xd9a0a0, 0xc9d9b0, 0xf0dca0];
-    for (let i = -1; i < Math.ceil(w / 120) + 2; i++) {
-      const x = i * 120 - (far % 120);
-      const k = Math.floor((far + i * 120) / 120);
+    for (let k = -1; k * 120 < w + FAR_PERIOD + 120; k++) {
+      const x = k * 120;
       const c = colors[((k % colors.length) + colors.length) % colors.length] ?? 0xf2c9a0;
-      const top = h * (0.3 + ((k * 37) % 5) * 0.02);
-      g.rect(x, top, 112, h * 0.62 - top).fill(c).stroke({ width: 2, color: 0x4a2f1f, alpha: 0.3 });
-      g.moveTo(x - 6, top).lineTo(x + 56, top - 34).lineTo(x + 118, top).fill(0xb5562a);
-      if (look.snow) g.moveTo(x + 14, top - 8).lineTo(x + 56, top - 34).lineTo(x + 98, top - 8).quadraticCurveTo(x + 56, top - 16, x + 14, top - 8).fill(0xffffff);
-      g.rect(x + 18, top + 22, 22, 22).fill(0xfdf6ea);
-      g.rect(x + 70, top + 22, 22, 22).fill(0xfdf6ea);
+      const top = h * (0.3 + ((((k * 37) % 5) + 5) % 5) * 0.02);
+      far.rect(x, top, 112, h * 0.62 - top).fill(c).stroke({ width: 2, color: 0x4a2f1f, alpha: 0.3 });
+      far.moveTo(x - 6, top).lineTo(x + 56, top - 34).lineTo(x + 118, top).fill(0xb5562a);
+      if (look.snow) far.moveTo(x + 14, top - 8).lineTo(x + 56, top - 34).lineTo(x + 98, top - 8).quadraticCurveTo(x + 56, top - 16, x + 14, top - 8).fill(0xffffff);
+      far.rect(x + 18, top + 22, 22, 22).fill(0xfdf6ea);
+      far.rect(x + 70, top + 22, 22, 22).fill(0xfdf6ea);
     }
-    // Arbres et réverbères (parallaxe moyenne).
-    const mid = progress * PX_PER_M * 0.8;
-    for (let i = -1; i < Math.ceil(w / 200) + 2; i++) {
-      const x = i * 200 - (mid % 200) + 60;
-      g.rect(x - 4, h * 0.5, 8, h * 0.16).fill(look.trunk);
-      const k = Math.floor((mid + i * 200) / 200);
+    // Arbres (parallaxe moyenne) : la couleur suit k mod le nombre de feuillages.
+    const mid = this.midStrip;
+    mid.clear();
+    this.midPeriod = 200 * Math.max(1, look.foliage.length);
+    for (let k = -1; k * 200 < w + this.midPeriod + 200; k++) {
+      const x = k * 200 + 60;
+      mid.rect(x - 4, h * 0.5, 8, h * 0.16).fill(look.trunk);
       if (look.foliage.length === 0) {
         // Hiver : branches nues, un peu de neige.
         const y0 = h * 0.5;
-        g.moveTo(x, y0).lineTo(x - 18, y0 - 26).moveTo(x, y0 - 6).lineTo(x + 20, y0 - 30).moveTo(x, y0).lineTo(x, y0 - 38).moveTo(x - 9, y0 - 13).lineTo(x - 22, y0 - 14).stroke({ width: 3, color: look.trunk, cap: 'round' });
-        g.ellipse(x + 20, y0 - 31, 6, 2.5).fill(0xffffff);
-        g.ellipse(x - 18, y0 - 27, 6, 2.5).fill(0xffffff);
+        mid.moveTo(x, y0).lineTo(x - 18, y0 - 26).moveTo(x, y0 - 6).lineTo(x + 20, y0 - 30).moveTo(x, y0).lineTo(x, y0 - 38).moveTo(x - 9, y0 - 13).lineTo(x - 22, y0 - 14).stroke({ width: 3, color: look.trunk, cap: 'round' });
+        mid.ellipse(x + 20, y0 - 31, 6, 2.5).fill(0xffffff);
+        mid.ellipse(x - 18, y0 - 27, 6, 2.5).fill(0xffffff);
       } else {
         const c = look.foliage[((k % look.foliage.length) + look.foliage.length) % look.foliage.length] ?? 0x7cc47f;
-        g.circle(x, h * 0.48, 30).fill(c).stroke({ width: 2, color: 0x4a2f1f, alpha: 0.25 });
-        if (look.dots !== null) for (let j = 0; j < 7; j++) g.circle(x + Math.cos(j * 2.4) * 18, h * 0.48 + Math.sin(j * 2.4) * 16, 3).fill(look.dots);
+        mid.circle(x, h * 0.48, 30).fill(c).stroke({ width: 2, color: 0x4a2f1f, alpha: 0.25 });
+        if (look.dots !== null) for (let j = 0; j < 7; j++) mid.circle(x + Math.cos(j * 2.4) * 18, h * 0.48 + Math.sin(j * 2.4) * 16, 3).fill(look.dots);
       }
     }
     // Trottoir : deux voies, et la bordure de la rue.
@@ -197,23 +239,21 @@ export class WalkScene {
     gr.clear();
     const y1 = r.laneY(1) - 24;
     gr.rect(0, y1, w, h - y1).fill(0xd9cfc0);
-    const near = progress * PX_PER_M;
-    for (let i = -1; i < Math.ceil(w / 64) + 2; i++) {
-      const x = i * 64 - (near % 64);
-      gr.rect(x, y1, 2, r.laneY(0) + 30 - y1).fill({ color: 0xb9ab98, alpha: 0.7 });
-    }
-    if (look.falling === 'leaves') {
-      // Automne : feuilles tombées sur le trottoir.
-      for (let i = -1; i < Math.ceil(w / 37) + 2; i++) {
-        const x = i * 37 - (near % 37);
-        const k = Math.floor((near + i * 37) / 37);
-        const c = look.fallingColors[((k % 3) + 3) % 3] ?? 0xe08a3c;
-        gr.ellipse(x, y1 + 6 + ((k * 13) % 5) * ((r.laneY(0) + 24 - y1) / 5), 5, 2.5).fill({ color: c, alpha: 0.8 });
-      }
-    }
     if (look.snow) gr.rect(0, y1 - 4, w, 8).fill(0xffffff);
     gr.rect(0, r.laneY(0) + 30, w, 10).fill(look.snow ? 0xf2f5f7 : 0xa89a88);
     gr.rect(0, r.laneY(0) + 40, w, h).fill(0x6e6a66);
+    // Joints des dalles et, en automne, feuilles tombées (bandes qui glissent).
+    const st = this.groundStrip;
+    st.clear();
+    for (let i = -1; i * 64 < w + STRIPE_PERIOD + 64; i++) st.rect(i * 64, y1, 2, r.laneY(0) + 30 - y1).fill({ color: 0xb9ab98, alpha: 0.7 });
+    const lv = this.leafStrip;
+    lv.clear();
+    if (look.falling === 'leaves') {
+      for (let k = -1; k * 37 < w + LEAF_PERIOD + 37; k++) {
+        const c = look.fallingColors[((k % 3) + 3) % 3] ?? 0xe08a3c;
+        lv.ellipse(k * 37, y1 + 6 + ((((k * 13) % 5) + 5) % 5) * ((r.laneY(0) + 24 - y1) / 5), 5, 2.5).fill({ color: c, alpha: 0.8 });
+      }
+    }
   }
 
   private drawThings(w: WalkState): void {

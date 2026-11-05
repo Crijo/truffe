@@ -96,4 +96,29 @@ test.describe('Jalon 7 : performance', () => {
     record('troisChiots', { normal, ralenti4x: slow, minRalenti: Math.min(...slow), moyenneRalenti: Math.round(slow.reduce((a, b) => a + b, 0) / slow.length) });
     expect(Math.min(...slow)).toBeGreaterThanOrEqual(30);
   });
+
+  test('D-84 : promenade d’automne (feuilles), processeur ralenti 4 fois', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.goto('/?debug&adopt=beagle&season=autumn');
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    await page.waitForTimeout(800);
+    await page.getByTestId('out').click();
+    await page.getByTestId('out-walk').click();
+    const box = await page.getByTestId('city').boundingBox();
+    if (!box) throw new Error('plan introuvable');
+    const at = (c: number, r: number) => ({ x: box.x + ((c * 100 + 50) / 600) * box.width, y: box.y + ((r * 100 + 50) / 600) * box.height });
+    await page.mouse.move(at(2, 5).x, at(2, 5).y);
+    await page.mouse.down();
+    for (const [c, r] of [[2, 4], [2, 3], [2, 2], [2, 1], [3, 1], [4, 1]] as const) await page.mouse.move(at(c, r).x, at(c, r).y, { steps: 4 });
+    await page.mouse.up();
+    await page.getByTestId('walk-go').click();
+    await expect(page.locator('body')).toHaveAttribute('data-mode', 'walk');
+    // PERF_CPU=20 approche un téléphone qui peine (mesure du D-84).
+    const cpu = Number(process.env.PERF_CPU ?? 4);
+    await throttle(page, cpu, false);
+    await page.waitForTimeout(1000);
+    const slow = await sampleFps(page, 8);
+    record('promenadeAutomne', { processeurRalenti: cpu, ips: slow, minRalenti: Math.min(...slow), moyenneRalenti: Math.round(slow.reduce((a, b) => a + b, 0) / slow.length) });
+    if (cpu <= 4) expect(Math.min(...slow)).toBeGreaterThanOrEqual(30);
+  });
 });
