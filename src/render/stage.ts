@@ -26,6 +26,8 @@ export interface Stage {
   setDecor(decor: DecorId, sofa: boolean): void;
   /** D-77 : saison vue par la fenêtre. */
   setSeason(season: Season): void;
+  /** D-83 : décalage de la caméra (pixels) ; le décor et le sol suivent. */
+  setCamera(x: number): void;
 }
 
 /** Part de nuit : 1 de 22 h à 6 h, transitions le soir et au matin. */
@@ -57,7 +59,11 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
   const falling = new SeasonFx(14);
   const pane = new Graphics();
   falling.g.mask = pane;
-  app.stage.addChild(decor, pane, falling.g, world, night);
+  // Cadre et croisillons au-dessus de ce qui tombe : les feuilles restent derrière la vitre.
+  const frame = new Graphics();
+  const backdrop = new Container();
+  backdrop.addChild(decor, pane, falling.g, frame);
+  app.stage.addChild(backdrop, world, night);
 
   let decorId: DecorId = 'home';
   let season: Season = 'summer';
@@ -70,14 +76,17 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
     const y = room.horizon;
     const ROOM = PALETTES[decorId];
     decor.clear();
-    decor.rect(0, 0, w, y).fill(ROOM.wall);
-    decor.rect(0, y - h * 0.18, w, h * 0.18).fill(ROOM.wallShade);
-    decor.rect(0, y, w, h - y).fill(ROOM.floor);
+    frame.clear();
+    const x0 = -3 * w;
+    const ww = 7 * w;
+    decor.rect(x0, 0, ww, y).fill(ROOM.wall);
+    decor.rect(x0, y - h * 0.18, ww, h * 0.18).fill(ROOM.wallShade);
+    decor.rect(x0, y, ww, h - y).fill(ROOM.floor);
     for (let i = 1; i < 5; i++) {
       const ly = y + (h - y) * (i / 5) ** 1.4;
-      decor.rect(0, ly, w, 2).fill(ROOM.floorLine);
+      decor.rect(x0, ly, ww, 2).fill(ROOM.floorLine);
     }
-    decor.rect(0, y - 6, w, 12).fill(ROOM.baseboard);
+    decor.rect(x0, y - 6, ww, 12).fill(ROOM.baseboard);
     const rug = room.floorToScreen({ x: 0, z: 0.62 });
     decor.ellipse(w / 2, rug.y, Math.min(w * 0.44, 420), (h - y) * 0.3).fill(ROOM.rug).stroke({ width: 4, color: ROOM.rugEdge });
     windowRect = { x: 0, y: 0, w: 0, h: 0 };
@@ -90,6 +99,7 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
       const fx = w * 0.08;
       const fy = Math.max(y * 0.3, y - fh - h * 0.22);
       decor.roundRect(fx - 6, fy - 6, fw + 12, fh + 12, 10).fill(ROOM.baseboard);
+      frame.roundRect(fx - 6, fy - 6, fw + 12, fh + 12, 10).stroke({ width: 7, color: ROOM.baseboard, alignment: 1 });
       decor.rect(fx, fy, fw, fh).fill(look.sky);
       decor.rect(fx, fy + fh * 0.72, fw, fh * 0.28).fill(look.snow ? 0xf4f7f9 : look.grass);
       const tx = fx + fw * 0.35;
@@ -104,8 +114,8 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
       }
       if (look.falling === 'leaves') for (let j = 0; j < 5; j++) decor.ellipse(fx + fw * (0.15 + j * 0.17), ty + fh * 0.08, 4, 2).fill(look.fallingColors[j % 3] ?? 0xe08a3c);
       // Croisillons de la fenêtre.
-      decor.rect(fx + fw / 2 - 3, fy, 6, fh).fill(ROOM.baseboard);
-      decor.rect(fx, fy + fh / 2 - 3, fw, 6).fill(ROOM.baseboard);
+      frame.rect(fx + fw / 2 - 3, fy, 6, fh).fill(ROOM.baseboard);
+      frame.rect(fx, fy + fh / 2 - 3, fw, 6).fill(ROOM.baseboard);
       windowRect = { x: fx, y: fy, w: fw, h: fh };
       pane.rect(fx, fy, fw, fh).fill(0xffffff);
     }
@@ -132,6 +142,7 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
     if (sofa) {
       // Petit canapé contre le mur, au fond à gauche.
       const sp = room.floorToScreen({ x: -0.5, z: 0.12 });
+      sp.x -= room.camX;
       const sw = sp.s * 1.1;
       const sh = sp.s * 0.42;
       decor.roundRect(sp.x - sw / 2, sp.y - sh, sw, sh * 0.7, 10).fill(SOFA.body);
@@ -161,6 +172,10 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
       if (t === tint) return;
       tint = t;
       drawNight();
+    },
+    setCamera(x) {
+      room.camX = x;
+      backdrop.x = x;
     },
     setSeason(next) {
       if (next === season) return;
