@@ -299,7 +299,6 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   hud.append(you, status, bar, bag, card, orders, tools, toastEl, ghost, cursor);
 
   // ------------------------------------------------------------ états
-  let mode: 'bar' | 'brush' = 'bar';
   let tool: CareTool | null = null;
   const show = (sheet: HTMLElement | null): void => {
     bag.hidden = sheet !== bag;
@@ -321,8 +320,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     cursor.hidden = t === null;
     cursor.innerHTML = t ? ICONS[t] : '';
   };
-  const setMode = (m: typeof mode): void => {
-    mode = m;
+  const setMode = (m: 'bar' | 'brush'): void => {
     bar.hidden = m !== 'bar';
     tools.hidden = m === 'bar';
     show(null);
