@@ -138,7 +138,7 @@ export function walkGains(lengthM: number): { points: number; stamina: number; a
 /** D-81 : bonus des vrais pas : points de maître et XP, plafonnés. */
 export function stepBonus(steps: number): { points: number; xp: number } {
   const S = W.steps;
-  return { points: Math.min(S.maxPoints, Math.floor(steps / S.perPoint)), xp: Math.min(S.maxXp, Math.floor(steps / S.perXp)) * BALANCE.levels.xp.steps };
+  return { points: Math.min(S.maxPoints, Math.floor(steps / S.perPoint)), xp: Math.min(S.maxXp, Math.floor(steps / S.perXp)) * BALANCE.levels.player.steps };
 }
 
 export const rewardable = (lastRewardedAt: number | null, now: number): boolean => lastRewardedAt === null || now - lastRewardedAt >= W.cooldownMs;

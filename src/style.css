@@ -1250,6 +1250,86 @@ body.reduce-motion *::after {
   cursor: pointer;
 }
 
+/* D-87 : niveau du joueur, à part de celui du chiot. */
+.you-badge {
+  position: absolute;
+  top: calc(max(8px, env(safe-area-inset-top)) + 30px);
+  left: 10px;
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 6px;
+  width: 128px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgb(253 246 234 / 0.88);
+  cursor: pointer;
+}
+
+.you-badge svg {
+  width: 22px;
+  height: 22px;
+}
+
+.you-body {
+  display: grid;
+  gap: 3px;
+  font-size: 13px;
+}
+
+.you-body small {
+  color: #6b5444;
+  font-weight: 600;
+}
+
+.you-badge .gauge-bar > span {
+  background: #4a7fb5;
+}
+
+.xp-chip {
+  position: fixed;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  pointer-events: none;
+  animation: xp-rise 1.6s ease-out forwards;
+}
+
+.xp-chip.player {
+  background: #4a7fb5;
+}
+
+.xp-chip.dog {
+  background: #e0a526;
+}
+
+@keyframes xp-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+
+.status-name svg {
+  width: 14px;
+  height: 14px;
+  margin-right: 3px;
+  vertical-align: -2px;
+}
+
 .status-name {
   font-size: 13px;
   overflow: hidden;

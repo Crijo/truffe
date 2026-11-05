@@ -383,7 +383,7 @@ function settleWalk(state: GameState, w: WalkState): GameState {
   if (w.rewarded) save = awardPoints(save, dog.id, g.points + w.pointsDelta + bonus.points);
   // D-82 : une promenade sans gains amuse quand même (avec gains, l'XP s'en charge).
   else if (done) save = amuse(save, dog.id, BALANCE.needs.fun.gain.walk);
-  if (w.rewarded) save = awardXp(awardXp(awardXp(save, dog.id, 'walk'), dog.id, 'walk100m', Math.floor(w.plan.lengthM / 100)), dog.id, 'steps', bonus.xp / BALANCE.levels.xp.steps);
+  if (w.rewarded) save = awardXp(awardXp(awardXp(save, dog.id, 'walk'), dog.id, 'walk100m', Math.floor(w.plan.lengthM / 100)), dog.id, 'steps', bonus.xp / BALANCE.levels.player.steps);
   return { ...state, save, walk: w };
 }
 

@@ -11,9 +11,12 @@ export const BALANCE = {
   /**
    * D-78 : niveaux du joueur et des chiots. Soins : un tout petit peu, plafonné par jour et par chiot ;
    * activités et dressage : davantage. Passer du niveau n au suivant demande base + step × (n − 1) XP.
+   * D-87 : le joueur et le chiot ont chacun leur table. Le joueur progresse surtout en prenant soin
+   * (soins, ménage, ses vrais pas), le chiot surtout en apprenant et en sortant (dressage, promenade, concours).
    */
   levels: {
-    xp: { meal: 2, water: 2, groom: 3, caress: 1, poop: 2, toy: 1, trickRepeat: 4, masteryUp: 3, newTrick: 15, walk: 20, walk100m: 1, steps: 1, contest: 10, podium: 10, workshop: 6 },
+    player: { meal: 2, water: 2, groom: 3, caress: 1, poop: 2, toy: 1, chores: 3, trickRepeat: 2, masteryUp: 1, newTrick: 6, walk: 12, walk100m: 1, steps: 1, contest: 5, podium: 5, workshop: 3 },
+    dog: { meal: 0, water: 0, groom: 0, caress: 1, poop: 0, toy: 2, chores: 0, trickRepeat: 4, masteryUp: 3, newTrick: 15, walk: 20, walk100m: 1, steps: 0, contest: 10, podium: 10, workshop: 6 },
     dailyCareXp: 40,
     curve: { base: 40, step: 20 },
     maxLevel: 50,

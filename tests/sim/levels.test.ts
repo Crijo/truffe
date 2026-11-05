@@ -40,39 +40,54 @@ describe('D-78 : niveaux du joueur et de chaque chiot', () => {
     expect(dog(s).xp).toBe(0);
   });
 
-  it('l’XP va au joueur et au chiot', () => {
+  it('D-87 : une promenade rapporte au joueur et au chiot, chacun selon sa table', () => {
     const s = startWithDog(T0, TZ);
     const save = awardXp(s.save, dog(s).id, 'walk');
-    expect(save.xp).toBe(L.xp.walk);
-    expect(save.dogs[0]?.xp).toBe(L.xp.walk);
+    expect(save.xp).toBe(L.player.walk);
+    expect(save.dogs[0]?.xp).toBe(L.dog.walk);
+  });
+
+  it('D-87 : les soins font progresser le joueur, le dressage surtout le chiot', () => {
+    const s = startWithDog(T0, TZ);
+    const id = dog(s).id;
+    const meal = awardXp(s.save, id, 'meal');
+    expect(meal.xp).toBe(L.player.meal);
+    expect(meal.dogs[0]?.xp).toBe(0);
+    const steps = awardXp(s.save, id, 'steps', 3);
+    expect(steps.xp).toBe(3 * L.player.steps);
+    expect(steps.dogs[0]?.xp).toBe(0);
+    const trick = awardXp(s.save, id, 'newTrick');
+    expect(trick.dogs[0]?.xp).toBeGreaterThan(trick.xp);
   });
 
   it('les soins rapportent un tout petit peu, plafonné par jour ; les activités davantage, sans plafond', () => {
     const s = startWithDog(T0, TZ);
     const id = dog(s).id;
-    expect(L.xp.meal).toBeLessThan(L.xp.trickRepeat);
-    expect(L.xp.caress).toBeLessThan(L.xp.walk);
+    expect(L.player.meal).toBeLessThan(L.player.walk);
+    expect(L.dog.caress).toBeLessThan(L.dog.trickRepeat);
     let save = s.save;
     for (let i = 0; i < 200; i++) save = awardXp(save, id, 'caress');
     expect(save.xp).toBe(L.dailyCareXp);
+    expect(save.dogs[0]?.xp).toBe(L.dailyCareXp);
     for (let i = 0; i < 10; i++) save = awardXp(save, id, 'trickRepeat');
-    expect(save.xp).toBe(L.dailyCareXp + 10 * L.xp.trickRepeat);
+    expect(save.xp).toBe(L.dailyCareXp + 10 * L.player.trickRepeat);
+    expect(save.dogs[0]?.xp).toBe(L.dailyCareXp + 10 * L.dog.trickRepeat);
   });
 
   it('un nouveau niveau du joueur rapporte des pièces', () => {
     const s = startWithDog(T0, TZ);
     const coins = s.save.coins;
-    const save = awardXp(s.save, dog(s).id, 'walk', Math.ceil(xpToNext(1) / L.xp.walk));
+    const save = awardXp(s.save, dog(s).id, 'walk', Math.ceil(xpToNext(1) / L.player.walk));
     expect(levelOf(save.xp).level).toBe(2);
     expect(save.coins).toBe(coins + L.playerLevelCoins * 2);
   });
 
-  it('nourrir un chiot qui a faim rapporte de l’XP', () => {
+  it('nourrir un chiot qui a faim rapporte de l’XP au joueur', () => {
     let s = withNeeds(startWithDog(T0, TZ), { hunger: 30 });
     s = reduce(s, { type: 'care/bowl', kind: 'food', at: { x: 0.3, z: 0.7 } });
     s = advance(s, 20_000);
     expect(s.bowls).toHaveLength(0);
-    expect(dog(s).xp).toBeGreaterThanOrEqual(L.xp.meal);
+    expect(s.save.xp).toBeGreaterThanOrEqual(L.player.meal);
   });
 
   it('migration : l’XP de départ reprend les points de maître déjà gagnés', () => {

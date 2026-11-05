@@ -57,7 +57,7 @@ export interface HudHandlers {
   /** D-80 : atelier des tours avancés. */
   openWorkshop(): void;
   /** Barres toujours visibles du chiot actif ; `fn` est rappelée à chaque changement d'état. */
-  status(): { name: string | null; rows: CardRow[]; level: number };
+  status(): { name: string | null; rows: CardRow[]; level: number; player: LevelInfo; xp: { player: number; dog: number; dogId: string } };
   onStatus(fn: () => void): void;
   /** Micro maintenu : commencer ou finir d'écouter un ordre à la voix. */
   micHold(start: boolean): void;
@@ -245,16 +245,52 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   status.setAttribute('aria-label', UI.card);
   status.dataset.testid = 'status';
   let statusKey = '';
+  // D-87 : niveau du joueur, toujours visible en haut à gauche, à part de celui du chiot.
+  const you = el('div', 'you-badge');
+  you.setAttribute('role', 'button');
+  you.tabIndex = 0;
+  you.dataset.testid = 'player-level';
+  let youKey = '';
+  /** Dernières XP vues, pour montrer ce que chacun vient de gagner. */
+  let lastXp: { player: number; dog: number; dogId: string } | null = null;
+  const chip = (anchor: HTMLElement, n: number, who: 'player' | 'dog'): void => {
+    const c = el('span', `xp-chip ${who}`, `+${n} ${LEVELS.xp}`);
+    c.setAttribute('aria-hidden', 'true');
+    const r = anchor.getBoundingClientRect();
+    c.style.top = `${r.bottom + 4}px`;
+    if (who === 'player') c.style.left = `${r.left}px`;
+    else c.style.right = `${window.innerWidth - r.right}px`;
+    hud.append(c);
+    window.setTimeout(() => c.remove(), 1600);
+  };
   const renderStatus = (): void => {
     const st = h.status();
+    const pk = `${st.player.level}:${st.player.into}`;
+    if (pk !== youKey) {
+      youKey = pk;
+      const v = Math.round((100 * st.player.into) / Math.max(1, st.player.need));
+      you.innerHTML = `${ICONS.you}<span class="you-body"><strong>${LEVELS.you} · <small>${LEVELS.short} ${st.player.level}</small></strong><span class="gauge-bar" role="meter" aria-label="${LEVELS.xp} : ${LEVELS.you}" aria-valuemin="0" aria-valuemax="${st.player.need}" aria-valuenow="${st.player.into}"><span style="width:${Math.max(3, v)}%"></span></span></span>`;
+    }
+    if (lastXp) {
+      if (st.xp.player > lastXp.player) chip(you, st.xp.player - lastXp.player, 'player');
+      if (st.xp.dogId === lastXp.dogId && st.xp.dog > lastXp.dog) chip(status, st.xp.dog - lastXp.dog, 'dog');
+    }
+    lastXp = st.xp;
     const key = `${st.name ?? ''}${st.level}` + st.rows.map((r) => `${r.kind}${Math.round(r.value)}${r.level}`).join();
     if (key === statusKey) return;
     statusKey = key;
-    status.innerHTML = `<strong class="status-name" data-testid="status-level">${st.name ? `${st.name} · ` : ''}<small>${LEVELS.short} ${st.level}</small></strong>` + st.rows.map((r) => `<div class="gauge level-${r.level}" data-kind="${r.kind}">${ICONS[ROW_ICONS[r.kind]]}<span class="gauge-body"><small aria-hidden="true">${NEED_LABELS[r.kind]}</small>${gauge(r)}</span></div>`).join('');
+    status.innerHTML = `<strong class="status-name" data-testid="status-level">${ICONS.paw}${st.name ? `${st.name} · ` : ''}<small>${LEVELS.short} ${st.level}</small></strong>` + st.rows.map((r) => `<div class="gauge level-${r.level}" data-kind="${r.kind}">${ICONS[ROW_ICONS[r.kind]]}<span class="gauge-body"><small aria-hidden="true">${NEED_LABELS[r.kind]}</small>${gauge(r)}</span></div>`).join('');
   };
   renderStatus();
   h.onStatus(renderStatus);
   status.addEventListener('click', () => show(card.hidden ? card : null));
+  you.addEventListener('click', () => show(card.hidden ? card : null));
+  you.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      show(card.hidden ? card : null);
+    }
+  });
   status.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -262,7 +298,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     }
   });
 
-  hud.append(status, bar, bag, card, orders, tools, toastEl, ghost, cursor);
+  hud.append(you, status, bar, bag, card, orders, tools, toastEl, ghost, cursor);
 
   // ------------------------------------------------------------ états
   let mode: 'bar' | 'bath' | 'brush' = 'bar';

@@ -745,8 +745,11 @@ async function boot(): Promise<void> {
         const s = store.getState();
         const d = dogOf();
         return {
-          name: s.save.homeDogIds.length > 1 ? (d?.name ?? null) : null,
+          // D-87 : le nom du chiot à côté de son niveau, pour ne pas le confondre avec celui du joueur.
+          name: d ? d.name || KENNEL.renameTitle : null,
           level: levelOf(d?.xp ?? 0).level,
+          player: levelOf(s.save.xp),
+          xp: { player: s.save.xp, dog: d?.xp ?? 0, dogId: d?.id ?? '' },
           rows: NEED_KINDS.map((kind) => {
             const v = d?.needs[kind] ?? 0;
             const level = needLevel(kind, v);

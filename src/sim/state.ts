@@ -87,6 +87,8 @@ export interface DogDailyCounters {
   prizeContests: number;
   /** D-78 : XP des soins gagnée aujourd'hui (plafonnée). */
   careXp?: number;
+  /** D-87 : XP de soins déjà donnée au chiot aujourd’hui. */
+  dogCareXp?: number;
 }
 
 /** Compteurs remis à zéro à 4 h du matin, heure locale. */
