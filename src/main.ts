@@ -20,7 +20,7 @@ import { PoopsView } from './render/poops';
 import { openSaveStore } from './save/storage';
 import { adoptionPrice, validateName, type Candidate } from './sim/adoption';
 import { createMind, type CareTool, type Mood, type PuppyMind } from './sim/behavior';
-import { createGameState, createNewGame, homeId, unnamedDogs } from './sim/game';
+import { createGameState, createNewGame, homeId, unnamedDogs, type GameState } from './sim/game';
 import { NEED_KINDS, localHour, needLevel } from './sim/needs';
 import type { CoatParams, ContestId, DecorId, DogId, TemperamentId } from './sim/state';
 import { mountDebug, rewind, type DebugProbe } from './ui/debug';
@@ -173,6 +173,36 @@ async function boot(): Promise<void> {
     layer.addChild(ring);
     const views = new Map<DogId, PuppyView>();
     const heard = new Map<DogId, number>();
+    /**
+     * D-83 : la caméra suit un jouet lancé hors du salon visible, puis le chiot qui va le chercher,
+     * et revient quand tout le monde est rentré.
+     */
+    let cam = 0;
+    const followCamera = (dtMs: number, s: GameState): void => {
+      const C = BALANCE.display.camera;
+      const r = stage.room;
+      const F = BALANCE.puppy.floor;
+      const points: { x: number; z: number }[] = [];
+      // Un jouet compte en vol, ou au sol tant qu'un chiot va le chercher (sinon la caméra rentre).
+      const chased = new Set(s.save.homeDogIds.map((id) => s.minds[id]?.toyPlan?.toyId));
+      for (const toy of s.toys) if (Math.abs(toy.pos.x) > F.maxX && (toy.state === 'flying' || (toy.state === 'ground' && chased.has(toy.id)))) points.push(toy.pos);
+      for (const id of s.save.homeDogIds) {
+        const m = s.minds[id];
+        if (m && Math.abs(m.pos.x) > F.maxX) points.push(m.pos);
+      }
+      // Le plus loin hors du salon décide ; on le garde à l'écran avec une marge.
+      let want = 0;
+      const margin = r.w * C.margin;
+      for (const p of points) {
+        const x = r.floorToScreen(p).x - r.camX;
+        const need = x > r.w - margin ? r.w - margin - x : x < margin ? margin - x : 0;
+        if (Math.abs(need) > Math.abs(want)) want = need;
+      }
+      const k = 1 - Math.exp((-C.follow * dtMs) / 1000);
+      cam += (want - cam) * k;
+      if (Math.abs(cam) < 0.5 && want === 0) cam = 0;
+      stage.setCamera(Math.round(cam));
+    };
 
     /** Une vue par chiot de la maison ; celles des chiots partis à la pension disparaissent. */
     const sync = (): void => {
@@ -378,6 +408,7 @@ async function boot(): Promise<void> {
       scene.season = seasonNow(Date.now());
       scene.layout(stage.app.screen.width, stage.app.screen.height);
       stage.app.stage.addChild(scene.container);
+      stage.setCamera(0);
       stage.world.visible = false;
       document.body.dataset.mode = 'walk';
       music.setScene('outdoor');
@@ -480,6 +511,7 @@ async function boot(): Promise<void> {
       const scene = new ContestScene(breedOf(d0.breedId), d0.coat, () => dogOf()?.equipped ?? [], s0, seasonNow(Date.now()));
       scene.layout(stage.app.screen.width, stage.app.screen.height);
       stage.app.stage.addChild(scene.container);
+      stage.setCamera(0);
       stage.world.visible = false;
       document.body.dataset.mode = 'contest';
       music.setScene('contest');
@@ -844,6 +876,7 @@ async function boot(): Promise<void> {
           const k = f.s * breedOf(s.save.dogs.find((d) => d.id === active)?.breedId).size;
           ring.ellipse(f.x, f.y, k * 0.4, k * 0.11).stroke({ width: 3, color: 0xb5562a, alpha: 0.45 });
         }
+        followCamera(dtMs, s);
         bowls.update(s.bowls, am);
         poopsView.update(s.save.poops, t);
         toysView.update(dtMs, s.toys, hand.hand, (id) => {
@@ -856,7 +889,7 @@ async function boot(): Promise<void> {
     };
 
     if (DEBUG) {
-      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null, poopsOnScreen: () => poopsView.targets() };
+      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null, poopsOnScreen: () => poopsView.targets(), camera: () => stage.room.camX };
       mountDebug(debugProbe);
     }
 

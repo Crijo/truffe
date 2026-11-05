@@ -8,6 +8,8 @@ const lerp = (a: number, b: number, k: number): number => a + (b - a) * k;
 export class Room {
   w = 1;
   h = 1;
+  /** D-83 : décalage horizontal de la caméra, en pixels (le salon continue hors de l'écran). */
+  camX = 0;
   /** Part de la hauteur occupée par le mur. */
   readonly horizonRatio: number = 0.55;
 
@@ -41,7 +43,7 @@ export class Room {
 
   floorToScreen(p: Vec2): { x: number; y: number; s: number } {
     return {
-      x: this.w / 2 + (p.x / F.maxX) * this.halfWidth(p.z),
+      x: this.w / 2 + this.camX + (p.x / F.maxX) * this.halfWidth(p.z),
       y: lerp(this.yBack, this.yFront, p.z),
       s: this.scaleAt(p.z),
     };
@@ -52,7 +54,7 @@ export class Room {
     if (y < this.horizon) return null;
     const z = Math.min(1, Math.max(0, (y - this.yBack) / (this.yFront - this.yBack)));
     const hw = this.halfWidth(z) || 1;
-    return { x: ((x - this.w / 2) / hw) * F.maxX, z };
+    return { x: ((x - this.camX - this.w / 2) / hw) * F.maxX, z };
   }
 
   /**
