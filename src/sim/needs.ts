@@ -11,13 +11,15 @@ const DAY = 24 * HOUR;
 const clamp100 = (v: number): number => Math.min(100, Math.max(0, v));
 
 /** Évolution en jeu sur `dtMs`. */
-export function tickNeeds(n: Needs, dtMs: number, asleep: boolean): Needs {
+/** `dirtyRoom` (D-91) : le pelage se salit plus vite dans un salon sale. */
+export function tickNeeds(n: Needs, dtMs: number, asleep: boolean, dirtyRoom = false): Needs {
   const h = dtMs / HOUR;
   const r = BALANCE.needs.perHour;
+  const dirt = dirtyRoom ? BALANCE.chores.dirtyRoomDecay : 1;
   return {
     hunger: clamp100(n.hunger - r.hunger * h),
     thirst: clamp100(n.thirst - r.thirst * h),
-    cleanliness: clamp100(n.cleanliness - r.cleanliness * h),
+    cleanliness: clamp100(n.cleanliness - r.cleanliness * h * dirt),
     energy: clamp100(n.energy + (asleep ? r.energyAsleep : -r.energyAwake) * h),
     fun: asleep ? n.fun : clamp100(n.fun - r.fun * h),
   };

@@ -24,6 +24,7 @@ import { SAVE_VERSION, type BreedId, type Dog, type DogDailyCounters, type DogId
 import { createToy, stepToy, throwToy, type Toy, type ToyKind } from './toys';
 import { canLearnNew, newTrick, repsNeeded } from './tricks';
 import { awardXp } from './levels';
+import { accumulateFur, addDirt, choresResult, pawTrail, roomIsDirty, scrubDirt, type ChoresResult, type ChoresRun } from './chores';
 import { workshopOpen, type WorkshopTrick } from './workshop';
 import { awardPoints, buy, gain, lose, marketStock, sell, shopCatalog, toggleEquip } from './economy';
 import { finishWalk, pickUp, questionPoints, rewardable, startWalk, stepBonus, stepWalk, walkGains, type QuestionPoint, type Route, type WalkState } from './walk';
@@ -69,6 +70,9 @@ export interface GameState {
   night: boolean;
   /** D-89 : x du sol au milieu de la vue du salon (le joueur la fait glisser). */
   viewX: number;
+  /** D-91 : ménage en cours, et le bilan du dernier. */
+  chores: ChoresRun | null;
+  choresResult: ChoresResult | null;
 }
 
 export type GameAction =
@@ -77,6 +81,10 @@ export type GameAction =
   | { type: 'tick'; now: number; dtMs: number; tzOffsetMin: number }
   /** D-89 : le joueur fait glisser la vue du salon. */
   | { type: 'view/pan'; x: number }
+  /** D-91 : ménage à l'éponge. */
+  | { type: 'chores/start' }
+  | { type: 'chores/scrub'; dirtId: string; px: number }
+  | { type: 'chores/end' }
   | { type: 'gesture'; gesture: Gesture; dogId?: DogId }
   | { type: 'care/bowl'; kind: BowlKind; at: Vec2 | null }
   | { type: 'kennel/open'; breedId: BreedId }
@@ -160,11 +168,13 @@ export function createNewGame(now: number, seed: number): SaveGame {
     rngState: seed >>> 0,
     stats: { sessions: 0 },
     poops: [],
+    dirt: [],
+    dirtClockAt: now,
   };
 }
 
 export function createGameState(save: SaveGame): GameState {
-  return { save, minds: {}, bowls: [], nextBowlId: 1, toys: [], nextToyId: 1, kennel: null, walk: null, contest: null, active: null, night: false, viewX: 0 };
+  return { save, minds: {}, bowls: [], nextBowlId: 1, toys: [], nextToyId: 1, kennel: null, walk: null, contest: null, active: null, night: false, viewX: 0, chores: null, choresResult: null };
 }
 
 /** Chiens à nommer : ceux des jalons 1 et 2 n'avaient pas de nom. */
@@ -279,7 +289,18 @@ function applyEffects(state: GameState, dogId: DogId, fx: Effects): GameState {
   }
   if (fx.trained || fx.masteryUp) save = applyTraining(save, dogId, fx);
   let s: GameState = save === state.save ? state : { ...state, save };
-  if (fx.bowlEaten) s = { ...s, bowls: s.bowls.filter((b) => b.id !== fx.bowlEaten) };
+  if (fx.bowlEaten) {
+    // D-91 : un repas laisse parfois des miettes autour de la gamelle.
+    const bowl = s.bowls.find((b) => b.id === fx.bowlEaten);
+    if (bowl?.kind === 'food') {
+      const rng = createRng(s.save.rngState);
+      const crumbs = rng.next() < BALANCE.chores.crumbChance;
+      const at = { x: bowl.pos.x + rng.range(-0.12, 0.12), z: Math.min(0.9, bowl.pos.z + rng.range(0.02, 0.08)) };
+      const saveR = { ...s.save, rngState: rng.getState() };
+      s = { ...s, save: crumbs ? addDirt(saveR, 'crumbs', [at], saveR.lastSeenAt) : saveR };
+    }
+    s = { ...s, bowls: s.bowls.filter((b) => b.id !== fx.bowlEaten) };
+  }
   if (fx.toyGrab) s = setToy(s, fx.toyGrab, (t) => ({ ...t, state: 'carried', carrier: dogId, v: { x: 0, z: 0, h: 0 } }));
   if (fx.toyTug) s = { ...setToy(s, fx.toyTug, (t) => ({ ...t, state: 'tug', carrier: dogId })), save: amuse(s.save, dogId, BALANCE.needs.fun.tug) };
   if (fx.toyRelease) s = setToy(s, fx.toyRelease, (t) => ({ ...t, state: 'held', carrier: null }));
@@ -389,6 +410,12 @@ function settleWalk(state: GameState, w: WalkState): GameState {
   // D-82 : une promenade sans gains amuse quand même (avec gains, l'XP s'en charge).
   else if (done) save = amuse(save, dog.id, BALANCE.needs.fun.gain.walk);
   if (w.rewarded) save = awardXp(awardXp(awardXp(save, dog.id, 'walk'), dog.id, 'walk100m', Math.floor(w.plan.lengthM / 100)), dog.id, 'steps', bonus.xp / BALANCE.levels.player.steps);
+  // D-91 : de retour, il laisse des traces de pattes depuis la porte (davantage s'il est sale).
+  const CH = BALANCE.chores;
+  const rng = createRng(save.rngState);
+  const paws = CH.walkPaws + (dog.needs.cleanliness < CH.dirtyDogBelow ? CH.dirtyWalkPaws : 0);
+  const trail = pawTrail(rng, paws);
+  save = addDirt({ ...save, rngState: rng.getState() }, 'paw', trail, now);
   return { ...state, save, walk: w };
 }
 
@@ -414,6 +441,14 @@ function stepContest(state: GameState, dtMs: number): GameState {
   let save = awardXp(r.save, c.dogId, 'contest');
   if (r.result.place <= 3) save = awardXp(save, c.dogId, 'podium', 4 - r.result.place);
   return { ...state, save, contest: { ...c, run, result: r.result } };
+}
+
+/** D-91 : les poils tombés depuis la dernière fois (le tirage suit la graine de la partie). */
+function furOf(save: SaveGame): SaveGame {
+  if (save.lastSeenAt - save.dirtClockAt < BALANCE.chores.furEveryMs) return save;
+  const rng = createRng(save.rngState);
+  const s = accumulateFur(save, save.lastSeenAt, rng);
+  return { ...s, rngState: rng.getState() };
 }
 
 /** D-60 : à la pension, on nourrit, abreuve et brosse les chiots. */
@@ -515,6 +550,7 @@ function reduceAction(state: GameState, action: GameAction): GameState {
         lastSeenAt: Math.max(save.lastSeenAt, action.now),
         stats: action.type === 'session/start' ? { ...save.stats, sessions: save.stats.sessions + 1 } : save.stats,
       };
+      save = furOf(save);
       const night = action.now >= state.save.lastSeenAt ? isNight(action.now, action.tzOffsetMin) : state.night;
       return homeRelief(greetAll(ensureMinds({ ...state, save, night }), absence), save.lastSeenAt);
     }
@@ -528,8 +564,10 @@ function reduceAction(state: GameState, action: GameAction): GameState {
         const gap = action.now - action.dtMs - state.save.lastSeenAt;
         let save = gap > BALANCE.needs.gapAsOfflineMs ? offline(state.save, state.save.lastSeenAt, action.now - action.dtMs, action.tzOffsetMin) : state.save;
         save = rollDay(save, action.now, action.tzOffsetMin);
-        s = { ...state, save: { ...save, lastSeenAt: action.now }, night: isNight(action.now, action.tzOffsetMin) };
+        s = { ...state, save: furOf({ ...save, lastSeenAt: action.now }), night: isNight(action.now, action.tzOffsetMin) };
       }
+      if (s.chores) s = { ...s, chores: { ...s.chores, t: s.chores.t + action.dtMs } };
+      const messy = roomIsDirty(s.save);
       if (s.toys.length > 0) s = { ...s, toys: s.toys.map((t) => stepToy(t, action.dtMs)) };
       if (s.contest && !s.contest.result) s = stepContest(s, action.dtMs);
       if (s.walk && !s.walk.finished) {
@@ -543,7 +581,7 @@ function reduceAction(state: GameState, action: GameAction): GameState {
         const m = s.minds[dog.id];
         if (!m) continue;
         const asleep = m.activity === 'sleep';
-        const needs = backwards ? dog.needs : tickNeeds(dog.needs, action.dtMs, asleep);
+        const needs = backwards ? dog.needs : tickNeeds(dog.needs, action.dtMs, asleep, messy && s.save.homeDogIds.includes(dog.id));
         const updated = { ...dog, needs };
         s = { ...s, save: { ...s.save, dogs: s.save.dogs.map((d) => (d.id === dog.id ? updated : d)) } };
         const r = tickMind(m, action.dtMs, contextOf(updated, s));
@@ -669,6 +707,23 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       return gestureAll(state, { kind: 'voiceMiss' }, action.dogId ?? homeId(state));
     case 'voice/similar':
       return gestureAll(state, { kind: 'orderSimilar' }, action.dogId ?? homeId(state));
+    case 'chores/start':
+      return state.save.dirt.length > 0 && !state.chores ? { ...state, chores: { t: 0, start: state.save.dirt.length, cleaned: 0 }, choresResult: null } : state;
+    case 'chores/scrub': {
+      if (!state.chores) return state;
+      const r = scrubDirt(state.save, action.dirtId, action.px);
+      return { ...state, save: r.save, chores: r.cleaned ? { ...state.chores, cleaned: state.chores.cleaned + 1 } : state.chores };
+    }
+    case 'chores/end': {
+      const run = state.chores;
+      if (!run) return state;
+      const result = choresResult(run, state.save.dirt.length);
+      const dogId = homeId(state);
+      let save = state.save;
+      if (dogId && result.points > 0) save = awardPoints(save, dogId, result.points);
+      if (dogId && result.cleaned > 0) save = awardXp(save, dogId, 'chores', result.cleaned);
+      return { ...state, save, chores: null, choresResult: result };
+    }
     case 'view/pan': {
       const max = BALANCE.puppy.roam.maxView;
       return { ...state, viewX: Math.min(max, Math.max(-max, action.x)) };

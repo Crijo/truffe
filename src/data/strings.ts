@@ -181,6 +181,22 @@ export const LEVELS = {
   dogUp: '{name} passe au niveau {n} !',
 } as const;
 
+/** D-91 : ménage du salon. */
+export const CHORES = {
+  item: 'Ménage',
+  title: 'Ménage',
+  hint: 'Frotte les taches à l’éponge. Glisse à côté pour voir le reste du salon.',
+  count: 'Taches : {n}',
+  timeLabel: 'Temps pour le bonus',
+  bonus: 'Bonus éclair : encore {s} s',
+  noBonus: 'Plus de bonus, mais chaque tache compte',
+  end: 'Terminer',
+  clean: 'Le salon est tout propre.',
+  done: 'Salon nettoyé : {n} tache(s), +{p} points.',
+  doneBonus: 'Salon tout propre en un éclair ! +{p} points.',
+  none: 'Ménage arrêté.',
+} as const;
+
 /** D-88 : salle de bain. */
 export const BATH = {
   title: 'Salle de bain',

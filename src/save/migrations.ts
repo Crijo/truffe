@@ -55,6 +55,8 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
     const each = dogs.length > 0 ? Math.round(pts / dogs.length) : 0;
     return { xp: pts, ...raw, dogs: dogs.map((d) => (isObj(d) ? { xp: each, ...d } : d)) };
   },
+  // v8 → v9 : salon qui se salit (D-91) : propre au départ.
+  8: (raw) => ({ dirt: [], dirtClockAt: isNum(raw.lastSeenAt) ? raw.lastSeenAt : 0, ...raw }),
   // v7 → v8 : amusement (D-82).
   7: (raw) => ({
     ...raw,

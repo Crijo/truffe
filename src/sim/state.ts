@@ -1,6 +1,7 @@
+import type { Dirt } from './chores';
 /** Modèle de données sauvegardé (SPEC, Modèle de données). */
 
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export type DogId = string;
 export type ItemId = string;
@@ -131,4 +132,7 @@ export interface SaveGame {
   stats: { sessions: number };
   /** D-74 : besoins à ramasser au salon. */
   poops: Poop[];
+  /** D-91 : taches du salon, et moment du dernier poil tombé. */
+  dirt: Dirt[];
+  dirtClockAt: number;
 }

@@ -9,6 +9,28 @@ export const BALANCE = {
   },
 
   /**
+   * D-91 : le salon se salit et se nettoie à l'éponge. Taches au plus `maxSpots` ; traces de pattes à chaque retour
+   * de promenade (plus si le chiot est sale), miettes après un repas (une chance sur deux), un poil toutes les 4 h.
+   * À partir de `dirtyRoomSpots` taches, le pelage se salit `dirtyRoomDecay` fois plus vite.
+   * Mini-jeu : `scrubPx` de frottement par tache, points par tache, bonus si tout est propre en `limitMs`.
+   */
+  chores: {
+    maxSpots: 12,
+    walkPaws: 3,
+    dirtyWalkPaws: 2,
+    dirtyDogBelow: 40,
+    crumbChance: 0.5,
+    furEveryMs: 4 * 3_600_000,
+    doorX: 1.9,
+    dirtyRoomSpots: 5,
+    dirtyRoomDecay: 1.5,
+    scrubPx: 240,
+    limitMs: 30_000,
+    pointsPerSpot: 2,
+    bonus: 10,
+  },
+
+  /**
    * D-78 : niveaux du joueur et des chiots. Soins : un tout petit peu, plafonné par jour et par chiot ;
    * activités et dressage : davantage. Passer du niveau n au suivant demande base + step × (n − 1) XP.
    * D-87 : le joueur et le chiot ont chacun leur table. Le joueur progresse surtout en prenant soin
