@@ -4,9 +4,9 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-**Jalon 9 : corrections de bêta** — feuilles derrière la vitre, profondeur en promenade, décor de promenade allégé, jauge « Amusement », lancer hors de l'écran avec caméra qui suit. En attente de l'accord du joueur.
+Aucun. Les jalons 0 à 7 de la spec, le jalon 8 (retours de bêta : pelage, saleté, besoins, obéissance, saisons, niveaux, tracé en concours, atelier des tours, pas réels) et le jalon 9 (fenêtre, profondeur et décor de promenade, jauge « Amusement », lancer hors de l'écran) sont validés. Toute nouvelle demande du joueur ouvre un nouveau jalon, avec la même méthode.
 
-Jalons 0 à 8 : validés. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
+Jalons 0 à 9 : validés. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
 
 Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run check` au vert **et** vérification de ses critères d'acceptation dans un navigateur. À la fin de chaque jalon : bilan critère par critère, mode d'emploi sur téléphone, liste de ce que le joueur doit vérifier lui-même, puis arrêt jusqu'à son accord.
 
