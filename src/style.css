@@ -1897,3 +1897,56 @@ body:not([data-mode='living']) .toy-basket {
 .chores-side.right {
   right: 8px;
 }
+
+/* ---------------------------------------------------------------- petit plan de la promenade (D-92) */
+.walk-mini-box {
+  position: absolute;
+  top: calc(max(10px, env(safe-area-inset-top)) + 64px);
+  left: 12px;
+  width: 96px;
+  height: 96px;
+  pointer-events: none;
+}
+
+.walk-mini-box[hidden] {
+  display: none;
+}
+
+.walk-mini {
+  display: block;
+  width: 96px;
+  height: 96px;
+}
+
+.walk-mini-box .mini-dog {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #3d2b1f;
+  box-sizing: border-box;
+  will-change: transform;
+}
+
+.walk-mini .mini-bg {
+  fill: rgb(253 246 234 / 0.9);
+}
+
+.walk-mini .mini-grid {
+  fill: none;
+  stroke: #e2d3bd;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.walk-mini .mini-route {
+  fill: none;
+  stroke: #b5562a;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+

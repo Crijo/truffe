@@ -122,4 +122,40 @@ test.describe('Jalon 10 : retours de bêta', () => {
     expect((await state(page))?.save.masterPoints ?? 0).toBeGreaterThan(pts);
     await page.screenshot({ path: 'test-results/j10-menage-fini.png' });
   });
+
+  test('D-92 : la promenade change de rue aux carrefours, tourne, et montre le trajet', async ({ page }) => {
+    await page.goto('/?debug&adopt=beagle&season=spring');
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    await page.waitForTimeout(800);
+    await page.getByTestId('out').click();
+    await page.getByTestId('out-walk').click();
+    const box = await page.getByTestId('city').boundingBox();
+    if (!box) throw new Error('plan introuvable');
+    const at = (c: number, r: number) => ({ x: box.x + ((c * 100 + 50) / 600) * box.width, y: box.y + ((r * 100 + 50) / 600) * box.height });
+    // Maison (2-5) → nord jusqu'à 2-3, puis à droite vers 3-3 et 4-3.
+    const path: [number, number][] = [[2, 5], [2, 4], [2, 3], [3, 3], [4, 3]];
+    const first = path[0] ?? [2, 5];
+    await page.mouse.move(at(...first).x, at(...first).y);
+    await page.mouse.down();
+    for (const [c, r] of path.slice(1)) await page.mouse.move(at(c, r).x, at(c, r).y, { steps: 6 });
+    await page.mouse.up();
+    await page.getByTestId('walk-go').click();
+    await expect(page.locator('body')).toHaveAttribute('data-mode', 'walk');
+    await expect(page.getByTestId('walk-mini')).toBeVisible();
+    const goTo = (m: number) =>
+      page.evaluate((m) => {
+        const t = window.__truffe;
+        const s = t?.store.getState();
+        if (!t || !s?.walk) return;
+        t.store.replaceForDebug({ ...s, walk: { ...s.walk, progress: m, pause: null, plan: { ...s.walk.plan, events: [] } } });
+      }, m);
+    await goTo(92);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: 'test-results/j10-carrefour.png' });
+    await goTo(104);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: 'test-results/j10-apres-virage.png' });
+    const route = (await state(page))?.walk?.plan.route ?? [];
+    expect(route.slice(0, 5)).toEqual(['2-5', '2-4', '2-3', '3-3', '4-3']);
+  });
 });

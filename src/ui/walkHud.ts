@@ -1,5 +1,6 @@
 /** Interface pendant la promenade : avancée, ramasser, lieux, bilan. */
-import { PLACE_LABELS } from '../data/city';
+import { CITY, CITY_BY_ID, CITY_COLS, CITY_ROWS, PLACE_LABELS } from '../data/city';
+import { BALANCE } from '../data/balance';
 import { ITEM_BY_ID } from '../data/items';
 import { WALK } from '../data/strings';
 import type { WalkState } from '../sim/walk';
@@ -43,12 +44,56 @@ export function mountWalkHud(h: WalkHudHandlers): { update(w: WalkState): void; 
   const summary = el('section', 'name-box walk-summary');
   summary.hidden = true;
   summary.dataset.testid = 'walk-summary';
-  root.append(top, hint, action, summary);
+  // D-92 : petit plan du trajet, avec le chiot qui avance et tourne aux carrefours.
+  const mini = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  mini.setAttribute('viewBox', `0 0 ${CITY_COLS * 20} ${CITY_ROWS * 20}`);
+  mini.classList.add('walk-mini');
+  mini.dataset.testid = 'walk-mini';
+  mini.setAttribute('aria-hidden', 'true');
+  const at = (id: string): { x: number; y: number } => {
+    const n = CITY_BY_ID[id];
+    return { x: (n?.col ?? 0) * 20 + 10, y: (n?.row ?? 0) * 20 + 10 };
+  };
+  let grid = '';
+  for (const n of CITY) {
+    const a = at(n.id);
+    if (n.col < CITY_COLS - 1) grid += `M${a.x} ${a.y}h20`;
+    if (n.row < CITY_ROWS - 1) grid += `M${a.x} ${a.y}v20`;
+  }
+  mini.innerHTML = `<rect width="100%" height="100%" rx="10" class="mini-bg"/><path d="${grid}" class="mini-grid"/><polyline class="mini-route" points=""/>`;
+  const routeLine = mini.querySelector('polyline');
+  // Le point du chiot est un élément à part, déplacé par une transformation : le plan n'est pas repeint à chaque image.
+  const miniBox = el('div', 'walk-mini-box');
+  const dot = el('span', 'mini-dog');
+  miniBox.append(mini, dot);
+  let routeKey = '';
+  let dotKey = '';
+  root.append(top, miniBox, hint, action, summary);
   document.body.append(root);
   window.setTimeout(() => hint.remove(), 4000);
 
   let lastKey = '';
   const update = (w: WalkState): void => {
+    const rk = w.plan.route.join();
+    if (rk !== routeKey) {
+      routeKey = rk;
+      routeLine?.setAttribute('points', w.plan.route.map((id) => { const p = at(id); return `${p.x},${p.y}`; }).join(' '));
+    }
+    const E = BALANCE.walk.edgeM;
+    const k = Math.min(w.plan.route.length - 2, Math.floor(w.progress / E));
+    const a = at(w.plan.route[Math.max(0, k)] ?? '');
+    const b = at(w.plan.route[Math.max(0, k) + 1] ?? w.plan.route[Math.max(0, k)] ?? '');
+    const u = Math.min(1, Math.max(0, w.progress / E - Math.max(0, k)));
+    // Plan de 96 px pour 120 unités.
+    const k96 = 96 / (CITY_COLS * 20);
+    const dx = Math.round((a.x + (b.x - a.x) * u) * k96 * 2) / 2;
+    const dy = Math.round((a.y + (b.y - a.y) * u) * k96 * 2) / 2;
+    const dk = `${dx},${dy}`;
+    if (dk !== dotKey) {
+      dotKey = dk;
+      dot.style.transform = `translate(${dx - 5}px, ${dy - 5}px)`;
+    }
+    miniBox.hidden = w.finished;
     fill.style.width = `${Math.min(100, (w.progress / Math.max(1, w.plan.lengthM)) * 100)}%`;
     steps.hidden = w.steps === 0;
     if (w.steps > 0) steps.innerHTML = `${ICONS.steps}<span>${WALK.steps.replace('{n}', String(w.steps))}</span>`;
