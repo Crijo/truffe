@@ -15,7 +15,8 @@ function advance(s: GameState, ms: number): GameState {
 }
 function walkAll(s: GameState, steps: number): GameState {
   for (let i = 0; i < 3000 && s.walk && !s.walk.finished; i++) {
-    if (i < steps) s = reduce(s, { type: 'walk/steps', count: 1 });
+    // Quelques pas à chaque pas de temps, comme un vrai marcheur (la promenade est courte, D-92).
+    if (i * 4 < steps) s = reduce(s, { type: 'walk/steps', count: Math.min(4, steps - i * 4) });
     if (s.walk?.poop && !s.walk.poop.picked) s = reduce(s, { type: 'walk/pickup' });
     if (s.walk?.pause?.kind === 'place') s = reduce(s, { type: 'walk/continue' });
     s = advance(s, 100);

@@ -334,8 +334,8 @@ export const BALANCE = {
     metersPerStamina: 100,
     /** F-PRO-7 : une promenade avec gains toutes les 30 minutes. */
     cooldownMs: 30 * 60_000,
-    /** Vitesse de marche dans la vue de profil (le temps de jeu est raccourci). */
-    speedMps: 8,
+    /** Vitesse de marche dans la vue de profil (le temps de jeu est raccourci). D-92 : 12 (8 avant). */
+    speedMps: 12,
     /** F-PRO-4 : points « ? » sur le plan. */
     questionPoints: 3,
     hiddenGiftEveryM: 120,

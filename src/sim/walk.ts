@@ -267,3 +267,34 @@ export function pickUp(walk: WalkState): WalkState {
   if (!walk.poop || walk.poop.picked) return walk;
   return { ...walk, poop: { ...walk.poop, picked: true }, pointsDelta: walk.pointsDelta + W.points.pickup, log: [...walk.log, 'pickup'] };
 }
+
+// ---------------------------------------------------------------- allure des rues (D-92)
+
+export type StreetKind = 'houses' | 'shops' | 'park';
+
+/** Allure d'une rue : parc autour du parc, boutiques autour de la brocante, sinon tirée de la rue (toujours la même). */
+export function streetKind(a: string, b: string): StreetKind {
+  const na = CITY_BY_ID[a];
+  const nb = CITY_BY_ID[b];
+  if (!na || !nb) return 'houses';
+  const near = (place: PlaceId): boolean => [na, nb].some((n) => {
+    const p = Object.values(CITY_BY_ID).find((c) => c.place === place);
+    return !!p && Math.abs(p.col - n.col) + Math.abs(p.row - n.row) === 0;
+  });
+  if (near('park')) return 'park';
+  if (near('market')) return 'shops';
+  const [x, y] = a < b ? [na, nb] : [nb, na];
+  const h = (x.col * 7 + x.row * 13 + y.col * 17 + y.row * 23) % 5;
+  return h < 3 ? 'houses' : h === 3 ? 'shops' : 'park';
+}
+
+/** Au nœud `i` du trajet : tourne-t-on à gauche, à droite, ou va-t-on tout droit ? (null aux deux bouts) */
+export function turnAt(route: Route, i: number): 'left' | 'right' | 'straight' | null {
+  const a = CITY_BY_ID[route[i - 1] ?? ''];
+  const b = CITY_BY_ID[route[i] ?? ''];
+  const c = CITY_BY_ID[route[i + 1] ?? ''];
+  if (!a || !b || !c) return null;
+  const cross = (b.col - a.col) * (c.row - b.row) - (b.row - a.row) * (c.col - b.col);
+  // Rangées vers le bas de l'écran : un produit positif tourne à droite.
+  return cross === 0 ? 'straight' : cross > 0 ? 'right' : 'left';
+}

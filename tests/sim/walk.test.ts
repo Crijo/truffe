@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../../src/data/balance';
 import { CITY_BY_ID, HOME_NODE } from '../../src/data/city';
 import { reduce, type GameState } from '../../src/sim/game';
-import { extendRoute, maxMeters, neighbors, planWalk, questionPoints, rewardable, routeMeters, walkGains, type Route } from '../../src/sim/walk';
+import { extendRoute, maxMeters, neighbors, planWalk, questionPoints, rewardable, routeMeters, streetKind, turnAt, walkGains, type Route } from '../../src/sim/walk';
 import { startWithDog } from './fixtures';
 
 const W = BALANCE.walk;
@@ -253,5 +253,34 @@ describe('Rencontre et lieux pendant la marche', () => {
     expect(s.walk?.pause?.kind).toBe('place');
     s = reduce(s, { type: 'walk/enter' });
     expect(dog(s).visited.gym).toBe(true);
+  });
+});
+
+describe('D-92 : une promenade plus vive et moins linéaire', () => {
+  it('une rue de 50 m se parcourt en un peu plus de 4 s (12 m/s)', () => {
+    expect(W.speedMps).toBe(12);
+    let s = walkTo(startWithDog(T0, TZ), route(1));
+    // On écarte les arrêts (rencontres, besoins) pour ne mesurer que la marche.
+    s = { ...s, walk: s.walk ? { ...s.walk, plan: { ...s.walk.plan, events: [] } } : null };
+    s = advance(s, Math.ceil((W.edgeM / W.speedMps) * 1000) + 200);
+    expect(s.walk?.progress).toBe(W.edgeM);
+  });
+
+  it('chaque rue a son allure : parc près du parc, boutiques près de la brocante, toujours la même', () => {
+    expect(streetKind('0-0', '1-0')).toBe('park');
+    expect(streetKind('4-0', '4-1')).toBe('shops');
+    expect(streetKind('2-4', '2-3')).toBe(streetKind('2-3', '2-4'));
+    const kinds = new Set<string>();
+    for (const [a, b] of [['2-5', '2-4'], ['2-4', '2-3'], ['2-3', '3-3'], ['3-3', '3-4'], ['1-3', '1-2'], ['3-1', '3-2']]) kinds.add(streetKind(a ?? '', b ?? ''));
+    expect(kinds.size).toBeGreaterThan(1);
+  });
+
+  it('aux carrefours, le trajet tourne à gauche, à droite ou va tout droit', () => {
+    const r = route(6);
+    // 2-5 → 2-4 → 2-3 → 2-2 (vers le nord), puis 3-2 (vers l’est) : à droite.
+    expect(turnAt(r, 1)).toBe('straight');
+    expect(turnAt(r, 3)).toBe('right');
+    expect(turnAt(['2-5', '2-4', '1-4'], 1)).toBe('left');
+    expect(turnAt(r, 0)).toBe(null);
   });
 });
