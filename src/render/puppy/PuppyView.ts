@@ -461,10 +461,6 @@ export class PuppyView {
         fz += O.paddle * 0.1 * d;
         fy += O.paddle * 0.06 * Math.max(0, d);
       }
-      if (i === 0 && O.paw > 0) {
-        fy += O.paw * 0.22;
-        fz += O.paw * 0.14;
-      }
       if (i >= 2 && O.hindUp > 0) fy += O.hindUp * 0.32;
       if (i === 3 && O.scratch > 0) {
         fx = fx + (-0.05 - fx) * O.scratch;
@@ -794,11 +790,34 @@ export class PuppyView {
       [B.body[0] * 0.58, -B.body[1] * 0.45, -B.body[2] * 0.58],
       [-B.body[0] * 0.58, -B.body[1] * 0.45, -B.body[2] * 0.58],
     ];
+    // Roulade, « fais le mort » : les pattes tournent avec le corps autour de son axe (sinon elles
+    // restent collées au sol pendant que le corps roule). Les petits roulis gardent les pattes au sol.
+    const extra = angleDiff(0, sp.roll.x - pose.roll);
+    const legRoll = extra * smooth(clamp((Math.abs(extra) - 0.2) / 0.5, 0, 1));
+    const Rroll = rotZ(legRoll);
+    const bodyLocal: V3 = [0, sp.bodyY.x + lift, sp.bodyZ.x];
     hips.forEach((h, i) => {
       const hip = inBody(h);
       const fl: V3 = [this.feet[i * 3]?.x ?? 0, (this.feet[i * 3 + 1]?.x ?? 0) + lift * 0.75, this.feet[i * 3 + 2]?.x ?? 0];
-      const foot = apply(Ry, fl);
-      this.leg(`leg${i}`, hip, foot, Ry, this.fur, this.coat.paws);
+      let foot = apply(Ry, legRoll === 0 ? fl : add(bodyLocal, apply(Rroll, sub(fl, bodyLocal))));
+      if (legRoll !== 0) {
+        // Pendant qu'il roule, une patte ne s'étire pas au-delà de sa longueur.
+        const d = sub(foot, hip);
+        const len = Math.hypot(d[0], d[1], d[2]);
+        const max = B.leg.standHeight * 0.95;
+        if (len > max) foot = add(hip, scale(d, max / len));
+      }
+      let Rpaw = Ry;
+      if (i === 0 && O.paw > 0) {
+        // « Donne la patte » : la patte se tend vers l'avant, sous l'épaule, à la mesure de la race
+        // (une hauteur fixe montait trop haut chez les races à pattes courtes).
+        const k = Math.min(1, O.paw);
+        const L = B.leg.standHeight;
+        const target = add(hip, apply(Ry, [0, -0.3 * L, 0.74 * L]));
+        foot = add(scale(foot, 1 - k), scale(target, k));
+        Rpaw = mul(Ry, rotX(-0.8 * k));
+      }
+      this.leg(`leg${i}`, hip, foot, Rpaw, this.fur, this.coat.paws);
     });
 
     // Queue.

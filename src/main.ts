@@ -19,7 +19,8 @@ import { ToysView } from './render/toys';
 import { PoopsView } from './render/poops';
 import { openSaveStore } from './save/storage';
 import { adoptionPrice, validateName, type Candidate } from './sim/adoption';
-import { createMind, type CareTool, type Mood, type PuppyMind } from './sim/behavior';
+import { createMind, performTrick, type CareTool, type Mood, type PuppyMind } from './sim/behavior';
+import { TRICKS, type TrickId } from './data/tricks';
 import { createGameState, createNewGame, homeId, unnamedDogs, type GameState } from './sim/game';
 import { NEED_KINDS, localHour, needLevel } from './sim/needs';
 import type { CoatParams, ContestId, DecorId, DogId, TemperamentId } from './sim/state';
@@ -1040,24 +1041,55 @@ async function boot(): Promise<void> {
     const bg = new Graphics().rect(0, 0, w, h).fill(0xfdf6ea);
     layer.addChild(bg);
     const views: { view: PuppyView; mind: PuppyMind }[] = [];
-    const ids = Object.keys(BREEDS);
+    const only = params.get('breed');
+    const ids = only ? [only] : Object.keys(BREEDS);
     const rows = Math.ceil(ids.length / 2);
     ids.forEach((id, i) => {
       const breed = BREEDS[id];
       if (!breed) return;
       const room = new Room();
-      room.layout(w / 2, h / rows);
+      room.layout(only ? w : w / 2, h / rows);
       const view = new PuppyView(breed, { base: 0, patch: 0, patchAmount: 1 }, room, { x: 0, z: 0.85 });
       view.container.position.set((i % 2) * (w / 2), Math.floor(i / 2) * (h / rows) - (h / rows) * 0.18);
       if (params.has('silhouette')) view.container.tint = 0x2b2320;
       layer.addChild(view.container);
       views.push({ view, mind: { ...staticMind({ x: 0, z: 0.85 }, 'calm', Math.PI / 2), posture: 'stand' } });
     });
+    // &trick=roll : chaque chiot refait ce tour en boucle (vérifier une animation sur toutes les races).
+    const trick = params.get('trick') as TrickId | null;
+    const facing = Number(params.get('facing') ?? Math.PI / 2);
+    for (const v of views) v.mind = { ...v.mind, facing };
+    let nextTrickAt = 600;
+    let galleryT = 0;
+    const slow = Number(params.get('slow') ?? 1);
+    // &at=800 : image figée 800 ms après le début du tour (captures reproductibles).
+    const at = params.get('at');
+    if (trick && at !== null) {
+      for (const v of views) {
+        for (let i = 0; i < 20; i++) v.view.update(50, v.mind, null);
+        v.mind = performTrick(v.mind, trick);
+        for (let ms = 0; ms < Number(at); ms += 16) {
+          v.mind = { ...v.mind, t: v.mind.t + 16 };
+          v.view.update(16, v.mind, null);
+        }
+      }
+    }
     document.body.dataset.mode = 'gallery';
     mode = {
       intercept: { down: () => true, move: () => undefined, up: () => undefined, cancel: () => undefined },
-      frame(dtMs) {
-        for (const v of views) v.view.update(dtMs, v.mind, null);
+      frame(realDt) {
+        if (at !== null) return;
+        const dtMs = realDt * slow;
+        galleryT += dtMs;
+        const def = trick ? TRICKS[trick] : undefined;
+        if (trick && def && galleryT >= nextTrickAt) {
+          nextTrickAt = galleryT + def.durationMs + 1500;
+          for (const v of views) v.mind = performTrick(v.mind, trick);
+        }
+        for (const v of views) {
+          v.mind = { ...v.mind, t: v.mind.t + dtMs };
+          v.view.update(dtMs, v.mind, null);
+        }
       },
     };
   }
