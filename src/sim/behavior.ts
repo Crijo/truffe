@@ -183,6 +183,8 @@ export interface PuppyContext {
   repsNeeded: number;
   /** F-VIE-4 : les autres chiots de la maison. */
   selfId?: string | undefined;
+  /** D-89 : x du sol au milieu de ce que regarde le joueur (0 : vue de départ). */
+  viewX?: number | undefined;
   friends?: readonly Friend[] | undefined;
 }
 
@@ -293,6 +295,8 @@ export interface PuppyMind {
   /** F-VIE-4 : partie de jeu avec un autre chiot. */
   play: { partner: string; until: number; nextNibbleAt: number; orbit: number } | null;
   lastPlayAt: number;
+  /** D-89 : dernière fois qu'il s'est écarté d'un autre chiot. */
+  lastNudgeAt: number;
   recentOrders: number[];
   begUntil: number;
   /** Début d'un besoin urgent pendant la session (D-03). */
@@ -366,6 +370,7 @@ export function createMind(seed: number, pos: Vec2 = P.floor.home): PuppyMind {
     perform: null,
     play: null,
     lastPlayAt: NEVER,
+    lastNudgeAt: NEVER,
     recentOrders: [],
     begUntil: 0,
     reactionSeq: 0,
@@ -403,9 +408,33 @@ function clampToYard(p: Vec2): Vec2 {
   return { x: clamp(p.x, y.minX, y.maxX), z: clamp(p.z, f.minZ, f.maxZ) };
 }
 
+/** D-89 : le sol où le chiot se promène, plus large que l'écran. */
 function clampToFloor(p: Vec2): Vec2 {
   const f = P.floor;
-  return { x: clamp(p.x, f.minX, f.maxX), z: clamp(p.z, f.minZ, f.maxZ) };
+  return { x: clamp(p.x, P.roam.minX, P.roam.maxX), z: clamp(p.z, f.minZ, f.maxZ) };
+}
+
+/** Devant le joueur, au milieu de ce qu'il regarde (D-89). */
+function frontOf(ctx: PuppyContext): Vec2 {
+  return clampToFloor({ x: ctx.viewX ?? 0, z: P.floor.front.z });
+}
+
+/** D-89 : un point où se promener, loin des autres chiots, autour de ce que regarde le joueur. */
+function roamPoint(rng: Rng, ctx: PuppyContext): Vec2 {
+  const R = P.roam;
+  const f = P.floor;
+  const cx = ctx.viewX ?? 0;
+  let best: Vec2 | null = null;
+  let bestGap = -1;
+  for (let i = 0; i < R.candidates; i++) {
+    const p = clampToFloor({ x: rng.range(cx - R.reach, cx + R.reach), z: rng.range(f.minZ + 0.1, f.maxZ - 0.05) });
+    const gap = Math.min(9, ...(ctx.friends ?? []).map((o) => Math.hypot(o.pos.x - p.x, o.pos.z - p.z)));
+    if (gap > bestGap) {
+      bestGap = gap;
+      best = p;
+    }
+  }
+  return best ?? { x: cx, z: f.home.z };
 }
 
 function emit(m: PuppyMind, type: PuppyEventType, spontaneous = false): void {
@@ -654,7 +683,7 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       break;
     }
     case 'come':
-      m.target = clampToFloor(m.callPoint ?? P.floor.front);
+      m.target = clampToFloor(m.callPoint ?? frontOf(ctx));
       m.gait = 'still';
       break;
     case 'petted':
@@ -694,7 +723,7 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
     }
     case 'greet': {
       const intensity = m.greet?.intensity ?? 1;
-      m.target = { ...P.floor.front };
+      m.target = frontOf(ctx);
       m.gait = intensity === 1 ? 'trot' : 'run';
       m.look = { kind: 'player' };
       setPosture(m, 'stand');
@@ -758,7 +787,7 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       if (m.holding) {
         if (a === 'chew') startChew(m);
         else {
-          m.target = { ...P.floor.front };
+          m.target = frontOf(ctx);
           m.gait = 'trot';
         }
       } else if (toy) {
@@ -881,12 +910,24 @@ function move(m: PuppyMind, dtMs: number): void {
 
 function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
   switch (m.activity) {
-    case 'wander':
+    case 'wander': {
+      // D-89 : trop près d'un autre chiot (qui ne joue pas avec lui) : il s'écarte.
+      if (!m.target && m.t >= m.postureLockUntil && m.t - m.lastNudgeAt >= P.roam.nudgeMs) {
+        const near = (ctx.friends ?? []).find((f) => f.activity !== 'play' && Math.hypot(f.pos.x - m.pos.x, f.pos.z - m.pos.z) < FAM.personalSpace);
+        if (near) {
+          m.lastNudgeAt = m.t;
+          m.target = withRng(m, (rng) => roamPoint(rng, ctx));
+          m.gait = 'walk';
+          m.look = { kind: 'point', ...m.target };
+          m.plan = { mode: 'walk', until: m.t };
+          break;
+        }
+      }
       if (m.t < m.plan.until || m.target) break;
       withRng(m, (rng) => {
         const w = P.wander;
         if (rng.next() < w.walkChance && m.t >= m.postureLockUntil) {
-          m.target = randomFloorPoint(rng);
+          m.target = roamPoint(rng, ctx);
           m.gait = rng.next() < 0.25 ? 'trot' : 'walk';
           m.look = { kind: 'point', ...m.target };
           if (rng.next() < w.sniffChance) {
@@ -907,6 +948,7 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
         }
       });
       break;
+    }
     case 'come':
       if (m.target && m.gait === 'still' && m.t >= m.callAt) {
         const d = Math.hypot(m.target.x - m.pos.x, m.target.z - m.pos.z);
@@ -1017,7 +1059,7 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
           fx.toyGrab = toy.id;
           fx.familiar = plan.kind;
           if (m.activity === 'fetch') {
-            m.target = { ...P.floor.front };
+            m.target = frontOf(ctx);
             m.gait = 'trot';
             m.look = { kind: 'player' };
           } else startChew(m);

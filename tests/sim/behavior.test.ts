@@ -71,14 +71,14 @@ describe('Choix de l’activité (SPEC, Modèle de simulation)', () => {
 });
 
 describe('Flâner seul', () => {
-  it('se déplace de lui-même et reste dans la pièce', () => {
+  it('se déplace de lui-même et reste dans la pièce (D-89 : plus large que l’écran)', () => {
     let m = createMind(3);
     const positions = new Set<string>();
     for (let i = 0; i < 600; i++) {
       m = tickMind(m, 100, ctx).mind;
       positions.add(`${m.pos.x.toFixed(2)},${m.pos.z.toFixed(2)}`);
-      expect(m.pos.x).toBeGreaterThanOrEqual(P.floor.minX);
-      expect(m.pos.x).toBeLessThanOrEqual(P.floor.maxX);
+      expect(m.pos.x).toBeGreaterThanOrEqual(P.roam.minX);
+      expect(m.pos.x).toBeLessThanOrEqual(P.roam.maxX);
       expect(m.pos.z).toBeGreaterThanOrEqual(P.floor.minZ);
       expect(m.pos.z).toBeLessThanOrEqual(P.floor.maxZ);
     }

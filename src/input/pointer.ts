@@ -7,6 +7,11 @@ export interface PointerIntercept {
   move(x: number, y: number, t: number): void;
   up(x: number, y: number, t: number): void;
   cancel(): void;
+  /**
+   * D-89 : pendant un geste laissé aux gestes du chiot, le gestionnaire peut le reprendre
+   * (glisser pour regarder ailleurs dans le salon) ; les gestes du chiot sont alors annulés.
+   */
+  steal?(x: number, y: number, t: number): boolean;
 }
 
 /** Relie les pointer events du canevas (doigt, souris, stylet) aux gestes et aux jouets. */
@@ -32,6 +37,10 @@ export function bindPointer(el: HTMLElement, recognizer: () => GestureRecognizer
     const p = pos(e);
     if (active === e.pointerId) {
       onInput(e.timeStamp);
+      if (!toAux && intercept?.steal?.(p.x, p.y, e.timeStamp)) {
+        recognizer()?.cancel();
+        toAux = true;
+      }
       if (toAux) intercept?.move(p.x, p.y, e.timeStamp);
       else recognizer()?.move(p.x, p.y, e.timeStamp);
     } else if (active === null && e.pointerType === 'mouse') {

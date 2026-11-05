@@ -134,6 +134,13 @@ export const BALANCE = {
 
     wander: { idleMinMs: 2500, idleMaxMs: 7000, walkChance: 0.55, sniffChance: 0.3 },
 
+    /**
+     * D-89 : le salon continue de chaque côté de l'écran. Les chiots s'y promènent (jusqu'à `reach`
+     * de part et d'autre de ce que regarde le joueur), le joueur fait glisser la vue jusqu'à `maxView`.
+     * Parmi `candidates` points tirés, le chiot va vers le plus éloigné des autres chiots.
+     */
+    roam: { minX: -2.4, maxX: 2.4, maxView: 2, reach: 1.3, candidates: 3, nudgeMs: 2500 },
+
     /** Arrivée : distance sous laquelle le chiot est rendu. */
     arriveEpsilon: 0.02,
   },
@@ -435,10 +442,13 @@ export const BALANCE = {
     /** Jouer ensemble : score, durée, attente avant une nouvelle partie. */
     playScore: 42,
     playMs: 6000,
-    playCooldownMs: 25_000,
+    /** D-89 : 60 s entre deux parties (25 s avant) : ils jouaient presque sans arrêt. */
+    playCooldownMs: 60_000,
     playRange: 0.7,
     /** Écart entre deux chiots qui jouent, et place de chaque nouveau chiot. */
     playOrbit: 0.3,
+    /** D-89 : plus près que ça, un chiot qui ne joue pas s'écarte. */
+    personalSpace: 0.32,
     spawnX: [0, -0.42, 0.42],
     /** D-60 : à la pension, faim, soif et pelage ne descendent pas sous ce niveau. */
     hotelCare: 70,
@@ -450,6 +460,8 @@ export const BALANCE = {
     tapMaxMs: 300,
     pullMinPx: 22,
     pushMinPx: 38,
+    /** D-89 : glissé horizontal à partir duquel on fait glisser la vue du salon. */
+    panMinPx: 16,
     pushMaxMs: 220,
     presentStillPx: 14,
     presentHoldMs: 450,

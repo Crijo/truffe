@@ -67,12 +67,16 @@ export interface GameState {
   /** Le chiot que le joueur a touché en dernier, parmi ceux de la maison. */
   active: DogId | null;
   night: boolean;
+  /** D-89 : x du sol au milieu de la vue du salon (le joueur la fait glisser). */
+  viewX: number;
 }
 
 export type GameAction =
   | { type: 'session/start'; now: number; tzOffsetMin: number }
   | { type: 'session/resume'; now: number; tzOffsetMin: number }
   | { type: 'tick'; now: number; dtMs: number; tzOffsetMin: number }
+  /** D-89 : le joueur fait glisser la vue du salon. */
+  | { type: 'view/pan'; x: number }
   | { type: 'gesture'; gesture: Gesture; dogId?: DogId }
   | { type: 'care/bowl'; kind: BowlKind; at: Vec2 | null }
   | { type: 'kennel/open'; breedId: BreedId }
@@ -160,7 +164,7 @@ export function createNewGame(now: number, seed: number): SaveGame {
 }
 
 export function createGameState(save: SaveGame): GameState {
-  return { save, minds: {}, bowls: [], nextBowlId: 1, toys: [], nextToyId: 1, kennel: null, walk: null, contest: null, active: null, night: false };
+  return { save, minds: {}, bowls: [], nextBowlId: 1, toys: [], nextToyId: 1, kennel: null, walk: null, contest: null, active: null, night: false, viewX: 0 };
 }
 
 /** Chiens à nommer : ceux des jalons 1 et 2 n'avaient pas de nom. */
@@ -194,6 +198,7 @@ function contextOf(dog: Dog, state: GameState): PuppyContext {
   return {
     selfId: dog.id,
     friends: friendsOf(dog, state),
+    viewX: state.viewX,
     traits: dog.traits,
     affection: dog.affection,
     energy: dog.needs.energy,
@@ -664,6 +669,10 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       return gestureAll(state, { kind: 'voiceMiss' }, action.dogId ?? homeId(state));
     case 'voice/similar':
       return gestureAll(state, { kind: 'orderSimilar' }, action.dogId ?? homeId(state));
+    case 'view/pan': {
+      const max = BALANCE.puppy.roam.maxView;
+      return { ...state, viewX: Math.min(max, Math.max(-max, action.x)) };
+    }
     case 'call':
       return gestureAll(state, { kind: 'call' }, action.dogId ?? homeId(state));
     case 'settings/set': {
