@@ -1759,3 +1759,52 @@ body.reduce-motion *::after {
   min-height: 60px;
   font-size: 13px;
 }
+
+/* ---------------------------------------------------------------- panier de rangement (D-90) */
+.toy-basket {
+  position: fixed;
+  left: 14px;
+  bottom: calc(max(10px, env(safe-area-inset-bottom)) + 88px);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 84px;
+  padding: 10px 6px 8px;
+  border-radius: 20px;
+  background: rgb(253 246 234 / 0.94);
+  box-shadow: 0 4px 16px rgb(61 43 31 / 0.2);
+  color: #8a5a2b;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+  transition: transform 0.15s;
+}
+
+.toy-basket[hidden] {
+  display: none;
+}
+
+.toy-basket svg {
+  width: 48px;
+  height: 48px;
+}
+
+.toy-basket.over {
+  transform: scale(1.12);
+  background: #f6e2c4;
+  outline: 3px solid var(--accent);
+}
+
+.toy-basket.got {
+  animation: basket-got 0.5s ease-out;
+}
+
+@keyframes basket-got {
+  40% {
+    transform: scale(1.18) rotate(-4deg);
+  }
+}
+
+body:not([data-mode='living']) .toy-basket {
+  display: none;
+}

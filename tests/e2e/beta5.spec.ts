@@ -1,0 +1,88 @@
+import { expect, test, type Page } from '@playwright/test';
+import { fresh } from './helpers';
+
+const state = (page: Page) => page.evaluate(() => window.__truffe?.store.getState());
+const cam = (page: Page) => page.evaluate(() => window.__truffe?.camera?.() ?? 0);
+
+/** Glisse horizontalement sur le mur (là où il n'y a pas de chiot). */
+async function swipe(page: Page, dx: number): Promise<void> {
+  const vp = page.viewportSize() ?? { width: 390, height: 800 };
+  const y = vp.height * 0.3;
+  const x0 = vp.width / 2;
+  await page.mouse.move(x0, y);
+  await page.mouse.down();
+  await page.mouse.move(x0 + dx / 2, y + 2, { steps: 6 });
+  await page.mouse.move(x0 + dx, y + 4, { steps: 6 });
+  await page.mouse.up();
+}
+
+test.describe('Jalon 10 : retours de bêta', () => {
+  test('D-87 : le niveau du joueur est affiché à part, avec ce qu’il vient de gagner', async ({ page }) => {
+    await fresh(page);
+    const badge = page.getByTestId('player-level');
+    await expect(badge).toContainText('Toi');
+    await expect(badge).toContainText('niv. 1');
+    await page.evaluate(() => window.__truffe?.store.dispatch({ type: 'debug/xp', walks: 1 }));
+    await expect(page.locator('.xp-chip.player')).toBeVisible();
+    await expect(page.locator('.xp-chip.dog')).toBeVisible();
+    await page.screenshot({ path: 'test-results/j10-niveaux.png' });
+  });
+
+  test('D-89 : on fait glisser la vue du salon ; appelé, le chiot vient là où l’on regarde', async ({ page }) => {
+    await fresh(page);
+    await swipe(page, -260);
+    await expect.poll(() => cam(page)).toBeLessThan(-150);
+    const s = await state(page);
+    expect(s?.viewX ?? 0).toBeGreaterThan(0.5);
+    await page.screenshot({ path: 'test-results/j10-vue-glissee.png' });
+    await page.evaluate(() => window.__truffe?.store.dispatch({ type: 'call' }));
+    await expect
+      .poll(async () => {
+        const st = await state(page);
+        return st?.minds[st.save.homeDogIds[0] ?? '']?.pos.x ?? 0;
+      }, { timeout: 15_000 })
+      .toBeGreaterThan(0.5);
+    await page.screenshot({ path: 'test-results/j10-vient-ici.png' });
+  });
+
+  test('D-89 : un chiot hors de la vue a un repère au bord ; le toucher y emmène', async ({ page }) => {
+    await fresh(page);
+    await page.evaluate(() => {
+      const t = window.__truffe;
+      if (!t) return;
+      const s = t.store.getState();
+      const id = s.save.homeDogIds[0] ?? '';
+      const m = s.minds[id];
+      if (!m) return;
+      t.store.replaceForDebug({ ...s, minds: { ...s.minds, [id]: { ...m, pos: { x: -2.3, z: 0.6 }, target: null, plan: { mode: 'idle', until: m.t + 60_000 } } } });
+    });
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: 'test-results/j10-repere.png' });
+    // Le repère est au bord gauche, à hauteur du chiot.
+    const mark = await page.evaluate(() => window.__truffe?.edges?.()[0] ?? null);
+    if (!mark) throw new Error('aucun repère');
+    expect(mark.x).toBeLessThan(60);
+    await page.mouse.click(mark.x, mark.y);
+    await expect.poll(() => cam(page)).toBeGreaterThan(150);
+    await page.screenshot({ path: 'test-results/j10-repere-suivi.png' });
+  });
+
+  test('D-90 : un panier apparaît quand on tient un jouet ; lâché dedans, le jouet est rangé', async ({ page }) => {
+    await fresh(page);
+    const basket = page.getByTestId('toy-basket');
+    await expect(basket).toBeHidden();
+    await page.getByRole('button', { name: 'Sac' }).click();
+    await page.getByTestId('item-ball').click();
+    const vp = page.viewportSize() ?? { width: 390, height: 800 };
+    await page.mouse.move(vp.width * 0.7, vp.height * 0.7);
+    await page.mouse.down();
+    await expect(basket).toBeVisible();
+    const box = await basket.boundingBox();
+    if (!box) throw new Error('panier introuvable');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 20 });
+    await expect(basket).toHaveClass(/over/);
+    await page.screenshot({ path: 'test-results/j10-panier.png' });
+    await page.mouse.up();
+    await expect.poll(async () => (await state(page))?.toys.length ?? -1).toBe(0);
+  });
+});

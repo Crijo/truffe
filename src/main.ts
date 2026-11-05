@@ -26,6 +26,7 @@ import { NEED_KINDS, localHour, needLevel } from './sim/needs';
 import type { CoatParams, ContestId, DecorId, DogId, TemperamentId } from './sim/state';
 import { mountDebug, rewind, type DebugProbe } from './ui/debug';
 import { mountHud } from './ui/hud';
+import { ICONS } from './ui/icons';
 import { mountKennel, nameDialog } from './ui/kennel';
 import type { TrainingHandlers } from './ui/training';
 import { VoiceController } from './ui/voice';
@@ -69,6 +70,14 @@ const seasonNow = (now: number): Season => FORCED_SEASON ?? seasonAt(now, new Da
 const KENNEL_MOOD: Record<TemperamentId, Mood> = { sage: 'content', joueur: 'happy', timide: 'startled', tetu: 'calm' };
 
 /** Ce que fait la scène à chaque image, selon l'écran en cours. */
+/** Doigts de la patte dessinée sur les repères des chiots hors de la vue (D-89). */
+const PAW_TOES = [
+  [-7, -4],
+  [-2.5, -9],
+  [2.5, -9],
+  [7, -4],
+] as const;
+
 interface Mode {
   frame(dtMs: number, t: number): void;
   intercept: PointerIntercept;
@@ -139,6 +148,7 @@ async function boot(): Promise<void> {
     move: (x, y, t) => mode?.intercept.move(x, y, t),
     up: (x, y, t) => mode?.intercept.up(x, y, t),
     cancel: () => mode?.intercept.cancel(),
+    steal: (x, y, t) => mode?.intercept.steal?.(x, y, t) ?? false,
   };
   bindPointer(
     stage.app.canvas,
@@ -177,35 +187,95 @@ async function boot(): Promise<void> {
     const views = new Map<DogId, PuppyView>();
     const heard = new Map<DogId, number>();
     /**
-     * D-83 : la caméra suit un jouet lancé hors du salon visible, puis le chiot qui va le chercher,
+     * D-83 : la caméra suit un jouet lancé hors de la vue, puis le chiot qui va le chercher,
      * et revient quand tout le monde est rentré.
+     * D-89 : le joueur fait glisser la vue d'un doigt (sur le sol ou le mur, pas sur un chiot) ;
+     * la caméra revient alors à la vue qu'il a choisie, pas au milieu.
      */
     let cam = 0;
+    let viewCam = 0;
+    let lastViewX = 0;
+    let press: { x: number; y: number; free: boolean } | null = null;
+    let panning: { x0: number; cam0: number } | null = null;
+    /** Pixels de caméra par unité de sol, à mi-profondeur. */
+    const pxPerUnit = (): number => {
+      const r = stage.room;
+      return Math.max(1, r.floorToScreen({ x: 1, z: 0.6 }).x - r.floorToScreen({ x: 0, z: 0.6 }).x);
+    };
+    const clampView = (c: number): number => {
+      const lim = BALANCE.puppy.roam.maxView * pxPerUnit();
+      return Math.min(lim, Math.max(-lim, c));
+    };
+    /** Caméra qui met ce point du sol au milieu de l'écran. */
+    const camFor = (p: { x: number; z: number }): number => stage.room.w / 2 - (stage.room.floorToScreen(p).x - stage.room.camX);
     const followCamera = (dtMs: number, s: GameState): void => {
       const C = BALANCE.display.camera;
       const r = stage.room;
-      const F = BALANCE.puppy.floor;
       const points: { x: number; z: number }[] = [];
-      // Un jouet compte en vol, ou au sol tant qu'un chiot va le chercher (sinon la caméra rentre).
-      const chased = new Set(s.save.homeDogIds.map((id) => s.minds[id]?.toyPlan?.toyId));
-      for (const toy of s.toys) if (Math.abs(toy.pos.x) > F.maxX && (toy.state === 'flying' || (toy.state === 'ground' && chased.has(toy.id)))) points.push(toy.pos);
-      for (const id of s.save.homeDogIds) {
-        const m = s.minds[id];
-        if (m && Math.abs(m.pos.x) > F.maxX) points.push(m.pos);
+      // Un jouet compte en vol, ou au sol tant qu'un chiot va le chercher (sinon la caméra rentre),
+      // avec le chiot qui court après.
+      const chasers = s.save.homeDogIds.filter((id) => s.minds[id]?.toyPlan);
+      const chased = new Set(chasers.map((id) => s.minds[id]?.toyPlan?.toyId));
+      let following = false;
+      for (const toy of s.toys) {
+        if (toy.state === 'flying' || (toy.state === 'ground' && chased.has(toy.id))) {
+          points.push(toy.pos);
+          following = true;
+        }
       }
-      // Le plus loin hors du salon décide ; on le garde à l'écran avec une marge.
-      let want = 0;
+      if (following) for (const id of chasers) points.push(s.minds[id]?.pos ?? { x: 0, z: 0.5 });
+      // Le plus loin hors de la vue choisie décide ; on le garde à l'écran avec une marge.
+      let want = viewCam;
       const margin = r.w * C.margin;
       for (const p of points) {
         const x = r.floorToScreen(p).x - r.camX;
-        const need = x > r.w - margin ? r.w - margin - x : x < margin ? margin - x : 0;
-        if (Math.abs(need) > Math.abs(want)) want = need;
+        const need = x + viewCam > r.w - margin ? r.w - margin - x : x + viewCam < margin ? margin - x : viewCam;
+        if (Math.abs(need - viewCam) > Math.abs(want - viewCam)) want = need;
       }
-      const k = 1 - Math.exp((-C.follow * dtMs) / 1000);
-      cam += (want - cam) * k;
-      if (Math.abs(cam) < 0.5 && want === 0) cam = 0;
+      if (panning) cam = viewCam;
+      else {
+        const k = 1 - Math.exp((-C.follow * dtMs) / 1000);
+        cam += (want - cam) * k;
+        if (Math.abs(cam - want) < 0.5) cam = want;
+      }
       stage.setCamera(Math.round(cam));
+      // La simulation sait où regarde le joueur : le chiot appelé vient là (D-89).
+      const vx = -viewCam / pxPerUnit();
+      if (Math.abs(vx - lastViewX) > 0.05 || (vx === 0 && lastViewX !== 0)) {
+        lastViewX = vx;
+        store.dispatch({ type: 'view/pan', x: vx });
+      }
     };
+    /** D-89 : repères au bord de l'écran pour les chiots hors de la vue ; les toucher y emmène. */
+    const edges = new Graphics();
+    edges.zIndex = 1000;
+    layer.addChild(edges);
+    let edgeMarks: { id: DogId; x: number; y: number }[] = [];
+    const drawEdges = (s: GameState): void => {
+      const r = stage.room;
+      edges.clear();
+      edgeMarks = [];
+      for (const id of s.save.homeDogIds) {
+        const m = s.minds[id];
+        if (!m) continue;
+        const p = r.floorToScreen(m.pos);
+        // Repère seulement quand il est presque tout entier hors de l'écran.
+        const out = p.s * 0.12;
+        if (p.x > -out && p.x < r.w + out) continue;
+        const left = p.x <= -out;
+        const x = left ? 30 : r.w - 30;
+        const y = Math.min(r.h - 170, Math.max(r.horizon + 30, p.y - p.s * 0.3));
+        const d = left ? -1 : 1;
+        const ink = id === aid() ? 0xb5562a : 0x6b5444;
+        edges.circle(x, y, 22).fill({ color: 0xfdf6ea, alpha: 0.95 }).stroke({ width: 3, color: ink });
+        edges.moveTo(x + d * 30, y).lineTo(x + d * 20, y - 9).lineTo(x + d * 20, y + 9).closePath().fill(ink);
+        // Une patte, comme l'icône du jeu.
+        edges.ellipse(x, y + 4, 7, 5.5).fill(ink);
+        for (const [ox, oy] of PAW_TOES) edges.circle(x + ox, y + oy, 2.6).fill(ink);
+        edgeMarks.push({ id, x, y });
+      }
+    };
+    const edgeAt = (x: number, y: number): DogId | null => edgeMarks.find((e) => Math.hypot(e.x - x, e.y - y) < 30)?.id ?? null;
 
     /** Une vue par chiot de la maison ; celles des chiots partis à la pension disparaissent. */
     const sync = (): void => {
@@ -256,6 +326,38 @@ async function boot(): Promise<void> {
     const poopsView = new PoopsView(layer, stage.room);
     let tool: CareTool | null = null;
 
+    /**
+     * D-90 : panier de rangement, en bas à gauche, montré quand on tient un jouet
+     * (et un instant quand on range tout depuis le Sac).
+     */
+    const basket = document.createElement('div');
+    basket.className = 'toy-basket';
+    basket.dataset.testid = 'toy-basket';
+    basket.setAttribute('aria-hidden', 'true');
+    basket.innerHTML = `${ICONS.basket}<span>${UI.basket}</span>`;
+    basket.hidden = true;
+    document.body.append(basket);
+    let basketUntil = 0;
+    let gotUntil = 0;
+    const overBasket = (x: number, y: number): boolean => {
+      if (basket.hidden) return false;
+      const r = basket.getBoundingClientRect();
+      const c = stage.app.canvas.getBoundingClientRect();
+      const px = x + c.left;
+      const py = y + c.top;
+      return px >= r.left - 18 && px <= r.right + 18 && py >= r.top - 18 && py <= r.bottom + 18;
+    };
+    const basketGot = (t: number): void => {
+      gotUntil = t + 500;
+      basketUntil = t + 700;
+    };
+    const showBasket = (t: number): void => {
+      const holding = hand.hand !== null && store.getState().toys.some((x) => x.state === 'held');
+      basket.hidden = !holding && t > basketUntil;
+      basket.classList.toggle('over', holding && hand.hand !== null && overBasket(hand.hand.x, hand.hand.y));
+      basket.classList.toggle('got', t < gotUntil);
+    };
+
     const recognizer = new GestureRecognizer(probe, (gesture) => {
       // Main présentée ou levée : le geste est reconnu après un maintien, la latence part de là.
       if (['present', 'presentEnd', 'raise', 'raiseEnd'].includes(gesture.kind)) lastInputAt = performance.now();
@@ -283,10 +385,11 @@ async function boot(): Promise<void> {
       },
       mouth: () => av()?.mouthScreen() ?? { x: 0, y: 0 },
       // D-71 : un jouet lâché sur la barre du bas est rangé.
+      // D-90 : un jouet lâché dans le panier est rangé.
       putAwayAt: (x, y) => {
-        const r = document.querySelector('.hud .bar:not(.tools)')?.getBoundingClientRect();
-        const c = stage.app.canvas.getBoundingClientRect();
-        return !!r && r.width > 0 && x + c.left >= r.left - 12 && x + c.left <= r.right + 12 && y + c.top >= r.top - 12;
+        const over = overBasket(x, y);
+        if (over) basketGot(performance.now());
+        return over;
       },
     });
 
@@ -797,7 +900,10 @@ async function boot(): Promise<void> {
       },
       ropeUnlocked: () => ropeUnlocked(store.getState().save.masterPoints),
       toysOut: () => store.getState().toys.filter((t) => t.state === 'ground' || t.state === 'held').length,
-      putAwayToys: () => store.dispatch({ type: 'toy/putAwayAll' }),
+      putAwayToys: () => {
+        store.dispatch({ type: 'toy/putAwayAll' });
+        basketGot(performance.now() + 700);
+      },
       dropBowl(kind, at) {
         sfx.unlock();
         const floor = at ? stage.room.screenToFloor(at.x, at.y) : null;
@@ -940,17 +1046,52 @@ async function boot(): Promise<void> {
             save();
             return true;
           }
+          // D-89 : un repère au bord de l'écran emmène la vue vers ce chiot.
+          const far = edgeAt(x, y);
+          if (far) {
+            const m = store.getState().minds[far];
+            if (m) viewCam = clampView(camFor(m.pos));
+            store.dispatch({ type: 'family/select', dogId: far });
+            return true;
+          }
           // D-61 : toucher un chiot en fait le chiot actif.
           const hit = dogAt(x, y);
           if (hit && hit !== aid()) store.dispatch({ type: 'family/select', dogId: hit });
           const toy = hand.down(x, y, t);
           // Toucher le chiot : une main apparaît sous le doigt.
           if (hit && !toy && !tool) hudApi.petting({ x, y });
+          press = { x, y, free: !hit && !toy && !tool };
           return toy;
         },
-        move: (x, y, t) => hand.move(x, y, t),
-        up: (x, y, t) => hand.up(x, y, t),
-        cancel: () => hand.cancel(),
+        // D-89 : un glissé surtout horizontal, commencé à côté des chiots, fait glisser la vue.
+        steal: (x, y) => {
+          if (!press?.free || panning) return false;
+          const dx = x - press.x;
+          const dy = y - press.y;
+          if (Math.abs(dx) < BALANCE.gestures.panMinPx || Math.abs(dx) < 1.3 * Math.abs(dy)) return false;
+          panning = { x0: press.x, cam0: viewCam };
+          return true;
+        },
+        move: (x, y, t) => {
+          if (panning) {
+            viewCam = clampView(panning.cam0 + (x - panning.x0));
+            return;
+          }
+          hand.move(x, y, t);
+        },
+        up: (x, y, t) => {
+          press = null;
+          if (panning) {
+            panning = null;
+            return;
+          }
+          hand.up(x, y, t);
+        },
+        cancel: () => {
+          press = null;
+          panning = null;
+          hand.cancel();
+        },
       },
       frame(dtMs, t) {
         recognizer.update(t);
@@ -971,6 +1112,8 @@ async function boot(): Promise<void> {
           ring.ellipse(f.x, f.y, k * 0.4, k * 0.11).stroke({ width: 3, color: 0xb5562a, alpha: 0.45 });
         }
         followCamera(dtMs, s);
+        drawEdges(s);
+        showBasket(t);
         bowls.update(s.bowls, am);
         poopsView.update(s.save.poops, t);
         toysView.update(dtMs, s.toys, hand.hand, (id) => {
@@ -983,7 +1126,7 @@ async function boot(): Promise<void> {
     };
 
     if (DEBUG) {
-      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null, poopsOnScreen: () => poopsView.targets(), camera: () => stage.room.camX };
+      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null, poopsOnScreen: () => poopsView.targets(), camera: () => stage.room.camX, edges: () => edgeMarks };
       mountDebug(debugProbe);
     }
 

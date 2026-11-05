@@ -51,7 +51,7 @@ test.describe('Corrections : fiche, barres d’état, gamelles, jouets', () => {
     await page.screenshot({ path: 'test-results/correction-3-gamelles.png' });
   });
 
-  test('ranger les jouets : depuis le Sac, ou en les posant sur la barre', async ({ page }) => {
+  test('ranger les jouets : depuis le Sac, ou en les posant dans le panier (D-90)', async ({ page }) => {
     await fresh(page);
     const w = page.viewportSize()?.width ?? 400;
     const h = page.viewportSize()?.height ?? 800;
@@ -71,13 +71,13 @@ test.describe('Corrections : fiche, barres d’état, gamelles, jouets', () => {
     await page.getByTestId('put-away').click();
     await expect.poll(async () => (await state(page))?.toys.filter((t) => t.state !== 'carried').length).toBe(0);
 
-    // Un disque pris en main, puis posé sur la barre du bas.
+    // Un disque pris en main, puis posé dans le panier.
     await page.getByRole('button', { name: 'Sac' }).click();
     await page.getByTestId('item-disc').click();
-    const bar = await page.locator('.hud .bar:not(.tools)').boundingBox();
     await page.mouse.move(w / 2, h * 0.7);
     await page.mouse.down();
-    await page.mouse.move(w / 2, (bar?.y ?? h - 60) + 20, { steps: 20 });
+    const basket = await page.getByTestId('toy-basket').boundingBox();
+    await page.mouse.move((basket?.x ?? 40) + 30, (basket?.y ?? h - 160) + 30, { steps: 20 });
     await page.mouse.up();
     await page.waitForTimeout(300);
     expect((await state(page))?.toys.filter((t) => t.kind === 'disc').length).toBe(0);

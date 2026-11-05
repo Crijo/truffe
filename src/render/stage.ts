@@ -2,6 +2,7 @@ import { Application, Container, Graphics } from 'pixi.js';
 import type { DecorId } from '../sim/state';
 import { nightAlpha } from '../sim/needs';
 import { SEASONS, type Season } from '../data/seasons';
+import { BALANCE } from '../data/balance';
 import { PuppyView } from './puppy/PuppyView';
 import { Room } from './room';
 import { SeasonFx } from './seasonFx';
@@ -69,6 +70,42 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
   let season: Season = 'summer';
   let windowRect = { x: 0, y: 0, w: 0, h: 0 };
   let sofa = false;
+  /** Mobilier hors de la vue de départ : panier et plante à gauche, porte et bibliothèque à droite (créés pour Truffe). */
+  const sides = (w: number, h: number, y: number, P: (typeof PALETTES)[DecorId]): void => {
+    const g = decor;
+    // Largeur (px) dont la vue peut glisser de chaque côté (même calcul que le salon, D-89).
+    const span = BALANCE.puppy.roam.maxView * Math.max(1, room.floorToScreen({ x: 1, z: 0.6 }).x - room.floorToScreen({ x: 0, z: 0.6 }).x);
+    const s0 = room.floorToScreen({ x: 0, z: 0.22 }).s;
+    const at = (x: number, z: number) => ({ x, y: room.floorToScreen({ x: 0, z }).y, s: s0 });
+    // Gauche : cadre au mur, plante, panier du chien.
+    const pic = at(-span * 0.22, 0);
+    g.roundRect(pic.x - 46, y * 0.38, 92, 70, 6).fill(0xfbf5ec).stroke({ width: 6, color: 0xb98a5c });
+    g.moveTo(pic.x - 34, y * 0.38 + 58).lineTo(pic.x - 10, y * 0.38 + 30).lineTo(pic.x + 6, y * 0.38 + 46).lineTo(pic.x + 18, y * 0.38 + 36).lineTo(pic.x + 34, y * 0.38 + 58).closePath().fill(0x9cc58f);
+    g.circle(pic.x + 22, y * 0.38 + 18, 7).fill(0xf2c94c);
+    const plant = at(-span * 0.85 + 10, 0.08);
+    g.roundRect(plant.x - 20, plant.y - 40, 40, 40, 6).fill(0xc96f4a);
+    for (let i = -2; i <= 2; i++) g.ellipse(plant.x + i * 9, plant.y - 64 - Math.abs(i) * -6, 9, 26).fill(i % 2 ? 0x5f9e5a : 0x74b06c);
+    const bed = at(-span * 0.5, 0.22);
+    g.ellipse(bed.x, bed.y, bed.s * 0.62, bed.s * 0.2).fill(0x8f5f86);
+    g.ellipse(bed.x, bed.y - bed.s * 0.03, bed.s * 0.5, bed.s * 0.13).fill(0xd9b8d2);
+    // Droite : porte, bibliothèque.
+    const door = at(w + span * 0.2, 0);
+    const dh = Math.min(y * 0.78, h * 0.42);
+    g.roundRect(door.x - 44, y - dh, 88, dh, 8).fill(0xc9925e).stroke({ width: 6, color: P.baseboard });
+    g.roundRect(door.x - 32, y - dh + 14, 64, dh * 0.38, 4).stroke({ width: 3, color: 0xb07a48 });
+    g.roundRect(door.x - 32, y - dh * 0.52, 64, dh * 0.42, 4).stroke({ width: 3, color: 0xb07a48 });
+    g.circle(door.x + 28, y - dh * 0.48, 5).fill(0xf2c94c);
+    const shelf = at(w + span * 0.72, 0);
+    const sw = 120;
+    const sh = Math.min(y * 0.62, 220);
+    g.rect(shelf.x - sw / 2, y - sh, sw, sh).fill(0xa8764a);
+    const colors = [0xd9534f, 0x5b8fd9, 0xf2c94c, 0x6fb38a, 0xb07ad9, 0xe8955a];
+    for (let row = 0; row < 3; row++) {
+      const ry = y - sh + 10 + row * (sh / 3);
+      g.rect(shelf.x - sw / 2 + 6, ry + sh / 3 - 16, sw - 12, 6).fill(0x8a5c36);
+      for (let b = 0; b < 6; b++) g.rect(shelf.x - sw / 2 + 10 + b * 17, ry + 8 + ((b + row) % 3) * 4, 13, sh / 3 - 28 - ((b + row) % 3) * 4).fill(colors[(b + row * 2) % colors.length] ?? 0xd9534f);
+    }
+  };
   const drawRoom = (): void => {
     const w = app.screen.width;
     const h = app.screen.height;
@@ -87,6 +124,8 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
       decor.rect(x0, ly, ww, 2).fill(ROOM.floorLine);
     }
     decor.rect(x0, y - 6, ww, 12).fill(ROOM.baseboard);
+    // D-89 : le salon continue de chaque côté ; un peu de mobilier quand on fait glisser la vue.
+    sides(w, h, y, ROOM);
     const rug = room.floorToScreen({ x: 0, z: 0.62 });
     decor.ellipse(w / 2, rug.y, Math.min(w * 0.44, 420), (h - y) * 0.3).fill(ROOM.rug).stroke({ width: 4, color: ROOM.rugEdge });
     windowRect = { x: 0, y: 0, w: 0, h: 0 };

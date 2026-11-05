@@ -36,6 +36,7 @@ export const ICONS = {
   home: svg('<path d="M8 24 24 10l16 14M12 21v17h24V21"/><path d="M21 38V28h6v10"/>'),
   trophy: svg('<path d="M15 8h18v8a9 9 0 0 1-18 0z"/><path d="M15 11H9a6 6 0 0 0 6 8M33 11h6a6 6 0 0 1-6 8M24 25v8M17 40h14M19 33h10v7H19z"/>'),
   you: svg('<circle cx="24" cy="16" r="8"/><path d="M9 41c1-9 7-14 15-14s14 5 15 14"/>'),
+  basket: svg('<path d="M6 20h36l-4 20H10z"/><path d="M14 20l6-12M34 20l-6-12"/><path d="M9 28h30M11 34h26M18 20v20M24 20v20M30 20v20"/>'),
   paw: svg('<ellipse cx="24" cy="31" rx="9" ry="7"/><circle cx="13" cy="20" r="3.5"/><circle cx="20" cy="13" r="3.5"/><circle cx="28" cy="13" r="3.5"/><circle cx="35" cy="20" r="3.5"/>'),
 } as const;
 
