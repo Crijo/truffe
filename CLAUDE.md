@@ -4,7 +4,7 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-Aucun. Les jalons 0 à 7 de la spec et le jalon 8 (retours de bêta : pelage, saleté, besoins, obéissance, saisons, niveaux, tracé en concours, atelier des tours, pas réels) sont validés. Toute nouvelle demande du joueur ouvre un nouveau jalon, avec la même méthode.
+**Jalon 9 : corrections de bêta** — feuilles derrière la vitre, profondeur en promenade, décor de promenade allégé, jauge « Amusement », lancer hors de l'écran avec caméra qui suit. En attente de l'accord du joueur.
 
 Jalons 0 à 8 : validés. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
 
