@@ -24,6 +24,10 @@ Toute ressource du dépôt est créée pour le projet ou placée sous licence CC
 | Saisons : fenêtre sur le jardin, arbres en fleurs, feuillage d’automne, branches nues et neige, pétales, feuilles et flocons qui tombent | `src/data/seasons.ts`, `src/render/seasonFx.ts`, `src/render/stage.ts`, `src/render/walkScene.ts` | Formes et couleurs dessinées par le code pour Truffe | Propre au projet |
 | Besoins au salon et mouches, main qui caresse, icône de bulles (pelage), engrenage (réglages) | `src/render/poops.ts`, `src/ui/icons.ts` | Formes et SVG dessinés pour Truffe | Propre au projet |
 | Plan de la ville, décor de promenade, enseignes | `src/ui/walkMap.ts`, `src/render/walkScene.ts` | SVG et formes dessinés par le code | Propre au projet |
+| Salle de bain (carrelage, bac de douche, pommeau, miroir, flacons, serviette), gouttes, bulles et souffle | `src/render/bathScene.ts` | Formes dessinées par le code pour Truffe | Propre au projet |
+| Icônes sèche-cheveux, éponge, panier, « Toi » ; panier de rangement | `src/ui/icons.ts` | SVG dessinés à la main pour Truffe | Propre au projet |
+| Taches du salon (pattes, miettes, poils), mobilier des côtés du salon (cadre, plante, panier, porte, bibliothèque), repères des chiots hors de vue | `src/render/dirt.ts`, `src/render/stage.ts`, `src/main.ts` | Formes dessinées par le code pour Truffe | Propre au projet |
+| Rues de la promenade (maisons, boutiques et leurs stores, parc, clôture, réverbères, jardinières, rues de côté, passages piétons, panneaux de direction, lampadaires et buissons au premier plan) et petit plan du trajet | `src/render/streets.ts`, `src/ui/walkHud.ts` | Formes et SVG dessinés par le code pour Truffe, aucune enseigne réelle | Propre au projet |
 | Idées de noms du chenil | `src/data/strings.ts` | Mots français courants choisis pour Truffe | Propre au projet |
 
 ## Sons
@@ -38,7 +42,8 @@ Tous synthétisés en direct par Web Audio dans `src/audio/sfx.ts` : aucun fichi
 | Reniflement, léchage | Rafales de bruit blanc filtré |
 | Ébrouement, grattage, creusage | Bruit haché à cadence fixe |
 | Croquer, laper, se lécher les babines, ronfler, s'étirer | Rafales de bruit filtré, petit glissando |
-| Savon, douche, serviette, brosse | Bruits filtrés brefs pendant le geste |
+| Savon, douche, sèche-cheveux, brosse | Bruits filtrés brefs pendant le geste (le sèche-cheveux ajoute un léger bourdonnement en dent de scie) |
+| Étape du bain finie | Petite cloche : deux notes sinusoïdales, la seconde plus aiguë |
 | Halètement | Souffles de bruit filtré rapides et alternés |
 
 Musique et ambiances, synthétisées en direct dans `src/audio/music.ts` : aucun fichier audio.

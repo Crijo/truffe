@@ -4,9 +4,9 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-Aucun. Les jalons 0 à 7 de la spec, le jalon 8 (retours de bêta : pelage, saleté, besoins, obéissance, saisons, niveaux, tracé en concours, atelier des tours, pas réels) et le jalon 9 (fenêtre, profondeur et décor de promenade, jauge « Amusement », lancer hors de l'écran) sont validés. Toute nouvelle demande du joueur ouvre un nouveau jalon, avec la même méthode.
+**Jalon 10 : retours de bêta** — salle de bain (chien debout, quatre étapes avec signal), ménage, salon plus grand et navigable, panier, promenade moins linéaire et plus rapide, niveau du joueur affiché et XP séparées, roulade et patte du carlin. En attente de l'accord du joueur. Les jalons 0 à 9 sont validés.
 
-Jalons 0 à 9 : validés. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
+Jalons 0 à 9 : validés. Jalon 10 : en attente de l'accord du joueur. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
 
 Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run check` au vert **et** vérification de ses critères d'acceptation dans un navigateur. À la fin de chaque jalon : bilan critère par critère, mode d'emploi sur téléphone, liste de ce que le joueur doit vérifier lui-même, puis arrêt jusqu'à son accord.
 
@@ -27,7 +27,7 @@ Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run ch
 
 Dépôt public : https://github.com/Crijo/truffe. Chaque envoi sur `main` lance `npm run check`, construit et publie sur https://crijo.github.io/truffe/ (`.github/workflows/pages.yml`). Les enregistrements vocaux de test (`tests/fixtures/voice/`) ne sont jamais commités.
 
-Paramètres de débogage de l'URL : `?debug` (panneau d'état, `window.__truffe`), `&adopt=beagle` (adoption immédiate, pour les tests), `&gallery` et `&gallery&silhouette` (les 6 races côte à côte), `&season=winter` (saison imposée : spring, summer, autumn, winter).
+Paramètres de débogage de l'URL : `?debug` (panneau d'état, `window.__truffe`), `&adopt=beagle` (adoption immédiate, pour les tests), `&gallery` et `&gallery&silhouette` (les 6 races côte à côte), `&season=winter` (saison imposée : spring, summer, autumn, winter), `&gallery&breed=carlin&trick=roll&facing=0.6&at=900` (un tour figé à 900 ms, pour vérifier une animation).
 
 ## Architecture
 

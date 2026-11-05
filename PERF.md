@@ -15,6 +15,7 @@ Cibles : SPEC, « Performance et compatibilité ». Mesures du 3 novembre 2026, 
 | --- | --- | --- | --- |
 | Fluidité, 3 chiots | 60 i/s ; jamais sous 30 | 60 i/s, minimum 60 (processeur ralenti 4 fois) | Atteinte |
 | Promenade d'automne (D-84) | Fluide | 60 i/s (processeur ralenti 4 fois) ; ralenti 20 fois : 40 i/s en moyenne, contre 27 avant l'allègement du décor | Améliorée |
+| Promenade aux rues variées (D-92) | Fluide | 60 i/s (processeur ralenti 4 fois) ; ralenti 20 fois : 31 à 33 i/s, contre 35 juste avant (premier plan, carrefours, plan du trajet en plus) | Tenue |
 | Premier affichage en 4G | < 3 s | Premier rendu 2,3 s ; chenil prêt à 2,8 s | Atteinte, avec peu de marge |
 | Poids initial | < 2 Mo hors sons | 233 Kio transférés (compressés) ; 798 Kio en cache hors ligne | Atteinte |
 | Reconnaissance | < 300 ms après la fin de la parole | 18 ms (pire cas, ordinateur) ; ≈ 60 à 80 ms estimés sur téléphone | Atteinte |
