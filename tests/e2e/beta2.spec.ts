@@ -45,7 +45,8 @@ test.describe('Jalon 8, lot 2 : saisons et niveaux', () => {
     await ready(page, '/?debug&adopt=beagle');
     await expect(page.getByTestId('status-level')).toContainText('niv. 1');
     const coins = (await state(page))?.save.coins ?? 0;
-    await page.evaluate(() => window.__truffe?.store.dispatch({ type: 'debug/xp', walks: 2 }));
+    // D-87 : une promenade rapporte moins au joueur qu'au chiot ; quatre suffisent aux deux pour le niveau 2.
+    await page.evaluate(() => window.__truffe?.store.dispatch({ type: 'debug/xp', walks: 4 }));
     await expect(page.getByTestId('status-level')).toContainText('niv. 2');
     await expect(page.locator('.toast')).toContainText('niveau 2');
     expect((await state(page))?.save.coins).toBeGreaterThan(coins);
