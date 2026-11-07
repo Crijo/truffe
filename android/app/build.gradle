@@ -7,8 +7,10 @@ android {
         applicationId "fr.crijo.truffe"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        // D-101 : versionName = versionCode, lu par le jeu pour savoir quelle appli est installée.
+        // L'augmenter à chaque changement de la partie Android (et android/min-native si le jeu en dépend).
         versionCode 1
-        versionName "1.0"
+        versionName "1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +18,22 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // D-101 : signature de l'APK, avec la clé fournie par les secrets du dépôt GitHub (jamais dans le dépôt).
+    signingConfigs {
+        release {
+            def ks = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (ks) {
+                storeFile file(ks)
+                storeType "pkcs12"
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv("ANDROID_KEYSTORE_PATH")) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

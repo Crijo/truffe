@@ -1,0 +1,72 @@
+# D-100 : construit l'APK Android de Truffe et le publie dans les « Releases » du dépôt.
+# Lancé à la main (onglet Actions), ou quand la partie Android change.
+name: Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run check
+      # Le jeu embarqué porte la version du commit, comme le paquet publié sur Pages (pas de mise à jour inutile).
+      - run: TRUFFE_VERSION=${GITHUB_SHA::7} npx vite build --mode app && npx cap sync android
+      - name: Clé de signature
+        if: env.ANDROID_KEYSTORE_B64 != ''
+        run: |
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/truffe.p12"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/truffe.p12" >> "$GITHUB_ENV"
+      - name: APK signé
+        if: env.ANDROID_KEYSTORE_B64 != ''
+        run: cd android && chmod +x gradlew && ./gradlew --no-daemon assembleRelease
+      # Sans clé (secrets pas encore ajoutés) : APK de test, seulement dans les artefacts de la construction.
+      - name: APK de test (sans clé)
+        if: env.ANDROID_KEYSTORE_B64 == ''
+        run: cd android && chmod +x gradlew && ./gradlew --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: truffe-apk
+          path: android/app/build/outputs/apk/**/*.apk
+      - name: Publier dans les Releases
+        if: env.ANDROID_KEYSTORE_B64 != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CODE=$(grep -m1 'versionCode' android/app/build.gradle | grep -o '[0-9]\+')
+          cp android/app/build/outputs/apk/release/app-release.apk truffe.apk
+          TAG="apk-v$CODE"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" truffe.apk --clobber
+          else
+            gh release create "$TAG" truffe.apk --title "Truffe pour Android (version $CODE)" --notes "Appli Android de Truffe. Installe truffe.apk sur ton téléphone ; le jeu se met ensuite à jour tout seul." --latest
+          fi
