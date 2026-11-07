@@ -30,7 +30,7 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webp,webmanifest}'],
         navigateFallback: 'index.html',
         // Le premier chargement est aussitôt servi par le cache : hors ligne dès la visite suivante.
         clientsClaim: true,

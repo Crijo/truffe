@@ -12,6 +12,7 @@ import { renderOrders, renderTricks, type TrainingHandlers } from './training';
 import { ITEM_BY_ID } from '../data/items';
 import { LEVELS, OUT, SETTINGS, TRAINING, WORKSHOP } from '../data/strings';
 import { itemIcon } from './itemIcon';
+import { ART, artImg, artOffset } from './art';
 
 export interface CardRow {
   kind: NeedKind;
@@ -454,7 +455,9 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   // L'outil, ou la main qui caresse, suit le doigt dès qu'il touche l'écran.
   let petting = false;
   const place = (x: number, y: number): void => {
-    cursor.style.transform = `translate(${x - 20}px, ${y - 64}px)`;
+    // La main dessinée : la paume sous le doigt.
+    const o = petting ? artOffset(ART.hand) : { x: 20, y: 64 };
+    cursor.style.transform = `translate(${x - o.x}px, ${y - o.y}px)`;
   };
   window.addEventListener('pointerdown', (e) => {
     if (tool) place(e.clientX, e.clientY);
@@ -476,7 +479,7 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     petting(at) {
       if (tool) return;
       petting = true;
-      cursor.innerHTML = ICONS.hand;
+      cursor.innerHTML = artImg(ART.hand);
       cursor.classList.add('hand');
       cursor.hidden = false;
       place(at.x, at.y);

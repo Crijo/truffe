@@ -1950,3 +1950,30 @@ body:not([data-mode='living']) .toy-basket {
   stroke-linejoin: round;
 }
 
+
+/* ---------------------------------------------------------------- dessins du joueur : main, pommeau */
+.tool-cursor.hand,
+.tool-cursor.art {
+  width: auto;
+  height: auto;
+}
+
+.tool-cursor img {
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.btn .art-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+}
+
+.btn .art-icon img {
+  width: auto;
+  height: 36px;
+  transform: rotate(10deg);
+}

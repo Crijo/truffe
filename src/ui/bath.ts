@@ -6,6 +6,7 @@
 import { BATH } from '../data/strings';
 import type { BathStage, CareTool } from '../sim/behavior';
 import { ICONS } from './icons';
+import { ART, artImg, artOffset } from './art';
 
 export interface BathHudHandlers {
   setTool(tool: CareTool | null): void;
@@ -49,7 +50,7 @@ export function mountBathHud(h: BathHudHandlers): {
   const bar = el('nav', 'bar bath-bar');
   bar.setAttribute('aria-label', BATH.title);
   const tool = (name: CareTool, label: string): HTMLButtonElement => {
-    const b = el('button', 'btn', `${ICONS[name]}<span>${label}</span>`);
+    const b = el('button', 'btn', `${name === 'shower' ? `<span class="art-icon">${artImg(ART.shower)}</span>` : ICONS[name]}<span>${label}</span>`);
     b.type = 'button';
     b.dataset.testid = `bath-${name}`;
     b.addEventListener('click', () => choose(name));
@@ -80,7 +81,9 @@ export function mountBathHud(h: BathHudHandlers): {
     ] as const) {
       b.setAttribute('aria-pressed', String(t === name));
     }
-    cursor.innerHTML = t ? ICONS[t] : '';
+    // Le pommeau dessiné pour la douche ; les autres outils gardent leur icône.
+    cursor.innerHTML = t === 'shower' ? artImg(ART.shower) : t ? ICONS[t] : '';
+    cursor.classList.toggle('art', t === 'shower');
     cursor.hidden = true;
   };
 
@@ -91,7 +94,8 @@ export function mountBathHud(h: BathHudHandlers): {
       return;
     }
     cursor.hidden = false;
-    cursor.style.transform = `translate(${e.clientX - 20}px, ${e.clientY - 64}px)`;
+    const o = current === 'shower' ? artOffset(ART.shower) : { x: 20, y: 64 };
+    cursor.style.transform = `translate(${e.clientX - o.x}px, ${e.clientY - o.y}px)`;
   };
   const hide = (): void => {
     cursor.hidden = true;
