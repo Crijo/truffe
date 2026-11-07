@@ -146,6 +146,21 @@ body {
   border-radius: 24px;
   background: var(--paper);
   box-shadow: 0 8px 28px rgb(61 43 31 / 0.25);
+  /* D-94 : un Sac bien rempli défile au lieu de sortir par le haut de l'écran. */
+  max-height: calc(100dvh - max(10px, env(safe-area-inset-bottom)) - 84px - max(10px, env(safe-area-inset-top)) - 8px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+/* On fait défiler le Sac en glissant sur ses objets ; seules les gamelles se glissent vers le salon. */
+.sheet .item {
+  touch-action: pan-y;
+}
+
+.sheet .item[data-testid='item-food'],
+.sheet .item[data-testid='item-water'] {
+  touch-action: none;
 }
 
 .sheet .close {
