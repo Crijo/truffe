@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 
 /** Jalon 7 : le parcours essentiel marche sur chaque moteur (Chromium, WebKit, Gecko). */
 test('adopter, caresser, nourrir, ouvrir les concours et les réglages', async ({ page }, info) => {
-  test.setTimeout(90_000);
+  // Chrome sans carte graphique (GitHub Actions) dessine à une douzaine d'images par seconde : on lui laisse le temps.
+  test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/?debug');
