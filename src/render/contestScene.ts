@@ -66,6 +66,8 @@ export class ContestScene {
     session: ContestSession,
     /** D-77 : saison du terrain. */
     private readonly season: Season = 'summer',
+    /** D-103 : terrain de concours, ou le parc et le gymnase de la ville (entraînement libre). */
+    private readonly venue: 'contest' | 'park' | 'gym' = 'contest',
   ) {
     this.kind = session.contestId;
     const start = this.dogFloor(session.run);
@@ -124,11 +126,16 @@ export class ContestScene {
     const g = this.bg;
     g.clear();
     const look = SEASONS[this.season];
-    g.rect(0, 0, w, y).fill(look.sky);
-    g.ellipse(w * 0.25, y, w * 0.4, h * 0.06).fill(look.hills);
-    g.ellipse(w * 0.8, y, w * 0.45, h * 0.05).fill(look.hills);
-    g.rect(0, y, w, h - y).fill(look.grass);
-    for (let i = 1; i < 7; i++) g.rect(0, y + (h - y) * (i / 7) ** 1.3, w, 3).fill(look.grassLine);
+    if (this.venue === 'gym') this.drawGym(w, h, y);
+    else {
+      g.rect(0, 0, w, y).fill(look.sky);
+      g.ellipse(w * 0.25, y, w * 0.4, h * 0.06).fill(look.hills);
+      g.ellipse(w * 0.8, y, w * 0.45, h * 0.05).fill(look.hills);
+      g.rect(0, y, w, h - y).fill(look.grass);
+      for (let i = 1; i < 7; i++) g.rect(0, y + (h - y) * (i / 7) ** 1.3, w, 3).fill(look.grassLine);
+      if (this.venue === 'park') this.drawPark(w, h, y);
+    }
+    this.falling.g.visible = this.venue !== 'gym';
     this.labels.removeChildren().forEach((c) => c.destroy());
     const m = this.marks;
     m.clear();
@@ -154,6 +161,77 @@ export class ContestScene {
       const c = this.room.floorToScreen({ x: 0, z: 0.55 });
       m.ellipse(c.x, c.y, c.s * 1.1, c.s * 0.28).fill({ color: PALETTE.chalk, alpha: 0.35 }).stroke({ width: 3, color: PALETTE.chalk });
     }
+  }
+
+  /** D-103 : le parc de la ville : rangée d'arbres, étang, bancs, massifs, allée, lampadaires (créés pour Truffe). */
+  private drawPark(w: number, h: number, y: number): void {
+    const g = this.bg;
+    const look = SEASONS[this.season];
+    for (let i = 0; i < 9; i++) {
+      const x = (i + 0.5) * (w / 9);
+      const r = 26 + (i % 3) * 8;
+      g.rect(x - 4, y - r * 0.6, 8, r * 0.8).fill(look.trunk);
+      if (look.foliage.length > 0) g.circle(x, y - r * 0.9, r).fill(look.foliage[i % look.foliage.length] ?? 0x7cc47f).stroke({ width: 2, color: 0x4a2f1f, alpha: 0.2 });
+      else g.moveTo(x, y - r * 0.5).lineTo(x - 14, y - r * 1.3).moveTo(x, y - r * 0.6).lineTo(x + 16, y - r * 1.4).stroke({ width: 3, color: look.trunk, cap: 'round' });
+    }
+    // Allée de gravier, de biais.
+    g.moveTo(0, y + (h - y) * 0.12).lineTo(w * 0.18, y + (h - y) * 0.1).lineTo(w * 0.06, h).lineTo(0, h).closePath().fill({ color: 0xe6d6b8, alpha: 0.9 });
+    // Étang à droite, au fond.
+    const px = w * 0.86;
+    const py = y + (h - y) * 0.1;
+    g.ellipse(px, py, w * 0.16, (h - y) * 0.05).fill(look.snow ? 0xdfeef5 : 0x7fb6dd).stroke({ width: 3, color: 0x5f9e5a });
+    if (!look.snow) g.ellipse(px - w * 0.05, py - 2, 12, 4).fill({ color: 0xffffff, alpha: 0.5 });
+    // Bancs le long du fond.
+    for (const bx of [w * 0.32, w * 0.62]) {
+      const by = y + 10;
+      g.rect(bx - 28, by - 14, 56, 6).fill(0xa8764a);
+      g.rect(bx - 28, by - 4, 56, 6).fill(0xa8764a);
+      g.rect(bx - 24, by + 2, 4, 10).fill(0x4a4a52);
+      g.rect(bx + 20, by + 2, 4, 10).fill(0x4a4a52);
+    }
+    // Massifs de fleurs et lampadaire.
+    const flowers = look.snow ? [0xffffff] : look.foliage.length === 0 ? [0xb9a58c] : [0xf28ab2, 0xf2c94c, 0xe8564a];
+    for (let i = 0; i < 10; i++) g.circle(w * 0.42 + i * 9, y + 6, 4).fill(flowers[i % flowers.length] ?? 0xf28ab2);
+    g.rect(w * 0.2 - 3, y - 90, 6, 100).fill(0x3d3f45);
+    g.circle(w * 0.2, y - 92, 9).fill(0xffe8a0).stroke({ width: 3, color: 0x3d3f45 });
+  }
+
+  /** D-103 : le gymnase : salle couverte, parquet, hautes fenêtres, fanions, projecteurs (créés pour Truffe). */
+  private drawGym(w: number, h: number, y: number): void {
+    const g = this.bg;
+    g.rect(0, 0, w, y).fill(0xe8dccb);
+    g.rect(0, y - h * 0.08, w, h * 0.08).fill(0xd8c8b0);
+    // Hautes fenêtres.
+    for (let i = 0; i < 4; i++) {
+      const x = w * (0.08 + i * 0.24);
+      g.roundRect(x, y * 0.28, w * 0.16, y * 0.34, 6).fill(0xcfe6f2).stroke({ width: 5, color: 0xfbf5ec });
+      g.rect(x + w * 0.08 - 2, y * 0.28, 4, y * 0.34).fill(0xfbf5ec);
+    }
+    // Projecteurs au plafond.
+    for (let i = 0; i < 3; i++) {
+      const x = w * (0.2 + i * 0.3);
+      g.rect(x - 1, 0, 2, y * 0.1).fill(0x6c6a66);
+      g.roundRect(x - 18, y * 0.1, 36, 12, 5).fill(0x4a4a52);
+      g.ellipse(x, y * 0.1 + 13, 14, 4).fill(0xfff2c0);
+    }
+    // Fanions en guirlande.
+    const colors = [0xd9534f, 0x3f7fb5, 0xf2c94c, 0x5aa469];
+    for (let i = 0; i < 14; i++) {
+      const x = (i + 0.5) * (w / 14);
+      const top = y * 0.2 + Math.sin((i / 13) * Math.PI) * 12;
+      g.moveTo(x - 10, top).lineTo(x + 10, top).lineTo(x, top + 18).closePath().fill(colors[i % colors.length] ?? 0xd9534f);
+    }
+    g.moveTo(0, y * 0.2).quadraticCurveTo(w / 2, y * 0.2 + 24, w, y * 0.2).stroke({ width: 2, color: 0x6c6a66 });
+    // Parquet.
+    g.rect(0, y, w, h - y).fill(0xd9a86c);
+    for (let i = 1; i < 9; i++) g.rect(0, y + (h - y) * (i / 9) ** 1.25, w, 2).fill(0xc4925a);
+    for (let i = -8; i <= 8; i++) {
+      const top = w / 2 + i * w * 0.07;
+      const bottom = w / 2 + i * w * 0.14;
+      g.moveTo(top, y).lineTo(bottom, h).stroke({ width: 1.5, color: 0xc4925a, alpha: 0.6 });
+    }
+    // Tapis vert sous le parcours.
+    g.rect(0, y - 4, w, 8).fill(0xfbf5ec);
   }
 
   /** Obstacles d'agilité ; le prochain point à atteindre brille. */

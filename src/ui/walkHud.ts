@@ -113,7 +113,8 @@ export function mountWalkHud(h: WalkHudHandlers): { update(w: WalkState): void; 
     if (place) {
       const box = el('div', 'name-box place-box', `<h2 class="title">${PLACE_LABELS[place]}</h2>`);
       const row = el('div', 'row-buttons');
-      const enter = el('button', 'btn primary', `${ICONS.done}<span>${WALK.enter}</span>`);
+      const label = place === 'park' || place === 'gym' ? WALK.practiceEnter[place] : WALK.enter;
+      const enter = el('button', 'btn primary', `${ICONS.done}<span>${label}</span>`);
       enter.type = 'button';
       enter.dataset.testid = 'walk-enter';
       const cont = el('button', 'btn', `${ICONS.paw}<span>${WALK.continue}</span>`);
@@ -122,8 +123,7 @@ export function mountWalkHud(h: WalkHudHandlers): { update(w: WalkState): void; 
       enter.addEventListener('click', () => {
         h.enter();
         if (place !== 'market') box.querySelector('.hint')?.remove();
-        if (place === 'park') box.append(el('p', 'hint', WALK.parkSoon));
-        if (place === 'gym') box.append(el('p', 'hint', WALK.gymSoon));
+
       });
       cont.addEventListener('click', () => h.continue());
       row.append(enter, cont);

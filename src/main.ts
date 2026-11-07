@@ -767,6 +767,8 @@ async function boot(): Promise<void> {
           const place = w?.pause ? w.plan.events[w.pause.index]?.place : undefined;
           store.dispatch({ type: 'walk/enter' });
           if (place === 'market') openMarket(outings, () => store.dispatch({ type: 'walk/continue' }));
+          // D-103 : parc et gymnase : entraînement libre.
+          if (place === 'park' || place === 'gym') startContest(null);
         },
         continue: () => store.dispatch({ type: 'walk/continue' }),
         close: back,
@@ -829,13 +831,19 @@ async function boot(): Promise<void> {
       );
     };
 
-    const startContest = (c: ContestId): void => {
-      store.dispatch({ type: 'contest/enter', contestId: c });
+    /**
+     * Concours (F-CON) ; D-103 : avec `c` à null, entraînement libre au lieu où la promenade
+     * s'est arrêtée (parc : disque, gymnase : agilité), puis retour à la promenade.
+     */
+    const startContest = (c: ContestId | null): void => {
+      const practice = c === null;
+      store.dispatch(practice ? { type: 'practice/start' } : { type: 'contest/enter', contestId: c });
       const s0 = store.getState().contest;
       const d0 = dogOf();
       if (!s0 || !d0) return;
       const salon = mode;
-      const scene = new ContestScene(breedOf(d0.breedId), d0.coat, () => dogOf()?.equipped ?? [], s0, seasonNow(Date.now()));
+      const venue = !practice ? 'contest' : s0.contestId === 'disc' ? 'park' : 'gym';
+      const scene = new ContestScene(breedOf(d0.breedId), d0.coat, () => dogOf()?.equipped ?? [], s0, seasonNow(Date.now()), venue);
       scene.layout(stage.app.screen.width, stage.app.screen.height);
       stage.app.stage.addChild(scene.container);
       stage.setCamera(0);
@@ -847,13 +855,20 @@ async function boot(): Promise<void> {
       const back = (): void => {
         hud.destroy();
         scene.container.destroy({ children: true });
-        stage.world.visible = true;
         voice.orderHook = null;
-        store.dispatch({ type: store.getState().contest?.result ? 'contest/close' : 'contest/quit' });
+        const cs = store.getState().contest;
+        store.dispatch({ type: cs?.result || cs?.practiceResult ? 'contest/close' : 'contest/quit' });
         save();
         mode = salon;
+        if (practice) {
+          // La promenade reprend là où elle s'était arrêtée.
+          document.body.dataset.mode = 'walk';
+          music.setScene('outdoor');
+          return;
+        }
+        stage.world.visible = true;
         document.body.dataset.mode = 'living';
-        music.setScene('home');
+        music.setScene(store.getState().place === 'garden' ? 'outdoor' : 'home');
       };
       const hud = mountContestHud(s0, {
         quit: back,
@@ -863,6 +878,12 @@ async function boot(): Promise<void> {
         micSupported: () => voice.supported(),
         micHold: (start) => (start ? void voice.holdStart() : voice.holdEnd()),
         dogName: () => dogOf()?.name ?? '',
+        again: practice
+          ? () => {
+              back();
+              startContest(null);
+            }
+          : undefined,
       });
       // Geste du disque : la vitesse du doigt sur ses 100 dernières millisecondes.
       let trail: { x: number; y: number; t: number }[] = [];

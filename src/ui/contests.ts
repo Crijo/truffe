@@ -4,7 +4,7 @@
  */
 import { capturePointer } from '../input/capture';
 import { BALANCE } from '../data/balance';
-import { CLASS_NAMES, CONTEST, CONTEST_NAMES, TRAINING, UI } from '../data/strings';
+import { CLASS_NAMES, CONTEST, CONTEST_NAMES, TRAINING, UI, WALK } from '../data/strings';
 import type { TrickId } from '../data/tricks';
 import type { ContestResult, EntryRefusal } from '../sim/contests';
 import type { ContestSession } from '../sim/game';
@@ -82,6 +82,8 @@ export interface ContestHudHandlers {
   micSupported(): boolean;
   micHold(start: boolean): void;
   dogName(): string;
+  /** D-103 : entraînement libre : recommencer. */
+  again?: (() => void) | undefined;
 }
 
 const fmt = (ms: number): string => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
@@ -91,7 +93,8 @@ export function mountContestHud(session: ContestSession, h: ContestHudHandlers):
   const root = el('div', 'contest-hud');
   root.dataset.testid = 'contest-hud';
   const top = el('header', 'contest-top');
-  const title = el('strong', 'contest-title', `${CONTEST_NAMES[session.contestId]} · ${CLASS_NAMES[session.contestClass]}`);
+  const practiceKind = session.contestId === 'agility' ? 'agility' : 'disc';
+  const title = el('strong', 'contest-title', session.practice ? WALK.practiceTitle[practiceKind] : `${CONTEST_NAMES[session.contestId]} · ${CLASS_NAMES[session.contestClass]}`);
   const clock = el('span', 'contest-clock');
   clock.dataset.testid = 'contest-clock';
   const score = el('span', 'contest-score');
@@ -100,7 +103,8 @@ export function mountContestHud(session: ContestSession, h: ContestHudHandlers):
   quit.addEventListener('click', () => h.quit());
   top.append(title, clock, score, quit);
   const hint = el('p', 'contest-hint', session.contestId === 'disc' ? CONTEST.discHint : session.contestId === 'agility' ? CONTEST.agilityHint : CONTEST.obedienceHint);
-  if (!session.prize) hint.append(el('small', '', ` ${CONTEST.forFun}`));
+  if (session.practice) hint.append(el('small', '', ` ${WALK.practiceHint}`));
+  else if (!session.prize) hint.append(el('small', '', ` ${CONTEST.forFun}`));
   const flash = el('div', 'contest-flash');
   flash.setAttribute('role', 'status');
   root.append(top, hint, flash);
@@ -180,8 +184,29 @@ export function mountContestHud(session: ContestSession, h: ContestHudHandlers):
     result.hidden = false;
   };
 
+  /** D-103 : bilan d'un entraînement : score, record, recommencer ou reprendre la promenade. */
+  const showPractice = (r: NonNullable<ContestSession['practiceResult']>): void => {
+    shownResult = true;
+    top.hidden = true;
+    hint.hidden = true;
+    const n = (v: number): string => (practiceKind === 'agility' ? v.toFixed(1) : String(Math.round(v)));
+    result.innerHTML = `<h2>${WALK.practiceDone}</h2><p class="place" data-testid="practice-score">${WALK.practiceScore[practiceKind].replace('{n}', n(r.score))}</p>${r.record ? `<p class="class-up" data-testid="practice-record">${WALK.practiceRecord}</p>` : ''}<p>${WALK.practiceBest[practiceKind].replace('{name}', h.dogName()).replace('{n}', n(r.best))}</p>`;
+    const row = el('div', 'row-buttons');
+    const again = btn(`${ICONS.paw}<span>${WALK.practiceAgain}</span>`, 'btn', 'practice-again');
+    again.addEventListener('click', () => h.again?.());
+    const back = btn(`${ICONS.map}<span>${WALK.practiceBack}</span>`, 'btn primary', 'practice-back');
+    back.addEventListener('click', () => h.close());
+    row.append(again, back);
+    result.append(row);
+    result.hidden = false;
+  };
+
   return {
     update(s) {
+      if (s.practiceResult) {
+        if (!shownResult) showPractice(s.practiceResult);
+        return;
+      }
       if (s.result) {
         if (!shownResult) showResult(s, s.result);
         return;

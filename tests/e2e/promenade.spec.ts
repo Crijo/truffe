@@ -84,6 +84,8 @@ test.describe('Jalon 5 : promenade et objets', () => {
         if (!shotPlace) await page.screenshot({ path: 'test-results/promenade-4-gymnase.png' });
         shotPlace = true;
         await page.getByTestId('walk-enter').click();
+        // D-103 : au gymnase, l'entraînement s'ouvre ; on le quitte pour reprendre la promenade.
+        if (await page.getByTestId('contest-hud').isVisible()) await page.getByTestId('contest-quit').click();
         await page.getByTestId('walk-continue').click();
       }
       await page.waitForTimeout(500);
