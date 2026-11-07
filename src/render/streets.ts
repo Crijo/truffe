@@ -1,7 +1,6 @@
 /**
  * D-92 : décor des rues de la promenade. Chaque rue a son allure (maisons, boutiques, parc) ;
- * aux carrefours, la rue de côté s'enfonce entre les façades, un passage piéton traverse le
- * trottoir, et un panneau montre où l'on tourne. Des lampadaires et des buissons passent
+ * aux carrefours, la rue de côté s'enfonce entre les façades et un panneau montre où l'on tourne. Des lampadaires et des buissons passent
  * devant le chiot.
  *
  * Comme en D-84, rien n'est retracé à chaque image : chaque allure est dessinée une fois, à la
@@ -145,15 +144,11 @@ export class StreetDecor {
   }
 }
 
-/** Passage piéton sur le trottoir et panneau du virage, autour de x = 0. */
+/** Panneau du virage, à l'angle de la rue de côté (autour de x = 0). D-95 : plus de passage piéton sur le trottoir. */
 function paintCrossing(c: GraphicsContext, geo: StreetGeometry, turn: 'left' | 'right' | 'straight'): void {
-  const { walkTop, curb } = geo;
+  const { walkTop } = geo;
   c.clear();
   const bottom = SIDE_STREET * 0.5;
-  for (let i = 0; i < 6; i++) {
-    const y = walkTop + ((curb - walkTop) * (i + 0.2)) / 6;
-    c.rect(-bottom * 0.8, y, bottom * 1.6, ((curb - walkTop) / 6) * 0.55).fill({ color: 0xfafafa, alpha: 0.85 });
-  }
   const px = bottom + 14;
   const py = walkTop - 70;
   c.rect(px - 2, py, 4, 70).fill(0x6c7a80);
