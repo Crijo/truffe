@@ -4,9 +4,11 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-Aucun. Les jalons 0 à 7 de la spec, le jalon 8 (retours de bêta : pelage, saleté, besoins, obéissance, saisons, niveaux, tracé en concours, atelier des tours, pas réels), le jalon 9 (fenêtre, profondeur et décor de promenade, jauge « Amusement », lancer hors de l'écran) le jalon 10 (salle de bain, ménage, salon navigable, panier, promenade variée et plus rapide, XP séparées, carlin) et le jalon 11 (main et pommeau dessinés par le joueur) sont validés. Toute nouvelle demande du joueur ouvre un nouveau jalon, avec la même méthode.
+Aucun. Les jalons 0 à 7 de la spec, le jalon 8 (retours de bêta : pelage, saleté, besoins, obéissance, saisons, niveaux, tracé en concours, atelier des tours, pas réels), le jalon 9 (fenêtre, profondeur et décor de promenade, jauge « Amusement », lancer hors de l'écran) le jalon 10 (salle de bain, ménage, salon navigable, panier, promenade variée et plus rapide, XP séparées, carlin) et le jalon 11 (main et pommeau dessinés par le joueur) sont validés.
 
-Jalons 0 à 11 : validés. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
+**Jalon 12 : retours de bêta** — salle de bain dans le menu et étapes au choix du joueur, jardin (porte, menu, jeux, trous à trésors), croquettes à acheter, Sac qui défile, plus de passage piéton. En attente de l'accord du joueur.
+
+Jalons 0 à 11 : validés. Jalon 12 : en attente de l'accord du joueur. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
 
 Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run check` au vert **et** vérification de ses critères d'acceptation dans un navigateur. À la fin de chaque jalon : bilan critère par critère, mode d'emploi sur téléphone, liste de ce que le joueur doit vérifier lui-même, puis arrêt jusqu'à son accord.
 

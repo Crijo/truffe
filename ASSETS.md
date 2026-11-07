@@ -29,6 +29,7 @@ Toute ressource du dépôt est créée pour le projet ou placée sous licence CC
 | Taches du salon (pattes, miettes, poils), mobilier des côtés du salon (cadre, plante, panier, porte, bibliothèque), repères des chiots hors de vue | `src/render/dirt.ts`, `src/render/stage.ts`, `src/main.ts` | Formes dessinées par le code pour Truffe | Propre au projet |
 | Rues de la promenade (maisons, boutiques et leurs stores, parc, clôture, réverbères, jardinières, rues de côté, passages piétons, panneaux de direction, lampadaires et buissons au premier plan) et petit plan du trajet | `src/render/streets.ts`, `src/ui/walkHud.ts` | Formes et SVG dessinés par le code pour Truffe, aucune enseigne réelle | Propre au projet |
 | Main qui caresse, pommeau de douche (curseur et bouton Douche) | `public/img/main.webp`, `public/img/pommeau.webp` | Dessins fournis par le joueur, propriétaire du projet, pour Truffe ; réduits à 192 et 300 px de large et convertis en WebP | Propre au projet |
+| Jardin (pelouse, clôture, arbres, massif de fleurs, niche, abri, porte de la maison), tas de terre et trous, panneau du jardin sur la porte du salon, icônes arbre et sac de croquettes | `src/render/stage.ts`, `src/render/garden.ts`, `src/ui/icons.ts`, `src/ui/itemIcon.ts` | Formes et SVG dessinés par le code pour Truffe | Propre au projet |
 | Idées de noms du chenil | `src/data/strings.ts` | Mots français courants choisis pour Truffe | Propre au projet |
 
 ## Sons
