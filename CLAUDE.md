@@ -4,9 +4,11 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-Aucun. Les jalons 0 à 7 de la spec, le jalon 8 (retours de bêta : pelage, saleté, besoins, obéissance, saisons, niveaux, tracé en concours, atelier des tours, pas réels), le jalon 9 (fenêtre, profondeur et décor de promenade, jauge « Amusement », lancer hors de l'écran) le jalon 10 (salle de bain, ménage, salon navigable, panier, promenade variée et plus rapide, XP séparées, carlin) le jalon 11 (main et pommeau dessinés par le joueur) et le jalon 12 (salle de bain dans le menu, jardin et trous à trésors, croquettes à acheter, Sac qui défile, prix au chenil) sont validés. Toute nouvelle demande du joueur ouvre un nouveau jalon, avec la même méthode.
+Aucun. Les jalons 0 à 7 de la spec, le jalon 8 (retours de bêta : pelage, saleté, besoins, obéissance, saisons, niveaux, tracé en concours, atelier des tours, pas réels), le jalon 9 (fenêtre, profondeur et décor de promenade, jauge « Amusement », lancer hors de l'écran) le jalon 10 (salle de bain, ménage, salon navigable, panier, promenade variée et plus rapide, XP séparées, carlin) le jalon 11 (main et pommeau dessinés par le joueur) et le jalon 12 (salle de bain dans le menu, jardin et trous à trésors, croquettes à acheter, Sac qui défile, prix au chenil) sont validés.
 
-Jalons 0 à 12 : validés. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
+**Jalon 13 : appli Android** — APK (Capacitor) construit par GitHub, mises à jour du jeu à distance. En attente de l'accord du joueur.
+
+Jalons 0 à 12 : validés. Jalon 13 : en attente de l'accord du joueur. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
 
 Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run check` au vert **et** vérification de ses critères d'acceptation dans un navigateur. À la fin de chaque jalon : bilan critère par critère, mode d'emploi sur téléphone, liste de ce que le joueur doit vérifier lui-même, puis arrêt jusqu'à son accord.
 
@@ -24,8 +26,11 @@ Un jalon à la fois, dans l'ordre. Un jalon n'est terminé qu'après `npm run ch
 | `npm run e2e` | Parcours Playwright (Chromium) |
 | `npm run balance` | Équilibrage : 30 jours de joueurs types, rythme des déblocages |
 | `npm run perf` | Mesures de performance (PERF.md), à lancer seules |
+| `npm run build:app` | Jeu pour l'appli Android (`dist-app/`) et copie dans `android/` (D-100) |
 
 Dépôt public : https://github.com/Crijo/truffe. Chaque envoi sur `main` lance `npm run check`, construit et publie sur https://crijo.github.io/truffe/ (`.github/workflows/pages.yml`). Les enregistrements vocaux de test (`tests/fixtures/voice/`) ne sont jamais commités.
+
+Appli Android (D-100, D-101) : le workflow « Android » construit l'APK et le publie dans les Releases (`truffe.apk`) si les secrets `ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_PASSWORD` et `ANDROID_KEY_ALIAS` existent. La clé de signature est hors du dépôt (`D:\jeux-claude\truffe-signature\`) et ne doit jamais y entrer. Chaque envoi sur `main` publie aussi `app/latest.json` et le paquet du jeu : l'appli se met à jour seule. Toucher à `android/` ou ajouter un plugin Capacitor : augmenter `versionCode` (et `versionName`, identique) dans `android/app/build.gradle`, et `android/min-native` si le jeu ne peut plus tourner dans l'ancienne appli.
 
 Paramètres de débogage de l'URL : `?debug` (panneau d'état, `window.__truffe`), `&adopt=beagle` (adoption immédiate, pour les tests), `&gallery` et `&gallery&silhouette` (les 6 races côte à côte), `&season=winter` (saison imposée : spring, summer, autumn, winter), `&gallery&breed=carlin&trick=roll&facing=0.6&at=900` (un tour figé à 900 ms, pour vérifier une animation).
 
