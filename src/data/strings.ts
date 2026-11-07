@@ -335,6 +335,22 @@ export const FAMILY = {
   decor: 'Décor',
 } as const;
 
+/** D-101 : mises à jour de l'appli Android. */
+export const APP_UPDATE = {
+  ready: 'Une mise à jour du jeu est prête. Elle s’appliquera à la prochaine ouverture.',
+  restart: 'Mettre à jour maintenant',
+  needApk: 'Cette mise à jour demande une nouvelle version de l’appli. Télécharge-la, puis installe-la.',
+  newerApk: 'Une nouvelle version de l’appli est disponible.',
+  download: 'Télécharger',
+  later: 'Plus tard',
+  upToDate: 'Le jeu est à jour.',
+  offline: 'Impossible de vérifier : pas de réseau ?',
+  check: 'Vérifier les mises à jour',
+  checking: 'Vérification…',
+  version: 'Version du jeu : {v}',
+  copied: 'Sauvegarde copiée : colle-la dans un fichier .json pour la garder.',
+} as const;
+
 export const SETTINGS = {
   title: 'Réglages',
   hint: 'Sons, animations, sauvegarde',

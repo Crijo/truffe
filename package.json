@@ -14,13 +14,18 @@
     "e2e": "playwright test",
     "dev:https": "vite --host --mode https",
     "balance": "vitest run tests/balance && node -e \"process.stdout.write(require('fs').readFileSync('test-results/equilibrage.txt','utf8'))\"",
-    "perf": "playwright test --project=perf --workers=1"
+    "perf": "playwright test --project=perf --workers=1",
+    "build:app": "tsc --noEmit && vite build --mode app && cap sync android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capgo/capacitor-updater": "^8.54.2",
     "idb": "^8.0.4",
     "pixi.js": "^8.22.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.64.1",
     "@types/node": "^24.19.2",

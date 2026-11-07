@@ -1,5 +1,6 @@
 import './style.css';
 import { Container, Graphics, Rectangle } from 'pixi.js';
+import { Capacitor } from '@capacitor/core';
 import { Music } from './audio/music';
 import { Sfx } from './audio/sfx';
 import { startAutosave } from './core/autosave';
@@ -57,7 +58,7 @@ import { mountContestHud, openContests } from './ui/contests';
 import { openFamily } from './ui/family';
 import { openSettings } from './ui/settings';
 import { exportFileName, exportSave, importSave } from './save/transfer';
-import { SETTINGS } from './data/strings';
+import { APP_UPDATE, SETTINGS } from './data/strings';
 
 const tz = (now: number): number => new Date(now).getTimezoneOffset();
 const params = new URLSearchParams(location.search);
@@ -130,6 +131,13 @@ async function boot(): Promise<void> {
   await autosave.saveNow();
 
   const stage = await createStage(host);
+  // D-101 : dans l'appli Android, le jeu a démarré (la mise à jour est gardée) et cherche la suivante.
+  const native = Capacitor.isNativePlatform();
+  const updates = native ? await import('./ui/appUpdate') : null;
+  if (updates) {
+    await updates.appReady().catch(() => undefined);
+    window.setTimeout(() => void updates.checkForUpdates(), 4000);
+  }
   const sfx = new Sfx(store.getState().save.settings.sfxVolume);
   const music = new Music(store.getState().save.settings.musicVolume);
   const applySettings = (): void => {
@@ -493,8 +501,21 @@ async function boot(): Promise<void> {
             save();
           },
           clearVoices: () => voice.clearAll(),
+          version: () => __TRUFFE_VERSION__,
+          checkUpdates: updates
+            ? async () => {
+                let said = APP_UPDATE.checking as string;
+                await updates.checkForUpdates((t) => (said = t));
+                return said === APP_UPDATE.checking ? '' : said;
+              }
+            : undefined,
           exportSave() {
             const t = Date.now();
+            if (native) {
+              // Dans l'appli, pas de téléchargement de fichier : la sauvegarde est copiée (D-101).
+              void navigator.clipboard.writeText(exportSave(store.getState().save, t)).then(() => toast(APP_UPDATE.copied));
+              return;
+            }
             const blob = new Blob([exportSave(store.getState().save, t)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);

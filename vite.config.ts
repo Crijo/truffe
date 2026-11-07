@@ -3,12 +3,15 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
 
 // `--mode https` : certificat local, pour que le micro marche sur un téléphone du réseau local.
+// `--mode app` (D-100) : le jeu pour l'appli Android, dans dist-app, sans service worker (l'appli a ses propres mises à jour).
 export default defineConfig(({ mode }) => ({
   base: './',
+  build: mode === 'app' ? { outDir: 'dist-app' } : {},
+  define: { __TRUFFE_VERSION__: JSON.stringify(process.env.TRUFFE_VERSION ?? 'dev') },
   plugins: [
     ...(mode === 'https' ? [basicSsl()] : []),
     // Jalon 7 : installable, et jouable sans réseau une fois chargé (tout est mis en cache).
-    VitePWA({
+    ...(mode === 'app' ? [] : [VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'script-defer',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
@@ -36,7 +39,7 @@ export default defineConfig(({ mode }) => ({
         clientsClaim: true,
         skipWaiting: true,
       },
-    }),
+    })]),
   ],
   server: { host: true, port: 5173 },
   preview: { host: true, port: 4173 },

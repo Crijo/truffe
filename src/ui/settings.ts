@@ -2,7 +2,7 @@
  * Réglages (jalon 7) : animations, sons, musique, empreintes vocales, export et import.
  * L'interface appelle les fonctions fournies ; elle ne touche jamais à l'état.
  */
-import { SETTINGS } from '../data/strings';
+import { SETTINGS, APP_UPDATE } from '../data/strings';
 import { panel } from './outings';
 
 export interface SettingsHandlers {
@@ -12,6 +12,9 @@ export interface SettingsHandlers {
   exportSave(): void;
   /** Renvoie un message d'erreur, ou null (la page se recharge). */
   importSave(text: string): Promise<string | null>;
+  /** D-101 : version du jeu ; dans l'appli, vérifier les mises à jour (renvoie le message à afficher). */
+  version(): string;
+  checkUpdates?: (() => Promise<string>) | undefined;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = ''): HTMLElementTagNameMap[K] {
@@ -91,4 +94,19 @@ export function openSettings(h: SettingsHandlers, onClose: () => void): void {
     row,
     msg,
   );
+  // D-101 : version, et dans l'appli Android, vérification des mises à jour.
+  const ver = el('p', 'hint', APP_UPDATE.version.replace('{v}', h.version()));
+  ver.dataset.testid = 'game-version';
+  p.body.append(ver);
+  const check = h.checkUpdates;
+  if (check) {
+    const b = el('button', 'btn mini', `<span>${APP_UPDATE.check}</span>`);
+    b.type = 'button';
+    b.dataset.testid = 'check-updates';
+    b.addEventListener('click', () => {
+      msg.textContent = APP_UPDATE.checking;
+      void check().then((t) => (msg.textContent = t));
+    });
+    p.body.append(b);
+  }
 }
