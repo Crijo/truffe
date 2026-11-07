@@ -337,8 +337,14 @@ export const FAMILY = {
 
 /** D-101 : mises à jour de l'appli Android. */
 export const APP_UPDATE = {
-  ready: 'Une mise à jour du jeu est prête. Elle s’appliquera à la prochaine ouverture.',
-  restart: 'Mettre à jour maintenant',
+  /** D-102 : fenêtre au lancement. */
+  available: 'Mise à jour disponible',
+  laterHint: 'Plus tard : elle se télécharge et s’installera à la prochaine ouverture.',
+  apkHint: 'Télécharge le fichier, ouvre-le, puis accepte l’installation : ta partie est gardée.',
+  downloading: 'Téléchargement…',
+  installing: 'Installation…',
+  failed: 'La mise à jour n’a pas pu être téléchargée. Réessaie plus tard.',
+  restart: 'Mettre à jour',
   needApk: 'Cette mise à jour demande une nouvelle version de l’appli. Télécharge-la, puis installe-la.',
   newerApk: 'Une nouvelle version de l’appli est disponible.',
   download: 'Télécharger',

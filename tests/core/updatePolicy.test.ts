@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { parseManifest, updateDecision } from '../../src/core/updatePolicy';
 
 const manifest = { version: 'b2', bundle: 'https://exemple.test/app/bundle-b2.zip', minNative: 1, native: 1, apk: 'https://exemple.test/truffe.apk' };
@@ -22,6 +23,20 @@ describe('D-101 : mises à jour de l’appli à distance', () => {
 
   it('une appli plus récente existe mais n’est pas nécessaire : le paquet suffit, l’APK est proposé en plus', () => {
     expect(updateDecision({ ...manifest, native: 3 }, { version: 'b2', native: 1, pending: null })).toEqual({ kind: 'none', newerApk: manifest.apk });
+  });
+
+  it('D-102 : les nouveautés accompagnent la version ; mal formées, elles sont ignorées sans bloquer la mise à jour', () => {
+    const notes = { title: 'Jalon 14', items: ['Une fenêtre annonce les mises à jour.'] };
+    expect(parseManifest({ ...manifest, notes })?.notes).toEqual(notes);
+    expect(parseManifest({ ...manifest, notes: { title: 3, items: 'x' } })?.notes).toBeUndefined();
+    expect(parseManifest({ ...manifest, notes: { title: 'T', items: ['ok', 4] } })?.notes).toEqual({ title: 'T', items: ['ok'] });
+  });
+
+  it('D-102 : les nouveautés publiées (public/app-notes.json) sont lisibles par l’appli', () => {
+    const notes: unknown = JSON.parse(readFileSync('public/app-notes.json', 'utf8'));
+    const m = parseManifest({ ...manifest, notes });
+    expect(m?.notes?.title).not.toBe("");
+    expect(m?.notes?.items.length).toBeGreaterThan(0);
   });
 
   it('un fichier de version abîmé est ignoré', () => {

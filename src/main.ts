@@ -1519,6 +1519,12 @@ async function boot(): Promise<void> {
   });
 
   const quick = DEBUG ? params.get('adopt') : null;
+  // ?debug&updatePopup : la fenêtre de mise à jour de l'appli, avec les nouveautés publiées (D-102).
+  if (DEBUG && params.has('updatePopup')) {
+    const { showUpdatePopup } = await import('./ui/updatePopup');
+    const notes = (await fetch('./app-notes.json').then((r) => r.json()).catch(() => undefined)) as import('./core/updatePolicy').UpdateNotes | undefined;
+    showUpdatePopup({ heading: APP_UPDATE.available, hint: APP_UPDATE.laterHint, notes, action: APP_UPDATE.restart, onAction: (p) => p.status(APP_UPDATE.downloading, true) });
+  }
   if (DEBUG && params.has('gallery')) gallery();
   else if (store.getState().save.homeDogIds[0]) living();
   else if (quick && BREEDS[quick]) {

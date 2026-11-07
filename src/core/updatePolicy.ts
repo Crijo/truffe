@@ -13,6 +13,13 @@ export interface UpdateManifest {
   /** Dernière version de l'appli Android publiée, et son APK. */
   native: number;
   apk: string;
+  /** D-102 : ce que contient la mise à jour, montré au joueur avant de l'installer. */
+  notes?: UpdateNotes;
+}
+
+export interface UpdateNotes {
+  title: string;
+  items: string[];
 }
 
 export interface InstalledApp {
@@ -38,7 +45,19 @@ export function parseManifest(raw: unknown): UpdateManifest | null {
   const m = raw as Record<string, unknown>;
   if (typeof m.version !== 'string' || m.version === '' || !https(m.bundle) || !https(m.apk)) return null;
   if (typeof m.minNative !== 'number' || typeof m.native !== 'number') return null;
-  return { version: m.version, bundle: m.bundle, minNative: m.minNative, native: m.native, apk: m.apk };
+  const out: UpdateManifest = { version: m.version, bundle: m.bundle, minNative: m.minNative, native: m.native, apk: m.apk };
+  const notes = parseNotes(m.notes);
+  if (notes) out.notes = notes;
+  return out;
+}
+
+/** Nouveautés : un titre et des lignes de texte ; le reste est ignoré (sans bloquer la mise à jour). */
+function parseNotes(raw: unknown): UpdateNotes | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const n = raw as Record<string, unknown>;
+  if (typeof n.title !== 'string' || !Array.isArray(n.items)) return null;
+  const items = n.items.filter((i): i is string => typeof i === 'string' && i.trim() !== '');
+  return { title: n.title, items };
 }
 
 export function updateDecision(m: UpdateManifest, app: InstalledApp): UpdateDecision {

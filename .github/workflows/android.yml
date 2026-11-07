@@ -1,17 +1,12 @@
 # D-100 : construit l'APK Android de Truffe et le publie dans les « Releases » du dépôt.
-# Lancé à la main (onglet Actions), ou quand la partie Android change.
+# Lancé à chaque envoi sur main, ou à la main (onglet Actions).
 name: Android
 
 on:
   workflow_dispatch:
+  # D-102 : à chaque envoi sur main, l'APK publié embarque le dernier jeu (une nouvelle installation est à jour).
   push:
     branches: [main]
-    paths:
-      - 'android/**'
-      - 'capacitor.config.ts'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/android.yml'
 
 permissions:
   contents: write

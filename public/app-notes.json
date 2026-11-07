@@ -1,0 +1,8 @@
+{
+  "title": "Jalon 14 : fenêtre des mises à jour",
+  "items": [
+    "Au lancement, une fenêtre annonce chaque mise à jour du jeu et ce qu’elle contient.",
+    "« Mettre à jour » l’installe tout de suite ; « Plus tard » l’installera à la prochaine ouverture.",
+    "Ta partie est gardée d’une version à l’autre."
+  ]
+}

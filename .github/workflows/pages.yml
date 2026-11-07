@@ -32,14 +32,9 @@ jobs:
         run: |
           V=${GITHUB_SHA::7}
           TRUFFE_VERSION=$V npx vite build --mode app
-          CODE=$(grep -m1 -E '^\s*versionCode [0-9]+' android/app/build.gradle | grep -o '[0-9]\+')
-          MIN=$(tr -dc '0-9' < android/min-native)
           mkdir -p dist/app
           (cd dist-app && zip -qr "../dist/app/bundle-$V.zip" .)
-          cat > dist/app/latest.json <<EOF
-          {"version":"$V","bundle":"https://crijo.github.io/truffe/app/bundle-$V.zip","minNative":$MIN,"native":$CODE,"apk":"https://github.com/Crijo/truffe/releases/latest/download/truffe.apk"}
-          EOF
-          cat dist/app/latest.json
+          node scripts/app-manifest.mjs "$V"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
