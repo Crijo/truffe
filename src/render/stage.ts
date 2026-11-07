@@ -178,15 +178,15 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
       g.rect(fx, y - 4, 2, 10).fill(0x5f9e5a);
       g.circle(fx + 1, y - 6, 5).fill(flowers[i % flowers.length] ?? 0xf28ab2);
     }
-    // Niche, à droite.
-    const nx = w + span * 0.35;
+    // Niche, contre le coin de la maison (à gauche) : elle ne croise plus l'abri, quelle que soit la largeur de l'écran.
+    const nx = hx + 85;
     const nb = room.floorToScreen({ x: 0, z: 0.15 }).y;
     g.rect(nx - 60, nb - 80, 120, 80).fill(0xc96f4a).stroke({ width: 3, color: 0x8a4a2e });
     g.moveTo(nx - 72, nb - 78).lineTo(nx, nb - 130).lineTo(nx + 72, nb - 78).closePath().fill(0x8a4a2e);
     if (look.snow) g.moveTo(nx - 60, nb - 86).lineTo(nx, nb - 124).lineTo(nx + 60, nb - 86).quadraticCurveTo(nx, nb - 100, nx - 60, nb - 86).fill(0xffffff);
     g.roundRect(nx - 26, nb - 56, 52, 56, 24).fill(0x3d2b1f);
-    // Abri de jardin, plus loin à droite.
-    const sx = w + span * 0.82;
+    // Abri de jardin, seul à droite, tout entier dans la vue quand on glisse jusqu'au bout.
+    const sx = w + span * 0.6;
     g.rect(sx - 70, y - 150, 140, 150).fill(0x9cc58f).stroke({ width: 3, color: 0x5f9e5a });
     g.moveTo(sx - 82, y - 148).lineTo(sx, y - 200).lineTo(sx + 82, y - 148).closePath().fill(0x6b8f5a);
     g.rect(sx - 24, y - 100, 48, 100).fill(0x5f7f52);
