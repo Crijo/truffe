@@ -124,11 +124,9 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   const iFood = button('food', UI.food, 'item');
   const iWater = button('water', UI.water, 'item');
   const iBrush = button('brush', UI.brush, 'item');
-  const iBath = button('bath', UI.bath, 'item');
   iFood.dataset.testid = 'item-food';
   iWater.dataset.testid = 'item-water';
   iBrush.dataset.testid = 'item-brush';
-  iBath.dataset.testid = 'item-bath';
   const iChores = button('sponge', CHORES.item, 'item');
   iChores.dataset.testid = 'item-chores';
   const choresBadge = el('small', 'hint');
@@ -144,7 +142,8 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
     });
     return b;
   });
-  bagGrid.append(iFood, iWater, iBrush, iBath, iChores, ...toyItems);
+  // D-96 : le bain n'est plus dans le Sac (menu Sortir → Salle de bain).
+  bagGrid.append(iFood, iWater, iBrush, iChores, ...toyItems);
   const bagClose = button('close', UI.close, 'close');
   const putAway = button('done', UI.putAway, 'mini');
   putAway.dataset.testid = 'put-away';
@@ -401,11 +400,6 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   iBrush.addEventListener('click', () => {
     setMode('brush');
     setTool('brush');
-  });
-  // D-88 : le bain se donne dans la salle de bain, une scène à part.
-  iBath.addEventListener('click', () => {
-    show(null);
-    h.bath();
   });
   iChores.addEventListener('click', () => {
     show(null);

@@ -19,6 +19,8 @@ export interface OutingHandlers {
   buy(id: ItemId, where: 'shop' | 'market'): string | null;
   sell(id: ItemId): void;
   openMap(): void;
+  /** D-96 : la salle de bain est un endroit du menu, plus un objet du Sac. */
+  openBath(): void;
   openContests(): void;
   openKennel(): void;
   openFamily(): void;
@@ -182,6 +184,11 @@ export function openOutings(h: OutingHandlers, onClose: () => void): void {
     p.root.remove();
     openMarket(h, onClose);
   });
+  const bath = btn(`${ICONS.bath}<strong>${OUT.bath}</strong><small>${OUT.bathHint}</small>`, 'out-choice', 'out-bath');
+  bath.addEventListener('click', () => {
+    p.root.remove();
+    h.openBath();
+  });
   const contests = btn(`${ICONS.trophy}<strong>${CONTEST.title}</strong><small>${CONTEST.hint}</small>`, 'out-choice', 'out-contests');
   const kennel = btn(`${ICONS.home}<strong>${KENNEL.title}</strong><small>${FAMILY.adoptHint}</small>`, 'out-choice', 'out-kennel');
   const family = btn(`${ICONS.paw}<strong>${FAMILY.title}</strong><small>${FAMILY.hint}</small>`, 'out-choice', 'out-family');
@@ -195,7 +202,7 @@ export function openOutings(h: OutingHandlers, onClose: () => void): void {
       go();
     });
   }
-  grid.append(walk, contests, shop, market, kennel, family);
+  grid.append(bath, walk, contests, shop, market, kennel, family);
   p.body.append(grid);
 }
 

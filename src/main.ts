@@ -433,6 +433,10 @@ async function boot(): Promise<void> {
 
     const save = () => void autosave.saveNow();
     const outings: OutingHandlers = {
+      openBath: () => {
+        sfx.unlock();
+        startBath();
+      },
       coins: () => store.getState().save.coins,
       shop: () =>
         shopCatalog()

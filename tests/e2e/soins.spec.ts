@@ -76,15 +76,18 @@ test.describe('Jalon 2 : besoins et temps', () => {
     await expect(card.locator('[data-kind=thirst]')).not.toContainText('Assoiffé');
   });
 
-  test('F-SOIN-2, D-88 : bain dans la salle de bain, puis le pelage est superbe', async ({ page }) => {
+  test('F-SOIN-2, D-88, D-96 : bain dans la salle de bain (menu Sortir), outils choisis par le joueur', async ({ page }) => {
     test.setTimeout(60_000);
     await fresh(page);
     await returnAfter(page, 3 * DAY);
     await page.waitForTimeout(6000);
-    await page.getByRole('button', { name: 'Sac' }).click();
-    await page.getByTestId('item-bath').click();
+    await page.getByTestId('out').click();
+    await page.getByTestId('out-bath').click();
     await expect(page.locator('body')).toHaveAttribute('data-mode', 'bath');
-    await expect(page.getByTestId('bath-shower')).toHaveAttribute('aria-pressed', 'true');
+    // Aucun outil en main au départ : la douche est seulement mise en valeur.
+    await expect(page.getByTestId('bath-shower')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByTestId('bath-shower')).toHaveClass(/next/);
+    await page.getByTestId('bath-shower').click();
     await expect.poll(() => activity(page)).toBe('groom');
     const stage = () => page.evaluate(() => (window.__truffe ? window.__truffe.store.getState().minds[window.__truffe.dogId]?.bath.stage : ''));
     const rubUntil = async (target: string) => {
@@ -95,11 +98,16 @@ test.describe('Jalon 2 : besoins et temps', () => {
     await rubUntil('soap');
     await expect(page.locator('.bath-flash')).toContainText('Mouillé');
     await page.screenshot({ path: 'test-results/soins-5-mouille.png' });
-    await expect(page.getByTestId('bath-soap')).toHaveAttribute('aria-pressed', 'true');
+    // L'étape est finie, mais l'outil ne change pas tout seul.
+    await expect(page.getByTestId('bath-shower')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('bath-soap')).toHaveClass(/next/);
+    await page.getByTestId('bath-soap').click();
     await rubUntil('rinse');
+    await page.getByTestId('bath-shower').click();
     await page.screenshot({ path: 'test-results/soins-6-mousse.png' });
     await rubUntil('dry');
-    await expect(page.getByTestId('bath-dryer')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('bath-dryer')).toHaveClass(/next/);
+    await page.getByTestId('bath-dryer').click();
     await rubUntil('done');
     await expect.poll(async () => (await needs(page))?.cleanliness ?? 0, { timeout: 4000 }).toBeGreaterThan(99);
     await expect(page.locator('.bath-flash')).toContainText('propre');

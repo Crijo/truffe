@@ -85,6 +85,14 @@ export function mountBathHud(h: BathHudHandlers): {
     cursor.innerHTML = t === 'shower' ? artImg(ART.shower) : t ? ICONS[t] : '';
     cursor.classList.toggle('art', t === 'shower');
     cursor.hidden = true;
+    const next = shown === null || shown === 'done' ? null : STAGE_TOOL[shown];
+    for (const [b, name] of [
+      [tShower, 'shower'],
+      [tSoap, 'soap'],
+      [tDryer, 'dryer'],
+    ] as const) {
+      b.classList.toggle('next', name === next && t !== name);
+    }
   };
 
   // L'outil suit le doigt.
@@ -109,6 +117,7 @@ export function mountBathHud(h: BathHudHandlers): {
   return {
     update(stage) {
       if (stage === shown) return;
+      const first = shown === null;
       shown = stage;
       const at = stage === 'done' ? ORDER.length : ORDER.indexOf(stage);
       items.forEach((li, i) => {
@@ -119,7 +128,18 @@ export function mountBathHud(h: BathHudHandlers): {
       });
       hint.textContent = BATH.hints[stage];
       tBack.classList.toggle('primary', stage === 'done');
-      choose(stage === 'done' ? null : STAGE_TOOL[stage]);
+      // D-96 : l'étape finie est seulement signalée ; c'est le joueur qui prend l'outil suivant,
+      // mis en valeur dans la barre.
+      const next = stage === 'done' ? null : STAGE_TOOL[stage];
+      for (const [b, name] of [
+        [tShower, 'shower'],
+        [tSoap, 'soap'],
+        [tDryer, 'dryer'],
+      ] as const) {
+        b.classList.toggle('next', name === next && current !== name);
+      }
+      // Au début, rien en main ; à la fin, on range l'outil.
+      if (first || stage === 'done') choose(null);
     },
     flash(finished) {
       flashEl.textContent = BATH.doneWords[finished];

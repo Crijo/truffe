@@ -1992,3 +1992,16 @@ body:not([data-mode='living']) .toy-basket {
   height: 36px;
   transform: rotate(10deg);
 }
+
+/* D-96 : outil de l'étape suivante, à prendre par le joueur. */
+.bath-bar .btn.next {
+  outline: 3px solid #4a8fb5;
+  outline-offset: -3px;
+  animation: next-tool 1.2s ease-in-out infinite;
+}
+
+@keyframes next-tool {
+  50% {
+    background: #dcecf3;
+  }
+}

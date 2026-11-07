@@ -94,6 +94,8 @@ export const OUT = {
   title: 'Sortir',
   walk: 'Promenade',
   walkHint: 'Trace un trajet en ville',
+  bath: 'Salle de bain',
+  bathHint: 'Douche, savon et sèche-cheveux',
   shop: 'Boutique',
   shopHint: 'Nourriture, jouets, accessoires, soins',
   market: 'Brocante',
@@ -204,10 +206,10 @@ export const BATH = {
   /** Mot affiché et lu quand l'étape est finie. */
   doneWords: { wet: 'Mouillé !', soap: 'Savonné !', rinse: 'Rincé !', dry: 'Sec et tout propre !' },
   hints: {
-    wet: 'Passe la douche sur tout le chiot.',
-    soap: 'Frotte-le avec le savon, partout.',
-    rinse: 'Rince toute la mousse avec la douche.',
-    dry: 'Sèche-le au sèche-cheveux.',
+    wet: 'Prends la douche et mouille tout le chiot.',
+    soap: 'Prends le savon et frotte-le partout.',
+    rinse: 'Reprends la douche pour rincer toute la mousse.',
+    dry: 'Prends le sèche-cheveux pour le sécher.',
     done: 'Tout propre ! Tu peux le ramener au salon.',
   },
   wrongTool: 'Pas encore : {step} d’abord.',
