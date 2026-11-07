@@ -37,8 +37,8 @@ export const BALANCE = {
    * (soins, ménage, ses vrais pas), le chiot surtout en apprenant et en sortant (dressage, promenade, concours).
    */
   levels: {
-    player: { meal: 2, water: 2, groom: 3, caress: 1, poop: 2, toy: 1, chores: 3, trickRepeat: 2, masteryUp: 1, newTrick: 6, walk: 12, walk100m: 1, steps: 1, contest: 5, podium: 5, workshop: 3 },
-    dog: { meal: 0, water: 0, groom: 0, caress: 1, poop: 0, toy: 2, chores: 0, trickRepeat: 4, masteryUp: 3, newTrick: 15, walk: 20, walk100m: 1, steps: 0, contest: 10, podium: 10, workshop: 6 },
+    player: { practice: 2, meal: 2, water: 2, groom: 3, caress: 1, poop: 2, toy: 1, chores: 3, trickRepeat: 2, masteryUp: 1, newTrick: 6, walk: 12, walk100m: 1, steps: 1, contest: 5, podium: 5, workshop: 3 },
+    dog: { practice: 5, meal: 0, water: 0, groom: 0, caress: 1, poop: 0, toy: 2, chores: 0, trickRepeat: 4, masteryUp: 3, newTrick: 15, walk: 20, walk100m: 1, steps: 0, contest: 10, podium: 10, workshop: 6 },
     dailyCareXp: 40,
     curve: { base: 40, step: 20 },
     maxLevel: 50,
@@ -179,7 +179,7 @@ export const BALANCE = {
     realNeed: { hunger: 75, thirst: 75, cleanliness: 90 },
     /** D-82 : amusement. Toute activité qui rapporte de l'XP amuse aussi (soins exceptés), plus lancer et tirer un jouet. */
     fun: {
-      gain: { caress: 1, toy: 3, trickRepeat: 4, masteryUp: 4, newTrick: 10, walk: 35, contest: 20, workshop: 15 },
+      gain: { caress: 1, toy: 3, trickRepeat: 4, masteryUp: 4, newTrick: 10, walk: 35, contest: 20, workshop: 15, practice: 12 },
       throw: 5,
       tug: 3,
     },
@@ -367,6 +367,13 @@ export const BALANCE = {
    * le chiot creuse `digMs`. Dehors, deux chiots rejouent ensemble plus vite (attente × `playCooldownFactor`).
    */
   garden: { spots: 4, treasureChance: 0.6, digMs: 2500, digFun: 6, playCooldownFactor: 0.4 },
+
+  /**
+   * D-103 : entraînement libre au parc (disque) et au gymnase (agilité), pendant la promenade.
+   * Ni pièces, ni points de maître, ni classe : un score, un record par chiot, un peu d'XP.
+   * Disque : plus c'est haut, mieux c'est ; agilité : c'est un temps, plus c'est bas, mieux c'est.
+   */
+  practice: { better: { disc: 'higher', agility: 'lower' } as const },
 
   /** D-97 : croquettes à acheter. Un sac de la boutique donne `pack` portions ; une gamelle en prend une. */
   kibble: { itemId: 'croquettes', start: 10, pack: 10, price: 40 },

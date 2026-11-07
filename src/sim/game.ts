@@ -48,6 +48,9 @@ export interface ContestSession {
   seed: number;
   run: DiscRun | AgilityRun | ObedienceRun;
   result: ContestResult | null;
+  /** D-103 : entraînement libre (parc, gymnase) ; son bilan une fois fini. */
+  practice?: boolean;
+  practiceResult?: { score: number; best: number; record: boolean } | null;
 }
 
 /** État complet : la partie sauvegardée, et ce qui ne vit que pendant la session. */
@@ -87,6 +90,9 @@ export type GameAction =
   /** D-98 : aller au jardin ou rentrer ; faire creuser un tas. */
   | { type: 'place/go'; place: 'home' | 'garden' }
   | { type: 'garden/dig'; spotId: string }
+  /** D-103 : s'entraîner au lieu où la promenade s'est arrêtée ; recommencer. */
+  | { type: 'practice/start' }
+  | { type: 'practice/again' }
   /** D-91 : ménage à l'éponge. */
   | { type: 'chores/start' }
   | { type: 'chores/scrub'; dirtId: string; px: number }
@@ -446,10 +452,43 @@ function stepContest(state: GameState, dtMs: number): GameState {
   const run = stepRun(c.run, dtMs);
   if (!run.finished) return { ...state, contest: { ...c, run } };
   const score = Math.round(run.score * 10) / 10;
+  if (c.practice) return settlePractice({ ...state, contest: { ...c, run } }, score);
   const r = settleContest(state.save, c.dogId, c.contestId, score, c.seed, state.save.lastSeenAt, c.prize);
   let save = awardXp(r.save, c.dogId, 'contest');
   if (r.result.place <= 3) save = awardXp(save, c.dogId, 'podium', 4 - r.result.place);
   return { ...state, save, contest: { ...c, run, result: r.result } };
+}
+
+/** D-103 : lieu d'entraînement où la promenade est arrêtée (parc : disque, gymnase : agilité). */
+function practiceKind(state: GameState): 'disc' | 'agility' | null {
+  const w = state.walk;
+  if (!w?.pause || w.pause.kind !== 'place') return null;
+  const place = w.plan.events[w.pause.index]?.place;
+  return place === 'park' ? 'disc' : place === 'gym' ? 'agility' : null;
+}
+
+function startPractice(state: GameState): GameState {
+  const kind = practiceKind(state);
+  const dog = firstDog(state);
+  if (!kind || !dog) return state;
+  const run = kind === 'disc' ? startDisc(dog.traits, dog.needs.energy) : startAgility(dog.traits, dog.needs.energy);
+  const contest: ContestSession = { contestId: kind, dogId: dog.id, contestClass: dog.contestClass[kind], prize: false, seed: 0, run, result: null, practice: true, practiceResult: null };
+  return { ...state, contest };
+}
+
+/** D-103 : fin d'un entraînement : score, record du chiot, un peu d'XP ; ni pièces ni points. */
+function settlePractice(state: GameState, score: number): GameState {
+  const c = state.contest;
+  if (!c) return state;
+  const kind = c.contestId === 'agility' ? 'agility' : 'disc';
+  const lower = BALANCE.practice.better[kind] === 'lower';
+  const dog = state.save.dogs.find((d) => d.id === c.dogId);
+  const prev = dog?.bests?.[kind];
+  const record = prev === undefined || (lower ? score < prev : score > prev);
+  const best = record ? score : (prev ?? score);
+  let save: SaveGame = { ...state.save, dogs: state.save.dogs.map((d) => (d.id === c.dogId ? { ...d, bests: { ...d.bests, [kind]: best } } : d)) };
+  save = awardXp(save, c.dogId, 'practice');
+  return { ...state, save, contest: { ...c, practiceResult: { score, best, record } } };
 }
 
 /** D-98 : les tas de terre du jour (tirés à la première visite de la journée). */
@@ -843,6 +882,10 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       const contest: ContestSession = { contestId: action.contestId, dogId: dog.id, contestClass: cls, prize: prizeLeft(state.save, dog.id) > 0, seed, run, result: null };
       return { ...state, contest, save: { ...state.save, rngState: rng.getState() } };
     }
+    case 'practice/start':
+      return state.contest ? state : startPractice(state);
+    case 'practice/again':
+      return state.contest?.practice ? startPractice({ ...state, contest: null }) : state;
     case 'contest/throw': {
       const c = state.contest;
       return c && !c.result && c.run.kind === 'disc' ? { ...state, contest: { ...c, run: throwDisc(c.run, action.fx, action.fy) } } : state;

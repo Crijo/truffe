@@ -58,6 +58,8 @@ export interface Dog {
   tricks: LearnedTrick[];
   contestClass: Record<ContestId, ContestClass>;
   trophies: Trophy[];
+  /** D-103 : meilleurs scores à l'entraînement libre (parc : disque, gymnase : agilité). */
+  bests?: Partial<Record<'disc' | 'agility', number>>;
   voiceName?: VoiceTemplate[];
   equipped: ItemId[];
   /** F-JEU-4 : nombre d'approches de chaque sorte d'objet. */
