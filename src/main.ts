@@ -1393,6 +1393,8 @@ async function boot(): Promise<void> {
             opts.exit();
           }
         : undefined,
+      // Le premier chiot est offert : pas de prix à montrer.
+      coins: store.getState().save.dogs.length > 0 ? () => store.getState().save.coins : undefined,
     });
 
     mode = {

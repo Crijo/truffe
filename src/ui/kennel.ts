@@ -25,6 +25,8 @@ export interface KennelHandlers {
   adopt(index: number, name: string): string | null;
   /** Chenil ouvert depuis le salon : on peut repartir sans adopter. */
   exit?: (() => void) | undefined;
+  /** D-99 : pièces du joueur, pour afficher ce qu'il peut s'offrir. */
+  coins?: (() => number) | undefined;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = ''): HTMLElementTagNameMap[K] {
@@ -105,6 +107,7 @@ export function mountKennel(root: HTMLElement, h: KennelHandlers): { pickAt(inde
     wrap.innerHTML = '';
     wrap.className = 'kennel breeds';
     const head = el('header', 'k-head', `<h1>${KENNEL.title}</h1><p>${KENNEL.chooseBreed}</p>`);
+    if (h.coins) head.append(el('p', 'k-coins', `${ICONS.coin}<span data-testid="kennel-coins">${KENNEL.yourCoins.replace('{n}', String(h.coins()))}</span>`));
     if (h.exit) {
       const exit = button(`${ICONS.close}<span>${KENNEL.back}</span>`, 'btn k-back');
       exit.dataset.testid = 'kennel-exit';
@@ -116,7 +119,11 @@ export function mountKennel(root: HTMLElement, h: KennelHandlers): { pickAt(inde
       const card = button('', 'k-breed');
       card.dataset.breed = b.id;
       card.setAttribute('aria-label', b.label);
-      card.innerHTML = `${b.portrait ? `<img alt="" src="${b.portrait}">` : ''}<strong>${b.label}</strong>`;
+      // D-99 : le prix de chaque race (grisé si le joueur n'a pas assez de pièces).
+      const short = h.coins ? h.coins() < b.price : false;
+      const price = b.price === 0 ? KENNEL.free : `${b.price} ${KENNEL.coins}`;
+      card.innerHTML = `${b.portrait ? `<img alt="" src="${b.portrait}">` : ''}<strong>${b.label}</strong><span class="k-price${short ? ' short' : ''}" data-testid="price-${b.id}">${ICONS.coin}${price}</span>`;
+      card.setAttribute('aria-label', `${b.label}, ${price}`);
       card.addEventListener('click', () => showLitter(b));
       grid.append(card);
     }
@@ -145,9 +152,16 @@ export function mountKennel(root: HTMLElement, h: KennelHandlers): { pickAt(inde
       card.addEventListener('click', () => pick(i));
       litterPanel?.append(card);
     });
-    const choose = button(`${ICONS.done}<span>${KENNEL.pick}</span>`, 'btn primary k-choose');
+    const label = b.price > 0 ? KENNEL.pickFor.replace('{n}', String(b.price)) : KENNEL.pick;
+    const choose = button(`${ICONS.done}<span>${label}</span>`, 'btn primary k-choose');
     choose.dataset.testid = 'choose';
     choose.disabled = true;
+    const lack = h.coins ? b.price - h.coins() : 0;
+    if (lack > 0) {
+      // Pas assez de pièces : on le dit tout de suite, plutôt qu'après avoir donné un nom.
+      choose.querySelector('span')?.replaceChildren(KENNEL.missing.replace('{n}', String(lack)));
+      choose.dataset.short = 'true';
+    }
     choose.addEventListener('click', () => {
       if (selected === null) return;
       const i = selected;
@@ -164,7 +178,7 @@ export function mountKennel(root: HTMLElement, h: KennelHandlers): { pickAt(inde
     h.highlight(i);
     litterPanel?.querySelectorAll('.k-pup').forEach((c, k) => c.setAttribute('aria-pressed', String(k === i)));
     const choose = wrap.querySelector<HTMLButtonElement>('.k-choose');
-    if (choose) choose.disabled = false;
+    if (choose) choose.disabled = choose.dataset.short === 'true';
   }
 
   showBreeds();

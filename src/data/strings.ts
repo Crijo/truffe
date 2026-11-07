@@ -44,6 +44,10 @@ export const KENNEL = {
   adopt: 'Adopter',
   free: 'Offert',
   coins: 'pièces',
+  /** D-99 */
+  yourCoins: 'Tu as {n} pièces',
+  pickFor: 'Choisir · {n} pièces',
+  missing: 'Il te manque {n} pièces',
   renameTitle: 'Ton chiot n’a pas encore de nom',
 } as const;
 

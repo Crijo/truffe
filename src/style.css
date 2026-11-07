@@ -2015,3 +2015,32 @@ body:not([data-mode='living']) .toy-basket {
   font-weight: 700;
   color: #8a5a2b;
 }
+
+/* ---------------------------------------------------------------- prix au chenil (D-99) */
+.k-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #6b5444;
+}
+
+.k-price svg,
+.k-coins svg {
+  width: 18px;
+  height: 18px;
+  color: #a8842a;
+}
+
+.k-price.short {
+  color: var(--urgent);
+}
+
+.k-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 12px;
+  font-weight: 700;
+}

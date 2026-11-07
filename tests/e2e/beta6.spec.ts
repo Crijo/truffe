@@ -106,4 +106,24 @@ test.describe('Jalon 12 : jardin, croquettes, Sac', () => {
     await expect(page.getByTestId('item-food')).toBeInViewport();
     await page.screenshot({ path: 'test-results/j12-sac.png' });
   });
+
+  test('D-99 : au chenil, le prix de chaque race et les pièces du joueur s’affichent ; trop cher, on le sait tout de suite', async ({ page }) => {
+    await fresh(page);
+    await page.evaluate(() => {
+      const t = window.__truffe;
+      if (!t) return;
+      const s = t.store.getState();
+      t.store.replaceForDebug({ ...s, save: { ...s.save, coins: 500 } });
+    });
+    await page.getByTestId('out').click();
+    await page.getByTestId('out-kennel').click();
+    await expect(page.getByTestId('kennel-coins')).toContainText('500 pièces');
+    await expect(page.getByTestId('price-beagle')).toContainText('700 pièces');
+    await expect(page.getByTestId('price-beagle')).toHaveClass(/short/);
+    await page.screenshot({ path: 'test-results/j12-chenil-prix.png' });
+    await page.getByTestId('kennel').getByRole('button', { name: /Beagle/ }).click();
+    await expect(page.getByTestId('choose')).toContainText('Il te manque 200 pièces');
+    await page.locator('.k-pup').nth(0).click();
+    await expect(page.getByTestId('choose')).toBeDisabled();
+  });
 });
