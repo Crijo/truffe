@@ -1,7 +1,7 @@
 import type { Dirt } from './chores';
 /** Modèle de données sauvegardé (SPEC, Modèle de données). */
 
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 export type DogId = string;
 export type ItemId = string;

@@ -2,6 +2,7 @@
  * Objets de Truffe (F-ECO-3, F-ECO-4), tous créés pour le projet :
  * aucun nom, objet ou logo de marque.
  */
+import { BALANCE } from './balance';
 export type ItemCategory = 'food' | 'toy' | 'accessory' | 'care' | 'found' | 'furniture';
 export type ItemId = string;
 export type EquipSlot = 'collar' | 'neck' | 'head' | 'eyes';
@@ -9,6 +10,7 @@ export type EquipSlot = 'collar' | 'neck' | 'head' | 'eyes';
 export type ItemShape =
   | 'can'
   | 'biscuit'
+  | 'sack'
   | 'bone'
   | 'bottle'
   | 'cheese'
@@ -57,6 +59,8 @@ export interface ItemDef {
   rare?: boolean;
   /** Offert par un déblocage de points de maître (ni boutique, ni brocante). */
   unlock?: boolean;
+  /** D-97 : un achat donne ce nombre de portions (croquettes). */
+  pack?: number;
   /** Jouet plus gros que les autres. */
   big?: boolean;
   /** Jouet mécanique : il roule tout seul un moment. */
@@ -71,7 +75,8 @@ export interface ItemDef {
 const it = (d: ItemDef): ItemDef => d;
 
 export const ITEMS: ItemDef[] = [
-  // Nourriture.
+  // Nourriture. D-97 : les croquettes des gamelles, par sacs.
+  it({ id: BALANCE.kibble.itemId, label: `Sac de croquettes (${BALANCE.kibble.pack} repas)`, category: 'food', shape: 'sack', colors: [0xd9a05b, 0x8a5a2e], price: BALANCE.kibble.price, resale: 0, pack: BALANCE.kibble.pack }),
   it({ id: 'patee', label: 'Pâtée tendre', category: 'food', shape: 'can', colors: [0xc0604a, 0xf2e2c4], price: 60, resale: 20, food: { hunger: 60 } }),
   it({ id: 'biscuit', label: 'Biscuit croquant', category: 'food', shape: 'biscuit', colors: [0xd9a05b, 0x9c6b2f], price: 20, resale: 8, food: { hunger: 10, treat: true } }),
   it({ id: 'os', label: 'Os à mâcher', category: 'food', shape: 'bone', colors: [0xf3e7cf, 0xb99a6a], price: 40, resale: 15, food: { hunger: 15, treat: true } }),

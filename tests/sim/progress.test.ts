@@ -156,7 +156,7 @@ describe('Déblocages', () => {
     const save = { ...createNewGame(T0, 1), masterPoints: 12_000 };
     const once = grantUnlocks(save);
     expect(once.unlockTier).toBe(4);
-    expect(once.inventory).toEqual({ ballon: 1, canape: 1, 'souris-meca': 1 });
+    expect(once.inventory).toEqual({ [BALANCE.kibble.itemId]: BALANCE.kibble.start, ballon: 1, canape: 1, 'souris-meca': 1 });
     expect(grantUnlocks(once)).toBe(once);
   });
 

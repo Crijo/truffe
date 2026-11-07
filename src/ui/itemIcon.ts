@@ -6,6 +6,7 @@ const hex = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 /** Corps du dessin : `a` est la couleur principale, `b` la seconde. */
 const SHAPES: Record<ItemShape, (a: string, b: string) => string> = {
   can: (a, b) => `<rect x="12" y="12" width="24" height="26" rx="4" fill="${a}"/><rect x="12" y="20" width="24" height="10" fill="${b}"/><ellipse cx="24" cy="12" rx="12" ry="3" fill="${b}"/>`,
+  sack: (a, b) => `<path d="M14 14h20l4 26H10z" fill="${a}"/><path d="M14 14l4-5h12l4 5" fill="${b}"/><circle cx="20" cy="30" r="2" fill="${b}"/><circle cx="27" cy="27" r="2" fill="${b}"/><circle cx="25" cy="34" r="2" fill="${b}"/>`,
   biscuit: (a, b) => `<path d="M10 22a6 6 0 0 1 6-10h16a6 6 0 0 1 6 10 6 6 0 0 1-6 10H16a6 6 0 0 1-6-10z" fill="${a}"/><circle cx="19" cy="22" r="1.6" fill="${b}"/><circle cx="25" cy="20" r="1.6" fill="${b}"/><circle cx="30" cy="24" r="1.6" fill="${b}"/>`,
   bone: (a, b) => `<path d="M14 18a4 4 0 1 1 4-6l12 0a4 4 0 1 1 4 6 4 4 0 1 1-4 6H18a4 4 0 1 1-4-6z" fill="${a}" stroke="${b}" stroke-width="2"/>`,
   bottle: (a, b) => `<rect x="17" y="16" width="14" height="22" rx="4" fill="${a}" stroke="${b}" stroke-width="2"/><rect x="20" y="9" width="8" height="7" rx="2" fill="${b}"/>`,

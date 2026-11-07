@@ -20,7 +20,7 @@ function hash(s: string): number {
 /** F-ECO-3 : la brocante change chaque jour (même stock toute la journée). */
 export function marketStock(dayKey: string): { itemId: ItemId; price: number }[] {
   const rng = createRng(hash(`brocante-${dayKey}`));
-  const pool = ITEMS.filter((i) => !i.unlock && (i.category !== 'found' || i.rare));
+  const pool = ITEMS.filter((i) => !i.unlock && !i.pack && (i.category !== 'found' || i.rare));
   const picks: ItemDef[] = [];
   while (picks.length < E.marketSize && picks.length < pool.length) {
     const it = rng.pick(pool);
@@ -67,7 +67,8 @@ export function lose(save: SaveGame, itemId: ItemId): SaveGame | null {
 
 export function buy(save: SaveGame, itemId: ItemId, price: number): SaveGame {
   if (!ITEM_BY_ID[itemId] || save.coins < price) return save;
-  return gain({ ...save, coins: save.coins - price }, itemId);
+  // D-97 : un sac de croquettes donne plusieurs portions.
+  return gain({ ...save, coins: save.coins - price }, itemId, ITEM_BY_ID[itemId]?.pack ?? 1);
 }
 
 export function sell(save: SaveGame, itemId: ItemId): SaveGame {

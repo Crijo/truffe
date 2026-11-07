@@ -31,8 +31,8 @@ describe('Objets (critère : au moins 30, aucun objet de marque)', () => {
     for (const i of ITEMS) expect(i.label).not.toMatch(brands);
   });
 
-  it('chaque objet se revend, et la boutique vend nourriture, jouets, accessoires et soins', () => {
-    for (const i of ITEMS) expect(i.resale).toBeGreaterThan(0);
+  it('chaque objet se revend (sauf les croquettes, D-97), et la boutique vend nourriture, jouets, accessoires et soins', () => {
+    for (const i of ITEMS.filter((x) => !x.pack)) expect(i.resale).toBeGreaterThan(0);
     const cats = new Set(shopCatalog().map((i) => i.category));
     expect(cats).toEqual(new Set(['food', 'toy', 'accessory', 'care']));
   });

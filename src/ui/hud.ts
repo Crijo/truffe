@@ -41,6 +41,8 @@ export interface HudHandlers {
   setTool(tool: CareTool | null): void;
   /** D-88 : ouvre la salle de bain avec le chiot actif. */
   bath(): void;
+  /** D-97 : portions de croquettes en stock. */
+  kibble(): number;
   /** D-91 : ménage du salon ; nombre de taches. */
   chores(): void;
   dirtCount(): number;
@@ -132,6 +134,10 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   const choresBadge = el('small', 'hint');
   iChores.append(choresBadge);
   for (const i of [iFood, iWater]) i.append(el('small', 'hint', UI.dragHint));
+  // D-97 : le stock de croquettes, sous la gamelle.
+  const kibbleLeft = el('small', 'hint kibble-left');
+  kibbleLeft.dataset.testid = 'kibble-left';
+  iFood.append(kibbleLeft);
   const toyItems = (['ball', 'disc', 'rope'] as const).map((k) => {
     const b = button(k, TOY_LABELS[k], 'item');
     b.dataset.testid = `item-${k}`;
@@ -316,6 +322,9 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
       const rope = toyItems[2];
       if (rope) rope.hidden = !h.ropeUnlocked();
       putAway.hidden = h.toysOut() === 0;
+      const k = h.kibble();
+      kibbleLeft.textContent = k > 0 ? UI.kibbleLeft.replace('{n}', String(k)) : UI.kibbleNone;
+      iFood.classList.toggle('empty', k === 0);
       const n = h.dirtCount();
       choresBadge.textContent = n > 0 ? CHORES.count.replace('{n}', String(n)) : CHORES.clean;
     }
@@ -418,6 +427,11 @@ export function mountHud(root: HTMLElement, h: HudHandlers): { toast(text: strin
   ] as const) {
     item.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      if (kind === 'food' && h.kibble() === 0) {
+        show(null);
+        toast(UI.kibbleBuy);
+        return;
+      }
       capturePointer(item, e.pointerId);
       const x0 = e.clientX;
       const y0 = e.clientY;

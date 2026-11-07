@@ -218,6 +218,10 @@ export const BATH = {
 } as const;
 
 export const UI = {
+  /** D-97 */
+  kibbleLeft: '{n} repas',
+  kibbleNone: 'Plus de croquettes',
+  kibbleBuy: 'Plus de croquettes : achète un sac à la boutique (Sortir → Boutique).',
   /** D-90 */
   basket: 'Panier',
   putAway: 'Ranger les jouets',

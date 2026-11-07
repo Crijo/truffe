@@ -159,7 +159,7 @@ export function createNewGame(now: number, seed: number): SaveGame {
     masterPoints: 0,
     xp: 0,
     unlockTier: 0,
-    inventory: {},
+    inventory: { [BALANCE.kibble.itemId]: BALANCE.kibble.start },
     discovered: { items: [], tricks: [] },
     dogs: [],
     homeDogIds: [],
@@ -604,6 +604,11 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       return gestureAll(state, action.gesture, action.dogId ?? homeId(state));
     case 'care/bowl': {
       const CA = BALANCE.care;
+      // D-97 : une nouvelle gamelle de croquettes prend une portion ; déplacer celle qui est servie, non.
+      const K = BALANCE.kibble;
+      const refill = action.kind === 'food' && !state.bowls.some((b) => b.kind === 'food');
+      if (refill && (state.save.inventory[K.itemId] ?? 0) < 1) return state;
+      if (refill) state = { ...state, save: { ...state.save, inventory: { ...state.save.inventory, [K.itemId]: (state.save.inventory[K.itemId] ?? 0) - 1 } } };
       let pos = action.at
         ? { x: Math.min(F.maxX, Math.max(F.minX, action.at.x)), z: Math.min(F.maxZ, Math.max(F.minZ + 0.15, action.at.z)) }
         : { ...CA.bowlSpots[action.kind] };

@@ -2005,3 +2005,13 @@ body:not([data-mode='living']) .toy-basket {
     background: #dcecf3;
   }
 }
+
+/* D-97 : plus de croquettes. */
+.sheet .item.empty {
+  opacity: 0.55;
+}
+
+.sheet .item .kibble-left {
+  font-weight: 700;
+  color: #8a5a2b;
+}

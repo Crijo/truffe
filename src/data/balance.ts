@@ -362,6 +362,9 @@ export const BALANCE = {
   },
 
   /** F-ECO. */
+  /** D-97 : croquettes à acheter. Un sac de la boutique donne `pack` portions ; une gamelle en prend une. */
+  kibble: { itemId: 'croquettes', start: 10, pack: 10, price: 40 },
+
   economy: {
     /** F-ECO-2 : plafond quotidien de points de maître par chiot (hors concours). */
     dailyPointsCap: 200,

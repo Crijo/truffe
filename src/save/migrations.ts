@@ -55,6 +55,11 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
     const each = dogs.length > 0 ? Math.round(pts / dogs.length) : 0;
     return { xp: pts, ...raw, dogs: dogs.map((d) => (isObj(d) ? { xp: each, ...d } : d)) };
   },
+  // v9 → v10 : croquettes à acheter (D-97) : chacun reçoit le stock de départ.
+  9: (raw) => {
+    const inv = isObj(raw.inventory) ? raw.inventory : {};
+    return { ...raw, inventory: { [BALANCE.kibble.itemId]: BALANCE.kibble.start, ...inv } };
+  },
   // v8 → v9 : salon qui se salit (D-91) : propre au départ.
   8: (raw) => ({ dirt: [], dirtClockAt: isNum(raw.lastSeenAt) ? raw.lastSeenAt : 0, ...raw }),
   // v7 → v8 : amusement (D-82).

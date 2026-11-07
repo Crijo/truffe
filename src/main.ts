@@ -932,7 +932,7 @@ async function boot(): Promise<void> {
           const s0 = store.getState().save;
           const worn = dogOf()?.equipped ?? [];
           return Object.entries(s0.inventory)
-            .filter(([, n]) => n > 0)
+            .filter(([id, n]) => n > 0 && !ITEM_BY_ID[id]?.pack)
             .map(([id, count]) => ({ id, count, worn: worn.includes(id) }));
         },
         use(id) {
@@ -1008,6 +1008,7 @@ async function boot(): Promise<void> {
         startChores();
       },
       dirtCount: () => store.getState().save.dirt.length,
+      kibble: () => store.getState().save.inventory[BALANCE.kibble.itemId] ?? 0,
       armToy(kind) {
         sfx.unlock();
         hand.arm(kind);

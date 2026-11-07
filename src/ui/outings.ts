@@ -144,7 +144,8 @@ export function openMarket(h: OutingHandlers, onClose: () => void): void {
       buyList.append(c);
     }
     sellList.innerHTML = '';
-    const owned = Object.entries(inv).filter(([, n]) => n > 0);
+    // D-97 : les croquettes ne se revendent pas.
+    const owned = Object.entries(inv).filter(([id, n]) => n > 0 && !ITEM_BY_ID[id]?.pack);
     if (owned.length === 0) sellList.append(el('p', 'hint', OUT.nothingToSell));
     for (const [id, n] of owned) {
       const def = ITEM_BY_ID[id];
