@@ -37,6 +37,7 @@ import { extendRoute, maxMeters, routeMeters, stepBonus, walkGains } from './sim
 import { WalkScene } from './render/walkScene';
 import { BathScene } from './render/bathScene';
 import { DirtView } from './render/dirt';
+import { GardenView } from './render/garden';
 import { mountChoresHud } from './ui/chores';
 import { mountBathHud, STAGE_TOOL } from './ui/bath';
 import { openBook, openMarket, openOutings, type OutingHandlers } from './ui/outings';
@@ -199,6 +200,8 @@ async function boot(): Promise<void> {
     let lastViewX = 0;
     let press: { x: number; y: number; free: boolean } | null = null;
     let panning: { x0: number; cam0: number } | null = null;
+    /** D-98 : appui commencé sur la porte (elle s'ouvre si le doigt ne glisse pas). */
+    let doorPress: { x: number; y: number } | null = null;
     /** Pixels de caméra par unité de sol, à mi-profondeur. */
     const pxPerUnit = (): number => {
       const r = stage.room;
@@ -327,6 +330,22 @@ async function boot(): Promise<void> {
     const toysView = new ToysView(layer, stage.room);
     const poopsView = new PoopsView(layer, stage.room);
     const dirtView = new DirtView(layer, stage.room);
+    const gardenView = new GardenView(layer, stage.room);
+    /** D-98 : aller au jardin ou rentrer ; la vue revient au milieu. */
+    let gardenTipShown = false;
+    const goPlace = (place: 'home' | 'garden'): void => {
+      sfx.unlock();
+      store.dispatch({ type: 'place/go', place });
+      viewCam = 0;
+      cam = 0;
+      stage.setCamera(0);
+      music.setScene(place === 'garden' ? 'outdoor' : 'home');
+      if (place === 'garden' && !gardenTipShown) {
+        gardenTipShown = true;
+        toast(OUT.gardenTip);
+      }
+      save();
+    };
     let tool: CareTool | null = null;
 
     /**
@@ -433,6 +452,8 @@ async function boot(): Promise<void> {
 
     const save = () => void autosave.saveNow();
     const outings: OutingHandlers = {
+      openGarden: () => goPlace(store.getState().place === 'garden' ? 'home' : 'garden'),
+      inGarden: () => store.getState().place === 'garden',
       openBath: () => {
         sfx.unlock();
         startBath();
@@ -603,6 +624,10 @@ async function boot(): Promise<void> {
      * un glissé à côté fait glisser la vue. Tout propre (ou « Terminer ») : bilan.
      */
     const startChores = (): void => {
+      if (store.getState().place === 'garden') {
+        toast(OUT.choresInside);
+        return;
+      }
       if (store.getState().save.dirt.length === 0) {
         toast(CHORES.clean);
         return;
@@ -711,7 +736,7 @@ async function boot(): Promise<void> {
         save();
         mode = salon;
         document.body.dataset.mode = 'living';
-        music.setScene('home');
+        music.setScene(store.getState().place === 'garden' ? 'outdoor' : 'home');
       };
       const hud = mountWalkHud({
         finish: () => store.dispatch({ type: 'walk/finish' }),
@@ -1067,6 +1092,17 @@ async function boot(): Promise<void> {
     // Sons de chaque chiot ; annonces des déblocages.
     let bulbHinted = false;
     let tier = store.getState().save.unlockTier;
+    // D-98 : ce que le chiot a trouvé en creusant.
+    let lastDigSeen: string | null = null;
+    store.subscribe((s) => {
+      const d = s.lastDig;
+      if (!d || d.spotId === lastDigSeen) return;
+      lastDigSeen = d.spotId;
+      const name = s.save.dogs.find((x) => x.id === d.dogId)?.name || KENNEL.renameTitle;
+      const item = d.itemId ? ITEM_BY_ID[d.itemId]?.label : null;
+      toast(item ? OUT.dugFound.replace('{name}', name).replace('{item}', item) : OUT.dugNothing.replace('{name}', name));
+      sfx.play(item ? 'learned' : 'sniff');
+    });
     // D-78 : annonces des niveaux.
     let playerLevel = levelOf(store.getState().save.xp).level;
     const dogLevels = new Map(store.getState().save.dogs.map((d) => [d.id, levelOf(d.xp).level]));
@@ -1139,6 +1175,17 @@ async function boot(): Promise<void> {
             save();
             return true;
           }
+          // D-98 : toucher un tas de terre l'envoie creuser ; toucher la porte change de pièce.
+          const mound = store.getState().place === 'garden' ? gardenView.hitTest(x, y) : null;
+          if (mound) {
+            store.dispatch({ type: 'garden/dig', spotId: mound });
+            return true;
+          }
+          // La porte s'ouvre d'un toucher ; un glissé qui commence dessus fait glisser la vue.
+          if (!dogAt(x, y) && stage.doorAt(x, y)) {
+            doorPress = { x, y };
+            return true;
+          }
           // D-89 : un repère au bord de l'écran emmène la vue vers ce chiot.
           const far = edgeAt(x, y);
           if (far) {
@@ -1166,6 +1213,11 @@ async function boot(): Promise<void> {
           return true;
         },
         move: (x, y, t) => {
+          if (doorPress && Math.hypot(x - doorPress.x, y - doorPress.y) > BALANCE.gestures.tapMaxMovePx) {
+            panning = { x0: doorPress.x, cam0: viewCam };
+            doorPress = null;
+          }
+          if (doorPress) return;
           if (panning) {
             viewCam = clampView(panning.cam0 + (x - panning.x0));
             return;
@@ -1174,6 +1226,11 @@ async function boot(): Promise<void> {
         },
         up: (x, y, t) => {
           press = null;
+          if (doorPress) {
+            doorPress = null;
+            goPlace(store.getState().place === 'garden' ? 'home' : 'garden');
+            return;
+          }
           if (panning) {
             panning = null;
             return;
@@ -1182,6 +1239,7 @@ async function boot(): Promise<void> {
         },
         cancel: () => {
           press = null;
+          doorPress = null;
           panning = null;
           hand.cancel();
         },
@@ -1208,8 +1266,13 @@ async function boot(): Promise<void> {
         drawEdges(s);
         showBasket(t);
         bowls.update(s.bowls, am);
-        poopsView.update(s.save.poops, t);
-        dirtView.update(s.save.dirt, document.body.dataset.mode === 'chores');
+        // D-98 : besoins et taches sont au salon ; les tas de terre au jardin.
+        const home = s.place === 'home';
+        stage.setPlace(s.place);
+        document.body.dataset.place = s.place;
+        poopsView.update(home ? s.save.poops : [], t);
+        dirtView.update(home ? s.save.dirt : [], document.body.dataset.mode === 'chores');
+        gardenView.update(home ? [] : s.save.garden.spots, t);
         toysView.update(dtMs, s.toys, hand.hand, (id) => {
           const v = views.get(id);
           if (!v) return null;
@@ -1220,7 +1283,7 @@ async function boot(): Promise<void> {
     };
 
     if (DEBUG) {
-      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null, poopsOnScreen: () => poopsView.targets(), dirtOnScreen: () => dirtView.targets(), camera: () => stage.room.camX, edges: () => edgeMarks };
+      const debugProbe: DebugProbe = { store, dogId: aid(), latencies, probe, fps: () => stage.app.ticker.FPS, rewind: (ms) => rewind(store, ms), bulb: () => av()?.bulbScreen() ?? null, poopsOnScreen: () => poopsView.targets(), moundsOnScreen: () => gardenView.targets(), doorAt: (x: number, y: number) => stage.doorAt(x, y), dirtOnScreen: () => dirtView.targets(), camera: () => stage.room.camX, edges: () => edgeMarks };
       mountDebug(debugProbe);
     }
 

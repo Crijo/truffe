@@ -21,6 +21,9 @@ export interface OutingHandlers {
   openMap(): void;
   /** D-96 : la salle de bain est un endroit du menu, plus un objet du Sac. */
   openBath(): void;
+  /** D-98 : aller au jardin, ou rentrer au salon. */
+  openGarden(): void;
+  inGarden(): boolean;
   openContests(): void;
   openKennel(): void;
   openFamily(): void;
@@ -190,6 +193,12 @@ export function openOutings(h: OutingHandlers, onClose: () => void): void {
     p.root.remove();
     h.openBath();
   });
+  const outside = h.inGarden();
+  const garden = btn(`${outside ? ICONS.home : ICONS.tree}<strong>${outside ? OUT.home : OUT.garden}</strong><small>${outside ? OUT.homeHint : OUT.gardenHint}</small>`, 'out-choice', 'out-garden');
+  garden.addEventListener('click', () => {
+    p.root.remove();
+    h.openGarden();
+  });
   const contests = btn(`${ICONS.trophy}<strong>${CONTEST.title}</strong><small>${CONTEST.hint}</small>`, 'out-choice', 'out-contests');
   const kennel = btn(`${ICONS.home}<strong>${KENNEL.title}</strong><small>${FAMILY.adoptHint}</small>`, 'out-choice', 'out-kennel');
   const family = btn(`${ICONS.paw}<strong>${FAMILY.title}</strong><small>${FAMILY.hint}</small>`, 'out-choice', 'out-family');
@@ -203,7 +212,7 @@ export function openOutings(h: OutingHandlers, onClose: () => void): void {
       go();
     });
   }
-  grid.append(bath, walk, contests, shop, market, kennel, family);
+  grid.append(garden, bath, walk, contests, shop, market, kennel, family);
   p.body.append(grid);
 }
 

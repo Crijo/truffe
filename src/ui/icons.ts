@@ -38,6 +38,7 @@ export const ICONS = {
   you: svg('<circle cx="24" cy="16" r="8"/><path d="M9 41c1-9 7-14 15-14s14 5 15 14"/>'),
   basket: svg('<path d="M6 20h36l-4 20H10z"/><path d="M14 20l6-12M34 20l-6-12"/><path d="M9 28h30M11 34h26M18 20v20M24 20v20M30 20v20"/>'),
   sponge: svg('<rect x="8" y="16" width="32" height="20" rx="6"/><circle cx="17" cy="24" r="2"/><circle cx="27" cy="28" r="2.5"/><circle cx="32" cy="22" r="1.5"/><path d="M12 12c2-3 5-3 7 0M30 10c2-3 5-3 7 0"/>'),
+  tree: svg('<circle cx="24" cy="18" r="12"/><path d="M24 30v12M17 42h14M18 22l6 4 6-6"/>'),
   paw: svg('<ellipse cx="24" cy="31" rx="9" ry="7"/><circle cx="13" cy="20" r="3.5"/><circle cx="20" cy="13" r="3.5"/><circle cx="28" cy="13" r="3.5"/><circle cx="35" cy="20" r="3.5"/>'),
 } as const;
 

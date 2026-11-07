@@ -15,6 +15,9 @@ export interface DebugProbe {
   poopsOnScreen?: (() => { id: string; x: number; y: number }[]) | undefined;
   /** D-83 : décalage de la caméra du salon (pixels). */
   camera?: (() => number) | undefined;
+  /** D-98 : tas du jardin à l'écran ; la porte est-elle sous ce point ? */
+  moundsOnScreen?: (() => { id: string; x: number; y: number }[]) | undefined;
+  doorAt?: ((x: number, y: number) => boolean) | undefined;
   /** D-91 : taches du salon, à l'écran. */
   dirtOnScreen?: (() => { id: string; x: number; y: number }[]) | undefined;
   /** D-89 : repères des chiots hors de la vue. */
