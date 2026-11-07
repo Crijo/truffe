@@ -4,11 +4,9 @@ Jeu web de chiot virtuel. La spécification fait foi : `SPEC.md`. Les choix pris
 
 ## Jalon en cours
 
-Les jalons 0 à 7 de la spec, le jalon 8 (retours de bêta : pelage, saleté, besoins, obéissance, saisons, niveaux, tracé en concours, atelier des tours, pas réels), le jalon 9 (fenêtre, profondeur et décor de promenade, jauge « Amusement », lancer hors de l'écran) le jalon 10 (salle de bain, ménage, salon navigable, panier, promenade variée et plus rapide, XP séparées, carlin) le jalon 11 (main et pommeau dessinés par le joueur) et le jalon 12 (salle de bain dans le menu, jardin et trous à trésors, croquettes à acheter, Sac qui défile, prix au chenil) et le jalon 13 (appli Android, mises à jour à distance) sont validés.
+Les jalons 0 à 7 de la spec, le jalon 8 (retours de bêta : pelage, saleté, besoins, obéissance, saisons, niveaux, tracé en concours, atelier des tours, pas réels), le jalon 9 (fenêtre, profondeur et décor de promenade, jauge « Amusement », lancer hors de l'écran) le jalon 10 (salle de bain, ménage, salon navigable, panier, promenade variée et plus rapide, XP séparées, carlin) le jalon 11 (main et pommeau dessinés par le joueur) et le jalon 12 (salle de bain dans le menu, jardin et trous à trésors, croquettes à acheter, Sac qui défile, prix au chenil) le jalon 13 (appli Android, mises à jour à distance) et le jalon 14 (fenêtre de mise à jour avec les nouveautés) sont validés. Aucun jalon en cours : toute nouvelle demande du joueur ouvre un nouveau jalon, avec la même méthode.
 
-**Jalon 14 : fenêtre de mise à jour** — au lancement de l'appli, une fenêtre annonce la mise à jour disponible et ses nouveautés. En attente de l'accord du joueur.
-
-Jalons 0 à 13 : validés. Jalon 14 : en attente de l'accord du joueur. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
+Jalons 0 à 14 : validés. Si une session s'interrompt, reprendre à la première étape non commitée du jalon (voir `git log`).
 
 Chaque jalon est publié dans l'appli Android (D-102) : avant le dernier envoi du jalon, écrire ses nouveautés dans `public/app-notes.json` (un titre « Jalon N : … » et quelques lignes simples pour le joueur) ; l'envoi sur `main` les publie avec la mise à jour, et l'appli les montre dans sa fenêtre au lancement. Vérifier ensuite `https://crijo.github.io/truffe/app/latest.json` et la release `truffe.apk`.
 
