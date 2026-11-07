@@ -28,7 +28,7 @@ import { accumulateFur, addDirt, choresResult, pawTrail, roomIsDirty, scrubDirt,
 import { workshopOpen, type WorkshopTrick } from './workshop';
 import { awardPoints, buy, gain, lose, marketStock, sell, shopCatalog, toggleEquip } from './economy';
 import { finishWalk, pickUp, questionPoints, rewardable, startWalk, stepBonus, stepWalk, walkGains, type QuestionPoint, type Route, type WalkState } from './walk';
-import { ITEM_BY_ID, type ItemId } from '../data/items';
+import { FINDABLE, ITEM_BY_ID, type ItemId } from '../data/items';
 import type { TrickId } from '../data/tricks';
 import type { ContestId, VoiceTemplate } from './state';
 import { availableBreeds, availableDecors, grantUnlocks, itemLocked } from './unlocks';
@@ -70,6 +70,9 @@ export interface GameState {
   night: boolean;
   /** D-89 : x du sol au milieu de la vue du salon (le joueur la fait glisser). */
   viewX: number;
+  /** D-98 : salon ou jardin ; ce que le dernier trou a donné (pour l'annoncer). */
+  place: 'home' | 'garden';
+  lastDig: { spotId: string; itemId: ItemId | null; dogId: DogId } | null;
   /** D-91 : ménage en cours, et le bilan du dernier. */
   chores: ChoresRun | null;
   choresResult: ChoresResult | null;
@@ -81,6 +84,9 @@ export type GameAction =
   | { type: 'tick'; now: number; dtMs: number; tzOffsetMin: number }
   /** D-89 : le joueur fait glisser la vue du salon. */
   | { type: 'view/pan'; x: number }
+  /** D-98 : aller au jardin ou rentrer ; faire creuser un tas. */
+  | { type: 'place/go'; place: 'home' | 'garden' }
+  | { type: 'garden/dig'; spotId: string }
   /** D-91 : ménage à l'éponge. */
   | { type: 'chores/start' }
   | { type: 'chores/scrub'; dirtId: string; px: number }
@@ -170,11 +176,12 @@ export function createNewGame(now: number, seed: number): SaveGame {
     poops: [],
     dirt: [],
     dirtClockAt: now,
+    garden: { dayKey: '', spots: [] },
   };
 }
 
 export function createGameState(save: SaveGame): GameState {
-  return { save, minds: {}, bowls: [], nextBowlId: 1, toys: [], nextToyId: 1, kennel: null, walk: null, contest: null, active: null, night: false, viewX: 0, chores: null, choresResult: null };
+  return { save, minds: {}, bowls: [], nextBowlId: 1, toys: [], nextToyId: 1, kennel: null, walk: null, contest: null, active: null, night: false, viewX: 0, chores: null, choresResult: null, place: 'home', lastDig: null };
 }
 
 /** Chiens à nommer : ceux des jalons 1 et 2 n'avaient pas de nom. */
@@ -209,6 +216,7 @@ function contextOf(dog: Dog, state: GameState): PuppyContext {
     selfId: dog.id,
     friends: friendsOf(dog, state),
     viewX: state.viewX,
+    outside: state.place === 'garden',
     traits: dog.traits,
     affection: dog.affection,
     energy: dog.needs.energy,
@@ -292,7 +300,7 @@ function applyEffects(state: GameState, dogId: DogId, fx: Effects): GameState {
   if (fx.bowlEaten) {
     // D-91 : un repas laisse parfois des miettes autour de la gamelle.
     const bowl = s.bowls.find((b) => b.id === fx.bowlEaten);
-    if (bowl?.kind === 'food') {
+    if (bowl?.kind === 'food' && s.place === 'home') {
       const rng = createRng(s.save.rngState);
       const crumbs = rng.next() < BALANCE.chores.crumbChance;
       const at = { x: bowl.pos.x + rng.range(-0.12, 0.12), z: Math.min(0.9, bowl.pos.z + rng.range(0.02, 0.08)) };
@@ -301,6 +309,7 @@ function applyEffects(state: GameState, dogId: DogId, fx: Effects): GameState {
     }
     s = { ...s, bowls: s.bowls.filter((b) => b.id !== fx.bowlEaten) };
   }
+  if (fx.dug) s = dugSpot(s, dogId, fx.dug);
   if (fx.toyGrab) s = setToy(s, fx.toyGrab, (t) => ({ ...t, state: 'carried', carrier: dogId, v: { x: 0, z: 0, h: 0 } }));
   if (fx.toyTug) s = { ...setToy(s, fx.toyTug, (t) => ({ ...t, state: 'tug', carrier: dogId })), save: amuse(s.save, dogId, BALANCE.needs.fun.tug) };
   if (fx.toyRelease) s = setToy(s, fx.toyRelease, (t) => ({ ...t, state: 'held', carrier: null }));
@@ -443,6 +452,34 @@ function stepContest(state: GameState, dtMs: number): GameState {
   return { ...state, save, contest: { ...c, run, result: r.result } };
 }
 
+/** D-98 : les tas de terre du jour (tirés à la première visite de la journée). */
+function gardenOfToday(save: SaveGame): SaveGame {
+  const G = BALANCE.garden;
+  const key = save.day.dayKey;
+  if (save.garden.dayKey === key && save.garden.spots.length > 0) return save;
+  const rng = createRng(save.rngState);
+  const R = BALANCE.puppy.roam;
+  const spots = Array.from({ length: G.spots }, (_, i) => ({
+    id: `trou-${key}-${i}`,
+    // Répartis sur la largeur du jardin, un par tranche, pour ne pas se toucher.
+    pos: { x: R.minX + 0.3 + ((i + rng.range(0.2, 0.8)) * (R.maxX - R.minX - 0.6)) / G.spots, z: rng.range(0.3, 0.85) },
+    item: rng.next() < G.treasureChance ? rng.pick(FINDABLE) : null,
+    dug: false,
+  }));
+  return { ...save, rngState: rng.getState(), garden: { dayKey: key, spots } };
+}
+
+/** D-98 : le chiot a fini de creuser : le trésor (s'il y en a un) va dans le Sac. */
+function dugSpot(state: GameState, dogId: DogId, spotId: string): GameState {
+  const spot = state.save.garden.spots.find((p) => p.id === spotId);
+  if (!spot || spot.dug) return state;
+  let save: SaveGame = { ...state.save, garden: { ...state.save.garden, spots: state.save.garden.spots.map((p) => (p.id === spotId ? { ...p, dug: true } : p)) } };
+  if (spot.item) save = gain(save, spot.item);
+  save = amuse(save, dogId, BALANCE.garden.digFun);
+  save = awardXp(save, dogId, 'toy');
+  return { ...state, save, lastDig: { spotId, itemId: spot.item, dogId } };
+}
+
 /** D-91 : les poils tombés depuis la dernière fois (le tirage suit la graine de la partie). */
 function furOf(save: SaveGame): SaveGame {
   if (save.lastSeenAt - save.dirtClockAt < BALANCE.chores.furEveryMs) return save;
@@ -469,7 +506,8 @@ function homeRelief(state: GameState, now: number): GameState {
     const dog = s.save.dogs.find((d) => d.id === id);
     const mind = s.minds[id];
     if (!dog || now - dog.lastReliefAt < P.intervalMs || mind?.activity === 'sleep') continue;
-    if (s.save.poops.length >= P.max) {
+    // D-98 : au jardin, il fait ses besoins dehors : rien à ramasser.
+    if (s.save.poops.length >= P.max || s.place === 'garden') {
       s = { ...s, save: { ...s.save, dogs: s.save.dogs.map((d) => (d.id === id ? { ...d, lastReliefAt: now } : d)) } };
       continue;
     }
@@ -728,6 +766,19 @@ function reduceAction(state: GameState, action: GameAction): GameState {
       if (dogId && result.points > 0) save = awardPoints(save, dogId, result.points);
       if (dogId && result.cleaned > 0) save = awardXp(save, dogId, 'chores', result.cleaned);
       return { ...state, save, chores: null, choresResult: result };
+    }
+    case 'place/go': {
+      if (action.place === state.place || state.walk || state.contest) return state;
+      // Gamelles et jouets restent à la maison (les jouets retournent dans le panier).
+      const minds = Object.fromEntries(Object.entries(state.minds).map(([id, m]) => [id, { ...m, holding: null, toyPlan: null, tug: null, digPlan: null, target: null }]));
+      const s1: GameState = { ...state, place: action.place, bowls: [], toys: [], viewX: 0, minds, lastDig: null };
+      return action.place === 'garden' ? { ...s1, save: gardenOfToday(s1.save) } : s1;
+    }
+    case 'garden/dig': {
+      const spot = state.save.garden.spots.find((p) => p.id === action.spotId);
+      const id = homeId(state);
+      if (state.place !== 'garden' || !spot || spot.dug || !id) return state;
+      return gestureAll(state, { kind: 'digAt', at: spot.pos, spotId: spot.id }, id);
     }
     case 'view/pan': {
       const max = BALANCE.puppy.roam.maxView;

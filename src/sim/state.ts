@@ -72,6 +72,14 @@ export interface Dog {
   visited: { park: boolean; gym: boolean; market: boolean };
 }
 
+/** D-98 : un petit tas de terre ; `item` : le trésor qu'il cache (ou rien). */
+export interface GardenSpot {
+  id: string;
+  pos: { x: number; z: number };
+  item: ItemId | null;
+  dug: boolean;
+}
+
 export interface Poop {
   id: string;
   dogId: DogId;
@@ -132,6 +140,8 @@ export interface SaveGame {
   stats: { sessions: number };
   /** D-74 : besoins à ramasser au salon. */
   poops: Poop[];
+  /** D-98 : tas de terre du jardin, tirés pour la journée `dayKey`. */
+  garden: { dayKey: string; spots: GardenSpot[] };
   /** D-91 : taches du salon, et moment du dernier poil tombé. */
   dirt: Dirt[];
   dirtClockAt: number;

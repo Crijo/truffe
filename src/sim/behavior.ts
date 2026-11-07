@@ -38,7 +38,9 @@ export type Activity =
   | 'fear'
   | 'perform'
   /** F-VIE-4 : jouer avec un autre chiot de la maison. */
-  | 'play';
+  | 'play'
+  /** D-98 : creuser un petit tas de terre du jardin. */
+  | 'dig';
 export type Mood = 'calm' | 'happy' | 'content' | 'curious' | 'sulky' | 'startled' | 'asleep';
 export type BodyPart = 'head' | 'ear' | 'muzzle' | 'back' | 'flank' | 'belly' | 'tail' | 'paw';
 export type Gait = 'still' | 'walk' | 'trot' | 'run';
@@ -161,7 +163,9 @@ export type Gesture =
   /** D-74 : il fait ses besoins (renifle d'abord le sol). */
   | { kind: 'relieved' }
   /** D-80 : l'atelier montre un mouvement (sans dressage). */
-  | { kind: 'perform'; trick: TrickId };
+  | { kind: 'perform'; trick: TrickId }
+  /** D-98 : creuser là, au jardin. */
+  | { kind: 'digAt'; at: Vec2; spotId: string };
 
 export interface PuppyContext {
   traits: { docility: number; energy: number; boldness: number };
@@ -185,6 +189,8 @@ export interface PuppyContext {
   selfId?: string | undefined;
   /** D-89 : x du sol au milieu de ce que regarde le joueur (0 : vue de départ). */
   viewX?: number | undefined;
+  /** D-98 : au jardin. */
+  outside?: boolean | undefined;
   friends?: readonly Friend[] | undefined;
 }
 
@@ -219,6 +225,8 @@ export interface Effects {
   trainLearned: boolean;
   /** Ordre réussi : la maîtrise du tour monte. */
   masteryUp: TrickId | null;
+  /** D-98 : il a fini de creuser ce tas. */
+  dug?: string | null;
 }
 
 const SPONTANEOUS = ['sniffGround', 'scratch', 'yawn', 'shake', 'dig', 'bark', 'howl'] as const;
@@ -297,6 +305,8 @@ export interface PuppyMind {
   lastPlayAt: number;
   /** D-89 : dernière fois qu'il s'est écarté d'un autre chiot. */
   lastNudgeAt: number;
+  /** D-98 : tas du jardin à creuser ; `until` une fois qu'il y est. */
+  digPlan?: { spotId: string; at: Vec2; until: number | null } | null;
   recentOrders: number[];
   begUntil: number;
   /** Début d'un besoin urgent pendant la session (D-03). */
@@ -612,6 +622,7 @@ export function baseScores(m: PuppyMind, ctx: PuppyContext): Partial<Record<Acti
     out[a] = fetchScore;
   }
   if (m.tug) out.tug = 100;
+  if (m.digPlan) out.dig = 92;
   if (fearAvailable(m, ctx)) out.fear = TY.scores.fearBase - ctx.traits.boldness * TY.scores.fearPerBoldness;
   if (m.perform && m.perform.until > m.t) out.perform = TR.orderScore;
   if (m.play && m.play.until > m.t && friendOf(ctx, m.play.partner)) out.play = FAM.playScore + 20;
@@ -626,7 +637,7 @@ const friendOf = (ctx: PuppyContext, id: string): Friend | undefined => ctx.frie
 
 /** F-VIE-4 : un autre chiot éveillé, tout près, avec qui jouer ; ou qui l'invite. */
 function playMate(m: PuppyMind, ctx: PuppyContext): { friend: Friend; invited: boolean } | null {
-  if (!ctx.friends || ctx.night || ctx.energy < 40 || m.bath.active || m.t - m.lastPlayAt < FAM.playCooldownMs) return null;
+  if (!ctx.friends || ctx.night || ctx.energy < 40 || m.bath.active || m.t - m.lastPlayAt < FAM.playCooldownMs * (ctx.outside ? BALANCE.garden.playCooldownFactor : 1)) return null;
   for (const f of ctx.friends) {
     if (f.activity === 'play' && f.partner === ctx.selfId) return { friend: f, invited: true };
   }
@@ -779,6 +790,14 @@ function enter(m: PuppyMind, a: Activity, ctx: PuppyContext): void {
       m.postureLockUntil = 0;
       m.posture = 'stand';
       m.facing = 0;
+      break;
+    case 'dig':
+      if (m.digPlan) {
+        m.target = approachPoint(m, m.digPlan.at, 0.12);
+        m.gait = 'trot';
+        m.look = { kind: 'point', ...m.digPlan.at };
+        m.postureLockUntil = 0;
+      }
       break;
     case 'fetch':
     case 'chew': {
@@ -947,6 +966,25 @@ function updateActivity(m: PuppyMind, ctx: PuppyContext, fx: Effects): void {
           m.plan = { mode: 'idle', until: m.t + rng.range(w.idleMinMs, w.idleMaxMs) };
         }
       });
+      break;
+    }
+    case 'dig': {
+      const d = m.digPlan;
+      if (!d || m.target) break;
+      if (d.until === null) {
+        // Arrivé : il gratte la terre, nez au sol.
+        d.until = m.t + BALANCE.garden.digMs;
+        m.posture = 'stand';
+        m.facing = Math.atan2(d.at.x - m.pos.x, d.at.z - m.pos.z);
+        m.look = { kind: 'ground' };
+        emit(m, 'dig');
+      } else if (m.t >= d.until) {
+        fx.dug = d.spotId;
+        m.digPlan = null;
+        m.happyUntil = m.t + 2500;
+        m.look = { kind: 'player' };
+        emit(m, 'wiggle');
+      } else if ((d.until - m.t) % 1200 < 100) emit(m, 'dig');
       break;
     }
     case 'come':
@@ -1528,6 +1566,12 @@ export function handleGesture(mind: PuppyMind, g: Gesture, ctx: PuppyContext): {
       m.callAt = m.t + P.taps.lookBeforeComeMs;
       m.postureLockUntil = 0;
       m.curiousUntil = m.t + 2000;
+      emit(m, 'perk');
+      break;
+    case 'digAt':
+      m.digPlan = { spotId: g.spotId, at: { ...g.at }, until: null };
+      m.callUntil = NEVER;
+      m.postureLockUntil = 0;
       emit(m, 'perk');
       break;
     case 'groomStart':

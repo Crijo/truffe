@@ -58,7 +58,8 @@ const MIGRATIONS: Record<number, (raw: Raw) => Raw> = {
   // v9 → v10 : croquettes à acheter (D-97) : chacun reçoit le stock de départ.
   9: (raw) => {
     const inv = isObj(raw.inventory) ? raw.inventory : {};
-    return { ...raw, inventory: { [BALANCE.kibble.itemId]: BALANCE.kibble.start, ...inv } };
+    // D-98 : jardin, pas encore de tas.
+    return { garden: { dayKey: '', spots: [] }, ...raw, inventory: { [BALANCE.kibble.itemId]: BALANCE.kibble.start, ...inv } };
   },
   // v8 → v9 : salon qui se salit (D-91) : propre au départ.
   8: (raw) => ({ dirt: [], dirtClockAt: isNum(raw.lastSeenAt) ? raw.lastSeenAt : 0, ...raw }),

@@ -362,6 +362,12 @@ export const BALANCE = {
   },
 
   /** F-ECO. */
+  /**
+   * D-98 : jardin. Chaque jour, `spots` petits tas de terre, dont une part cache un trésor ;
+   * le chiot creuse `digMs`. Dehors, deux chiots rejouent ensemble plus vite (attente × `playCooldownFactor`).
+   */
+  garden: { spots: 4, treasureChance: 0.6, digMs: 2500, digFun: 6, playCooldownFactor: 0.4 },
+
   /** D-97 : croquettes à acheter. Un sac de la boutique donne `pack` portions ; une gamelle en prend une. */
   kibble: { itemId: 'croquettes', start: 10, pack: 10, price: 40 },
 
