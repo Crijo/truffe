@@ -6,8 +6,9 @@
 export interface UpdateManifest {
   /** Version du jeu publiée (identifiant du commit). */
   version: string;
-  /** Paquet du jeu (zip) pour cette version. */
+  /** Paquet du jeu (zip) pour cette version, et son empreinte SHA-256 (exigée par le téléchargement, D-104). */
   bundle: string;
+  checksum: string;
   /** Version de l'appli Android nécessaire pour ce paquet. */
   minNative: number;
   /** Dernière version de l'appli Android publiée, et son APK. */
@@ -45,7 +46,8 @@ export function parseManifest(raw: unknown): UpdateManifest | null {
   const m = raw as Record<string, unknown>;
   if (typeof m.version !== 'string' || m.version === '' || !https(m.bundle) || !https(m.apk)) return null;
   if (typeof m.minNative !== 'number' || typeof m.native !== 'number') return null;
-  const out: UpdateManifest = { version: m.version, bundle: m.bundle, minNative: m.minNative, native: m.native, apk: m.apk };
+  if (typeof m.checksum !== 'string' || !/^[0-9a-f]{64}$/.test(m.checksum)) return null;
+  const out: UpdateManifest = { version: m.version, bundle: m.bundle, checksum: m.checksum, minNative: m.minNative, native: m.native, apk: m.apk };
   const notes = parseNotes(m.notes);
   if (notes) out.notes = notes;
   return out;

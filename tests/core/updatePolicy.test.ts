@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { parseManifest, updateDecision } from '../../src/core/updatePolicy';
 
-const manifest = { version: 'b2', bundle: 'https://exemple.test/app/bundle-b2.zip', minNative: 1, native: 1, apk: 'https://exemple.test/truffe.apk' };
+const manifest = { version: 'b2', bundle: 'https://exemple.test/app/bundle-b2.zip', checksum: 'a'.repeat(64), minNative: 1, native: 1, apk: 'https://exemple.test/truffe.apk' };
 
 describe('D-101 : mises à jour de l’appli à distance', () => {
   it('même version : rien à faire', () => {
@@ -43,6 +43,9 @@ describe('D-101 : mises à jour de l’appli à distance', () => {
     expect(parseManifest({ version: 3 })).toBeNull();
     expect(parseManifest(null)).toBeNull();
     expect(parseManifest({ ...manifest, bundle: 'http://pas-https.test/x.zip' })).toBeNull();
+    // D-104 : sans empreinte du paquet, le téléchargement serait refusé : on ne propose rien.
+    expect(parseManifest({ ...manifest, checksum: '' })).toBeNull();
+    expect(parseManifest({ ...manifest, checksum: 'XYZ' })).toBeNull();
     expect(parseManifest(manifest)).toEqual(manifest);
   });
 });

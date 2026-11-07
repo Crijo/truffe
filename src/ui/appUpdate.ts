@@ -19,7 +19,8 @@ export async function appReady(): Promise<void> {
   await CapacitorUpdater.notifyAppReady();
 }
 
-const download = (m: UpdateManifest): Promise<BundleInfo> => CapacitorUpdater.download({ url: m.bundle, version: m.version });
+// D-104 : le module de mise à jour exige l'empreinte SHA-256 du paquet.
+const download = (m: UpdateManifest): Promise<BundleInfo> => CapacitorUpdater.download({ url: m.bundle, version: m.version, checksum: m.checksum });
 
 /** Vérifie s'il y a une mise à jour ; `say` affiche un message court (vérification demandée par le joueur). */
 export async function checkForUpdates(say?: (text: string) => void): Promise<void> {
