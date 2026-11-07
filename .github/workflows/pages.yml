@@ -32,7 +32,7 @@ jobs:
         run: |
           V=${GITHUB_SHA::7}
           TRUFFE_VERSION=$V npx vite build --mode app
-          CODE=$(grep -m1 'versionCode' android/app/build.gradle | grep -o '[0-9]\+')
+          CODE=$(grep -m1 -E '^\s*versionCode [0-9]+' android/app/build.gradle | grep -o '[0-9]\+')
           MIN=$(tr -dc '0-9' < android/min-native)
           mkdir -p dist/app
           (cd dist-app && zip -qr "../dist/app/bundle-$V.zip" .)
